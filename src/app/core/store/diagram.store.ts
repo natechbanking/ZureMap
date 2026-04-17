@@ -2,6 +2,7 @@ import { Injectable, signal, computed } from '@angular/core';
 import { AzureSubscription } from '../models/azure-resource.model';
 import { DiagramNode } from '../models/diagram-node.model';
 import { DiagramEdge } from '../models/diagram-edge.model';
+import { Annotation } from '../models/annotation.model';
 
 export type ScanPhase =
   | 'idle'
@@ -50,6 +51,17 @@ export class DiagramStore {
     unplanned: this.nodes().filter(n => n.driftStatus === 'unplanned').length,
   }));
 
+  // Annotations (free-draw, arrows, text, shapes)
+  readonly annotations = signal<Annotation[]>([]);
+
+  addAnnotation(a: Annotation): void { this.annotations.update(list => [...list, a]); }
+  updateAnnotation(id: string, changes: Partial<Annotation>): void {
+    this.annotations.update(list => list.map(a => a.id === id ? { ...a, ...changes } : a));
+  }
+  deleteAnnotation(id: string): void { this.annotations.update(list => list.filter(a => a.id !== id)); }
+  undoLastAnnotation(): void { this.annotations.update(list => list.slice(0, -1)); }
+  clearAnnotations(): void { this.annotations.set([]); }
+
   setNodes(nodes: DiagramNode[]): void { this.nodes.set(nodes); }
   setEdges(edges: DiagramEdge[]): void { this.edges.set(edges); }
 
@@ -73,6 +85,16 @@ export class DiagramStore {
   moveNode(nodeId: string, position: { x: number; y: number }): void {
     this.nodes.update(current =>
       current.map(n => n.id === nodeId ? { ...n, position } : n)
+    );
+  }
+
+  moveNodeGroup(resourceGroup: string, delta: { dx: number; dy: number }): void {
+    this.nodes.update(current =>
+      current.map(n => {
+        if ((n.metadata?.resourceGroup || n.groupId) !== resourceGroup) return n;
+        const pos = { x: Math.max(0, n.position.x + delta.dx), y: Math.max(0, n.position.y + delta.dy) };
+        return { ...n, position: pos, ...(n.isPinned ? { manualPosition: pos } : {}) };
+      })
     );
   }
 

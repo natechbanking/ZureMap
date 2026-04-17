@@ -1,4 +1,4 @@
-import { Component, inject, OnInit } from '@angular/core';
+import { Component, inject, NgZone, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import { AzAuthService } from '../../core/services/az-auth.service';
@@ -48,26 +48,29 @@ import { SubscriptionSelectorComponent } from './subscription-selector/subscript
           @case ('scanning') {
             <div>
               <div class="flex items-center justify-between mb-2">
-                <span class="text-sm text-gray-600">{{ store.scanProgress().label }}</span>
+                <span class="text-sm text-gray-700 font-medium">{{ store.scanProgress().label }}</span>
                 <span class="text-sm font-medium text-azure-blue">
-                  {{ store.scanProgress().current }}/{{ store.scanProgress().total }}
+                  Step {{ store.scanProgress().current }} of {{ store.scanProgress().total }}
                 </span>
               </div>
-              <div class="w-full bg-gray-200 rounded-full h-2">
+              <div class="w-full bg-gray-200 rounded-full h-2.5 overflow-hidden">
                 <div
-                  class="bg-azure-blue h-2 rounded-full transition-all duration-300"
+                  class="bg-azure-blue h-2.5 rounded-full transition-all duration-500"
                   [style.width.%]="progressPercent"
                 ></div>
               </div>
-              <p class="text-xs text-gray-400 mt-2">
-                {{ store.nodeCount() }} resource{{ store.nodeCount() !== 1 ? 's' : '' }} discovered
-              </p>
+              <div class="flex justify-between mt-2">
+                <span class="text-xs text-gray-400">{{ progressPercent }}% complete</span>
+              </div>
             </div>
           }
           @case ('laying-out') {
-            <div class="text-center py-4">
-              <div class="w-12 h-12 border-4 border-azure-blue border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-              <p class="text-gray-600">Computing layout...</p>
+            <div>
+              <p class="text-sm text-gray-700 font-medium mb-2">{{ store.scanProgress().label }}</p>
+              <div class="w-full bg-gray-200 rounded-full h-2.5 overflow-hidden">
+                <div class="bg-azure-blue h-2.5 rounded-full animate-pulse w-full"></div>
+              </div>
+              <p class="text-xs text-gray-400 mt-2">Arranging {{ store.nodeCount() }} nodes with ELK layout engine...</p>
             </div>
           }
           @case ('error') {
@@ -111,6 +114,7 @@ export class ScanComponent implements OnInit {
   private connectionResolver = inject(ConnectionResolverService);
   private elkLayout = inject(ELKLayoutService);
   private router = inject(Router);
+  private zone = inject(NgZone);
 
   needsLogin = false;
 
@@ -172,38 +176,41 @@ export class ScanComponent implements OnInit {
   }
 
   private async runScan(subscriptionIds: string[]): Promise<void> {
-    this.store.scanPhase.set('scanning');
-    this.store.clearDiagram();
+    const setProgress = (current: number, total: number, label: string) =>
+      this.zone.run(() => this.store.scanProgress.set({ current, total, label }));
+
+    this.zone.run(() => {
+      this.store.scanPhase.set('scanning');
+      this.store.clearDiagram();
+    });
 
     try {
-      const total = 4;
-      const setProgress = (current: number, label: string) =>
-        this.store.scanProgress.set({ current, total, label });
+      const total = 5;
 
-      setProgress(1, 'Querying all resources...');
+      setProgress(1, total, 'Querying all resources...');
       const allResources = await this.resourceGraph.queryAllResources(subscriptionIds).toPromise() ?? [];
+      setProgress(2, total, `Found ${allResources.length} resources — fetching VNet topology...`);
 
-      setProgress(2, 'Fetching VNet topology...');
       const vnetResources = await this.resourceGraph.queryVNetTopology(subscriptionIds).toPromise() ?? [];
+      setProgress(3, total, `Resolving private endpoints...`);
 
-      setProgress(3, 'Resolving private endpoints...');
       const peResources = await this.resourceGraph.queryPrivateEndpoints(subscriptionIds).toPromise() ?? [];
-
       const merged = this.mergeDedup([...allResources, ...vnetResources, ...peResources]);
 
-      setProgress(4, 'Mapping resources to diagram...');
+      setProgress(4, total, `Mapping ${merged.length} resources to diagram nodes...`);
       const nodes = this.mapper.mapResources(merged);
       const edges = this.connectionResolver.resolveAll(merged, nodes);
+      this.zone.run(() => { this.store.setNodes(nodes); this.store.setEdges(edges); });
 
-      this.store.setNodes(nodes);
-      this.store.setEdges(edges);
-
-      this.store.scanPhase.set('laying-out');
+      setProgress(5, total, `Computing layout for ${nodes.length} nodes...`);
+      this.zone.run(() => this.store.scanPhase.set('laying-out'));
       const positioned = await this.elkLayout.layout(nodes, edges);
-      this.store.setNodes(positioned);
+      this.zone.run(() => this.store.setNodes(positioned));
 
-      this.store.scanPhase.set('ready');
-      this.router.navigate(['/canvas']);
+      this.zone.run(() => {
+        this.store.scanPhase.set('ready');
+        this.router.navigate(['/canvas']);
+      });
     } catch (err: unknown) {
       this.store.scanPhase.set('error');
       this.store.errorMessage.set(err instanceof Error ? err.message : 'Scan failed');

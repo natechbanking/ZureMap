@@ -37,7 +37,7 @@ export const RESOURCE_TYPE_MAP: Record<string, { label: string; icon: string }> 
 export class IconRegistryService {
   private readonly cache = new Map<string, string>();
   private readonly BASE_PATH = 'assets/azure-icons/';
-  private readonly FALLBACK_ICON = 'assets/azure-icons/Resource-Groups.svg';
+  private readonly FALLBACK_ICON = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 18 18'%3E%3Crect width='18' height='18' rx='2' fill='%230078d4'/%3E%3Ctext x='9' y='13' text-anchor='middle' font-size='10' fill='white' font-family='sans-serif'%3E%E2%98%81%3C/text%3E%3C/svg%3E`;
   private manifest: Record<string, string> = {};
 
   async loadManifest(): Promise<void> {

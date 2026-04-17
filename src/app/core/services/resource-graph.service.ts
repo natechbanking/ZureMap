@@ -106,7 +106,10 @@ export class ResourceGraphService {
         body: JSON.stringify(body),
       });
 
-      if (!resp.ok) throw new Error(`Resource Graph query failed: ${resp.status}`);
+      if (!resp.ok) {
+        const errBody = await resp.text().catch(() => '');
+        throw new Error(`Resource Graph query failed: ${resp.status} — ${errBody}`);
+      }
       const data = await resp.json() as ResourceGraphResponse;
       allResources.push(...(data.data ?? []));
       skipToken = data.$skipToken;

@@ -1,4 +1,4 @@
-import { Component, inject, effect, ViewChild, ElementRef, OnInit } from '@angular/core';
+import { Component, inject, effect, ViewChild, ElementRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import { DiagramStore } from '../../core/store/diagram.store';
@@ -12,7 +12,6 @@ import { SidebarComponent } from '../sidebar/sidebar.component';
 import { ToolbarComponent } from '../toolbar/toolbar.component';
 import { DiagramNode } from '../../core/models/diagram-node.model';
 
-const RENDER_BATCH_SIZE = 50;
 
 @Component({
   selector: 'app-canvas',
@@ -101,7 +100,7 @@ const RENDER_BATCH_SIZE = 50;
     </div>
   `,
 })
-export class CanvasComponent implements OnInit {
+export class CanvasComponent {
   @ViewChild('canvasHost', { read: ElementRef }) canvasHostRef!: ElementRef;
 
   store = inject(DiagramStore);
@@ -112,7 +111,13 @@ export class CanvasComponent implements OnInit {
   private router = inject(Router);
 
   visibleNodes: DiagramNode[] = [];
-  private renderBatch = 0;
+
+  constructor() {
+    effect(() => {
+      const nodes = this.store.nodes();
+      this.renderProgressively(nodes);
+    });
+  }
 
   get canvasWidth(): number {
     const nodes = this.store.nodes();
@@ -124,27 +129,8 @@ export class CanvasComponent implements OnInit {
     return Math.max(800, ...nodes.map(n => n.position.y + n.size.height + 80));
   }
 
-  ngOnInit(): void {
-    effect(() => {
-      const nodes = this.store.nodes();
-      this.renderProgressively(nodes);
-    });
-  }
-
   private renderProgressively(nodes: DiagramNode[]): void {
-    this.visibleNodes = [];
-    this.renderBatch = 0;
-    this.addBatch(nodes);
-  }
-
-  private addBatch(all: DiagramNode[]): void {
-    const start = this.renderBatch * RENDER_BATCH_SIZE;
-    const end = Math.min(start + RENDER_BATCH_SIZE, all.length);
-    this.visibleNodes = [...this.visibleNodes, ...all.slice(start, end)];
-    this.renderBatch++;
-    if (end < all.length) {
-      requestAnimationFrame(() => this.addBatch(all));
-    }
+    this.visibleNodes = nodes;
   }
 
   getEdgeX1(nodeId: string): number {

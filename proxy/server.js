@@ -77,16 +77,14 @@ app.post('/api/az/query', async (req, res) => {
   }
   try {
     const token = await runAz(['account', 'get-access-token', '--resource', 'https://management.azure.com/', '--output', 'json']);
-    const body = JSON.stringify({
-      query,
-      subscriptions,
-      options: { $skipToken, resultFormat: 'objectArray' },
-    });
+    const options = { resultFormat: 'objectArray' };
+    if ($skipToken) options.$skipToken = $skipToken;
+    const body = JSON.stringify({ query, subscriptions, options });
 
     const result = await httpsPost(
       'management.azure.com',
-      '/providers/Microsoft.ResourceGraph/resources?api-version=2024-04-01',
-      { Authorization: `Bearer ${token.accessToken}`, 'Content-Type': 'application/json' },
+      '/providers/Microsoft.ResourceGraph/resources?api-version=2022-10-01',
+      { Authorization: `Bearer ${token.accessToken}`, 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) },
       body
     );
     res.json({ data: result.data ?? [], $skipToken: result.$skipToken });

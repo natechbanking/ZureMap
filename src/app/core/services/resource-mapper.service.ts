@@ -8,7 +8,54 @@ export class ResourceMapperService {
   constructor(private icons: IconRegistryService) {}
 
   mapResources(resources: AzureResource[]): DiagramNode[] {
-    return resources.map(r => this.mapResource(r));
+    const nodes = resources.map(r => this.mapResource(r));
+    const nodeById = new Map(nodes.map(n => [n.id.toLowerCase(), n]));
+    const claimedVmChildIds = new Set<string>();
+
+    // Build 1 VM container worth of children by attaching VM-related resources.
+    const vmResources = resources
+      .filter(r => this.isVirtualMachineType(r.type))
+      .sort((a, b) => a.id.localeCompare(b.id));
+
+    for (const vmResource of vmResources) {
+      const vmNode = nodeById.get(vmResource.id.toLowerCase());
+      if (!vmNode) continue;
+
+      const relatedIds = new Set<string>(vmNode.children ?? []);
+      for (const id of this.collectVmRelatedResourceIds(vmResource, resources)) {
+        if (id.toLowerCase() === vmResource.id.toLowerCase()) continue;
+        const childNode = nodeById.get(id.toLowerCase());
+        if (!childNode) continue;
+
+        // Keep VM group members local to the VM subscription and prevent shared children.
+        if (childNode.metadata.subscriptionId !== vmResource.subscriptionId) continue;
+        if (this.isVirtualMachineType(childNode.resourceType)) continue;
+
+        const childKey = childNode.id.toLowerCase();
+        if (claimedVmChildIds.has(childKey)) continue;
+
+        relatedIds.add(childNode.id);
+        claimedVmChildIds.add(childKey);
+      }
+
+      vmNode.children = Array.from(relatedIds);
+    }
+
+    // Group route resources under their route table parent.
+    for (const routeTableResource of resources.filter(r => this.isRouteTableType(r.type))) {
+      const routeTableNode = nodeById.get(routeTableResource.id.toLowerCase());
+      if (!routeTableNode) continue;
+
+      const relatedIds = new Set<string>(routeTableNode.children ?? []);
+      for (const id of this.collectRouteTableRouteIds(routeTableResource, resources)) {
+        if (id.toLowerCase() === routeTableResource.id.toLowerCase()) continue;
+        if (nodeById.has(id.toLowerCase())) relatedIds.add(id);
+      }
+
+      routeTableNode.children = Array.from(relatedIds);
+    }
+
+    return nodes;
   }
 
   mapResource(resource: AzureResource): DiagramNode {
@@ -21,7 +68,7 @@ export class ResourceMapperService {
       group,
       groupId,
       position: { x: 0, y: 0 },
-      size: { width: 140, height: 80 },
+      size: { width: 140, height: 92 },
       children: this.resolveChildren(resource),
       isPinned: false,
       status: this.resolveStatus(resource),
@@ -50,6 +97,67 @@ export class ResourceMapperService {
       return subnets.map(s => s.id).filter(Boolean);
     }
     return undefined;
+  }
+
+  private isVirtualMachineType(type: string): boolean {
+    return type.toLowerCase() === 'microsoft.compute/virtualmachines';
+  }
+
+  private isRouteTableType(type: string): boolean {
+    return type.toLowerCase() === 'microsoft.network/routetables';
+  }
+
+  private collectVmRelatedResourceIds(vm: AzureResource, resources: AzureResource[]): string[] {
+    const ids = new Set<string>();
+    const vmIdLower = vm.id.toLowerCase();
+
+    const networkInterfaces = (vm.properties['networkProfile'] as { networkInterfaces?: Array<{ id?: string }> } | undefined)?.networkInterfaces ?? [];
+    for (const nic of networkInterfaces) {
+      if (nic.id) ids.add(nic.id);
+    }
+
+    const storageProfile = vm.properties['storageProfile'] as {
+      osDisk?: { managedDisk?: { id?: string } };
+      dataDisks?: Array<{ managedDisk?: { id?: string } }>;
+    } | undefined;
+
+    const osDiskId = storageProfile?.osDisk?.managedDisk?.id;
+    if (osDiskId) ids.add(osDiskId);
+
+    for (const disk of storageProfile?.dataDisks ?? []) {
+      const diskId = disk.managedDisk?.id;
+      if (diskId) ids.add(diskId);
+    }
+
+    // Include explicit child resources under the VM ARM ID (extensions, run commands, etc.).
+    for (const resource of resources) {
+      const idLower = resource.id.toLowerCase();
+      if (idLower.startsWith(`${vmIdLower}/`)) {
+        ids.add(resource.id);
+      }
+    }
+
+    return Array.from(ids);
+  }
+
+  private collectRouteTableRouteIds(routeTable: AzureResource, resources: AzureResource[]): string[] {
+    const ids = new Set<string>();
+    const routeTableIdLower = routeTable.id.toLowerCase();
+
+    const routes = (routeTable.properties['routes'] as Array<{ id?: string }> | undefined) ?? [];
+    for (const route of routes) {
+      if (route.id) ids.add(route.id);
+    }
+
+    // Include explicit child resources under the Route Table ARM ID.
+    for (const resource of resources) {
+      const idLower = resource.id.toLowerCase();
+      if (idLower.startsWith(`${routeTableIdLower}/routes/`)) {
+        ids.add(resource.id);
+      }
+    }
+
+    return Array.from(ids);
   }
 
   private resolveStatus(resource: AzureResource): DiagramNode['status'] {

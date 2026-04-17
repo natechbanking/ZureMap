@@ -23,111 +23,203 @@ const TOOLS: Tool[] = [
 const COLORS = [
   '#1e1e1e', '#ef4444', '#f97316', '#eab308',
   '#22c55e', '#3b82f6', '#a855f7', '#ec4899',
+  '#14b8a6', '#0ea5e9', '#6366f1', '#f59e0b',
 ];
 
-const WIDTHS = [1, 2, 4, 8];
+const WIDTHS = [1, 2, 4, 6, 8];
 
 @Component({
   selector: 'app-drawing-toolbar',
   standalone: true,
   imports: [CommonModule],
   template: `
-    <div class="flex flex-col gap-0.5 p-1.5 bg-white rounded-2xl shadow-xl border border-gray-200 select-none" style="width:52px">
+    <div class="bg-white/95 backdrop-blur rounded-2xl shadow-xl border border-gray-200 select-none overflow-hidden transition-all"
+      [style.width.px]="collapsed ? 58 : 300">
 
-      <!-- Tools -->
-      @for (tool of tools; track tool.id) {
-        <button
-          class="relative w-9 h-9 rounded-xl flex items-center justify-center transition-colors group"
-          [class.bg-blue-100]="activeTool === tool.id"
-          [class.text-blue-600]="activeTool === tool.id"
-          [class.text-gray-600]="activeTool !== tool.id"
-          [class.hover:bg-gray-100]="activeTool !== tool.id"
-          [title]="tool.label + '  (' + tool.key + ')'"
-          (click)="toolChange.emit(tool.id)"
-        >
-          <svg viewBox="0 0 20 20" class="w-4 h-4" fill="none" [attr.stroke]="activeTool === tool.id ? '#2563eb' : '#374151'" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-            <path [attr.d]="tool.icon" />
+      <div class="flex items-center gap-2 px-2.5 py-2 border-b border-gray-200 bg-gray-50/80">
+        <div class="w-6 h-6 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center">
+          <svg viewBox="0 0 20 20" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 14 L8 9 L11 12 L17 6" />
+            <path d="M14 6 L17 6 L17 9" />
           </svg>
+        </div>
+        <div class="min-w-0 flex-1" [class.hidden]="collapsed">
+          <p class="text-sm font-semibold text-gray-800">Diagram Tools</p>
+          <p class="text-[11px] text-gray-500">{{ annotationCount }} annotation{{ annotationCount === 1 ? '' : 's' }}</p>
+        </div>
+        <button
+          class="w-7 h-7 rounded-lg text-gray-500 hover:bg-gray-200/70 transition-colors"
+          [title]="collapsed ? 'Expand tools' : 'Collapse tools'"
+          (click)="collapsed = !collapsed"
+        >
+          {{ collapsed ? '>' : '<' }}
         </button>
-      }
-
-      <div class="h-px bg-gray-200 my-1 mx-1"></div>
-
-      <!-- Color grid -->
-      <div class="grid grid-cols-2 gap-1 px-0.5 pb-1">
-        @for (c of colors; track c) {
-          <button
-            class="w-4 h-4 rounded-full border-2 transition-all hover:scale-110"
-            [style.background-color]="c"
-            [class.border-blue-500]="activeColor === c"
-            [class.border-transparent]="activeColor !== c"
-            [title]="c"
-            (click)="colorChange.emit(c)"
-          ></button>
-        }
       </div>
 
-      <div class="h-px bg-gray-200 mb-1 mx-1"></div>
-
-      <!-- Stroke widths -->
-      <div class="flex flex-col gap-1 px-1.5 pb-1">
-        @for (w of widths; track w) {
+      @if (collapsed) {
+        <div class="p-2 flex flex-col gap-1.5">
+          @for (tool of compactTools; track tool.id) {
+            <button
+              class="w-10 h-10 rounded-xl flex items-center justify-center transition-colors"
+              [class.bg-blue-100]="activeTool === tool.id"
+              [class.text-blue-600]="activeTool === tool.id"
+              [class.text-gray-600]="activeTool !== tool.id"
+              [class.hover:bg-gray-100]="activeTool !== tool.id"
+              [title]="tool.label + ' (' + tool.key + ')'"
+              (click)="toolChange.emit(tool.id)"
+            >
+              <svg viewBox="0 0 20 20" class="w-4 h-4" fill="none" [attr.stroke]="activeTool === tool.id ? '#2563eb' : '#374151'" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                <path [attr.d]="tool.icon" />
+              </svg>
+            </button>
+          }
           <button
-            class="flex items-center justify-center h-5 rounded transition-colors hover:bg-gray-100"
-            [class.bg-blue-50]="activeStrokeWidth === w"
-            [title]="w + 'px'"
-            (click)="strokeWidthChange.emit(w)"
+            class="w-10 h-10 rounded-xl flex items-center justify-center text-gray-500 hover:bg-gray-100 transition-colors"
+            title="Undo (Ctrl+Z)"
+            (click)="undo.emit()"
           >
-            <div class="rounded-full bg-gray-600" [style.width.px]="28" [style.height.px]="w"></div>
+            <svg viewBox="0 0 20 20" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M4 10 A6 6 0 1 1 7 5" />
+              <path d="M4 6 L4 10 L8 10" />
+            </svg>
           </button>
-        }
-      </div>
+        </div>
+      } @else {
+        <div class="p-2.5 space-y-3">
+          <div>
+            <p class="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Modes</p>
+            <div class="grid grid-cols-4 gap-1.5">
+              @for (tool of tools; track tool.id) {
+                <button
+                  class="relative h-11 rounded-xl border text-gray-700 flex flex-col items-center justify-center gap-0.5 transition-colors"
+                  [class.bg-blue-50]="activeTool === tool.id"
+                  [class.border-blue-300]="activeTool === tool.id"
+                  [class.text-blue-700]="activeTool === tool.id"
+                  [class.border-gray-200]="activeTool !== tool.id"
+                  [class.hover:bg-gray-50]="activeTool !== tool.id"
+                  [title]="tool.label + ' (' + tool.key + ')'"
+                  (click)="toolChange.emit(tool.id)"
+                >
+                  <svg viewBox="0 0 20 20" class="w-4 h-4" fill="none" [attr.stroke]="activeTool === tool.id ? '#1d4ed8' : '#374151'" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                    <path [attr.d]="tool.icon" />
+                  </svg>
+                  <span class="text-[10px] leading-none">{{ tool.label }}</span>
+                </button>
+              }
+            </div>
+          </div>
 
-      <div class="h-px bg-gray-200 my-1 mx-1"></div>
+          <div>
+            <p class="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Quick Insert</p>
+            <div class="grid grid-cols-3 gap-1.5">
+              <button class="h-8 rounded-lg border border-gray-200 text-xs text-gray-700 hover:bg-gray-50" (click)="toolChange.emit('sticky')">Sticky</button>
+              <button class="h-8 rounded-lg border border-gray-200 text-xs text-gray-700 hover:bg-gray-50" (click)="toolChange.emit('text')">Text</button>
+              <button class="h-8 rounded-lg border border-gray-200 text-xs text-gray-700 hover:bg-gray-50" (click)="toolChange.emit('arrow')">Connector</button>
+            </div>
+          </div>
 
-      <!-- Fill toggle (for rect/ellipse/sticky) -->
-      <button
-        class="w-9 h-9 rounded-xl flex items-center justify-center transition-colors text-xs font-bold"
-        [class.bg-blue-100]="activeFill !== 'none'"
-        [class.text-blue-600]="activeFill !== 'none'"
-        [class.text-gray-500]="activeFill === 'none'"
-        [class.hover:bg-gray-100]="activeFill === 'none'"
-        title="Toggle fill"
-        (click)="fillChange.emit(activeFill === 'none' ? activeColor : 'none')"
-      >
-        <svg viewBox="0 0 20 20" class="w-4 h-4">
-          <rect x="3" y="3" width="14" height="14" rx="2"
-            [attr.fill]="activeFill !== 'none' ? activeColor : 'none'"
-            [attr.stroke]="activeFill !== 'none' ? activeColor : '#6b7280'"
-            stroke-width="1.6" />
-        </svg>
-      </button>
+          <div class="grid grid-cols-[1fr_auto] gap-2 items-start">
+            <div>
+              <p class="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Stroke Color</p>
+              <div class="grid grid-cols-6 gap-1.5">
+                @for (c of colors; track c) {
+                  <button
+                    class="w-6 h-6 rounded-full border-2 transition-transform hover:scale-105"
+                    [style.background-color]="c"
+                    [class.border-blue-500]="activeColor === c"
+                    [class.border-transparent]="activeColor !== c"
+                    [title]="c"
+                    (click)="colorChange.emit(c)"
+                  ></button>
+                }
+              </div>
+            </div>
 
-      <div class="h-px bg-gray-200 my-1 mx-1"></div>
+            <div>
+              <p class="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Custom</p>
+              <input
+                type="color"
+                class="w-9 h-9 p-0 border border-gray-200 rounded-lg cursor-pointer"
+                [value]="activeColor"
+                (input)="onCustomColor($event)"
+                title="Custom stroke color"
+              />
+            </div>
+          </div>
 
-      <!-- Undo -->
-      <button
-        class="w-9 h-9 rounded-xl flex items-center justify-center text-gray-500 hover:bg-gray-100 transition-colors"
-        title="Undo last (Ctrl+Z)"
-        (click)="undo.emit()"
-      >
-        <svg viewBox="0 0 20 20" class="w-4 h-4" fill="none" stroke="#6b7280" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M4 10 A6 6 0 1 1 7 5" />
-          <path d="M4 6 L4 10 L8 10" />
-        </svg>
-      </button>
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <p class="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Stroke Width</p>
+              <div class="flex flex-wrap gap-1">
+                @for (w of widths; track w) {
+                  <button
+                    class="h-7 min-w-9 px-2 rounded-lg border text-xs transition-colors"
+                    [class.border-blue-300]="activeStrokeWidth === w"
+                    [class.bg-blue-50]="activeStrokeWidth === w"
+                    [class.text-blue-700]="activeStrokeWidth === w"
+                    [class.border-gray-200]="activeStrokeWidth !== w"
+                    [class.text-gray-600]="activeStrokeWidth !== w"
+                    (click)="strokeWidthChange.emit(w)"
+                  >{{ w }}px</button>
+                }
+              </div>
+            </div>
 
-      <!-- Clear all -->
-      <button
-        class="w-9 h-9 rounded-xl flex items-center justify-center text-gray-400 hover:bg-red-50 hover:text-red-500 transition-colors"
-        title="Clear all annotations"
-        (click)="clearAll.emit()"
-      >
-        <svg viewBox="0 0 20 20" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M3 6 L17 6 M8 6 L8 3 L12 3 L12 6 M5 6 L5 17 L15 17 L15 6 M8 10 L8 14 M12 10 L12 14" />
-        </svg>
-      </button>
+            <div>
+              <p class="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Fill</p>
+              <div class="flex gap-1">
+                <button
+                  class="h-7 px-2 rounded-lg border text-xs"
+                  [class.border-blue-300]="activeFill !== 'none'"
+                  [class.bg-blue-50]="activeFill !== 'none'"
+                  [class.text-blue-700]="activeFill !== 'none'"
+                  [class.border-gray-200]="activeFill === 'none'"
+                  [class.text-gray-600]="activeFill === 'none'"
+                  (click)="fillChange.emit(activeFill === 'none' ? activeColor : 'none')"
+                >{{ activeFill === 'none' ? 'Off' : 'On' }}</button>
+                <button
+                  class="w-7 h-7 rounded-lg border border-gray-200"
+                  [style.background]="activeFill !== 'none' ? activeFill : 'linear-gradient(135deg, #ffffff 45%, #e5e7eb 45%, #e5e7eb 55%, #ffffff 55%)'"
+                  title="Set fill to stroke color"
+                  (click)="fillChange.emit(activeColor)"
+                ></button>
+              </div>
+            </div>
+          </div>
 
+          <div>
+            <p class="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Actions</p>
+            <div class="grid grid-cols-2 gap-1.5">
+              <button class="h-8 rounded-lg border border-gray-200 text-xs text-gray-700 hover:bg-gray-50" (click)="undo.emit()">Undo</button>
+              <button class="h-8 rounded-lg border border-gray-200 text-xs text-gray-700 hover:bg-gray-50" (click)="toolChange.emit('pointer')">Select Mode</button>
+              <button
+                class="h-8 rounded-lg border text-xs"
+                [class.border-red-200]="hasSelection"
+                [class.text-red-600]="hasSelection"
+                [class.hover:bg-red-50]="hasSelection"
+                [class.border-gray-200]="!hasSelection"
+                [class.text-gray-300]="!hasSelection"
+                [disabled]="!hasSelection"
+                (click)="deleteSelected.emit()"
+              >Delete Selected</button>
+              <button
+                class="h-8 rounded-lg border text-xs"
+                [class.border-red-200]="annotationCount > 0"
+                [class.text-red-600]="annotationCount > 0"
+                [class.hover:bg-red-50]="annotationCount > 0"
+                [class.border-gray-200]="annotationCount === 0"
+                [class.text-gray-300]="annotationCount === 0"
+                [disabled]="annotationCount === 0"
+                (click)="clearAll.emit()"
+              >Clear All</button>
+            </div>
+          </div>
+
+          <div class="text-[11px] text-gray-500 bg-gray-50 rounded-lg px-2 py-1.5">
+            Tips: <span class="font-mono">V</span> select, <span class="font-mono">P</span> draw, <span class="font-mono">A</span> arrow, <span class="font-mono">Esc</span> pointer.
+          </div>
+        </div>
+      }
     </div>
   `,
 })
@@ -136,6 +228,8 @@ export class DrawingToolbarComponent {
   @Input() activeColor = '#1e1e1e';
   @Input() activeStrokeWidth = 2;
   @Input() activeFill = 'none';
+  @Input() hasSelection = false;
+  @Input() annotationCount = 0;
 
   @Output() toolChange = new EventEmitter<DrawingTool>();
   @Output() colorChange = new EventEmitter<string>();
@@ -143,10 +237,19 @@ export class DrawingToolbarComponent {
   @Output() fillChange = new EventEmitter<string>();
   @Output() undo = new EventEmitter<void>();
   @Output() clearAll = new EventEmitter<void>();
+  @Output() deleteSelected = new EventEmitter<void>();
 
   readonly tools = TOOLS;
   readonly colors = COLORS;
   readonly widths = WIDTHS;
+  readonly compactTools = TOOLS.filter(t => ['pointer', 'draw', 'arrow'].includes(t.id));
+
+  collapsed = false;
+
+  onCustomColor(event: Event): void {
+    const value = (event.target as HTMLInputElement).value;
+    if (value) this.colorChange.emit(value);
+  }
 
   @HostListener('window:keydown', ['$event'])
   onKey(e: KeyboardEvent): void {
@@ -155,5 +258,9 @@ export class DrawingToolbarComponent {
     const tool = map[e.key.toLowerCase()];
     if (tool) { e.preventDefault(); this.toolChange.emit(tool); }
     if (e.key === 'Escape') this.toolChange.emit('pointer');
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+      e.preventDefault();
+      this.undo.emit();
+    }
   }
 }

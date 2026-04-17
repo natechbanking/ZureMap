@@ -42,7 +42,7 @@ import { Annotation, DrawingTool } from '../../core/models/annotation.model';
 
         <!-- Floating drawing toolbar (draggable) -->
         <div
-          class="absolute z-50 pointer-events-auto select-none"
+          class="absolute z-[120] pointer-events-auto select-none"
           [style.left.px]="toolbarPos.x"
           [style.top.px]="toolbarPos.y"
         >
@@ -60,12 +60,15 @@ import { Annotation, DrawingTool } from '../../core/models/annotation.model';
             [activeColor]="activeColor"
             [activeStrokeWidth]="activeStrokeWidth"
             [activeFill]="activeFill"
+            [hasSelection]="selectedAnnotationId !== null"
+            [annotationCount]="store.annotations().length"
             (toolChange)="setTool($event)"
             (colorChange)="activeColor = $event"
             (strokeWidthChange)="activeStrokeWidth = $event"
             (fillChange)="activeFill = $event"
             (undo)="store.undoLastAnnotation()"
-            (clearAll)="store.clearAnnotations()"
+            (clearAll)="clearAllAnnotations()"
+            (deleteSelected)="deleteSelectedAnnotation()"
           />
         </div>
 
@@ -73,15 +76,54 @@ import { Annotation, DrawingTool } from '../../core/models/annotation.model';
           #canvasHost
           class="flex-1 relative overflow-auto bg-[#faf9f8]"
           style="background-image: radial-gradient(circle, #d2d0ce 1px, transparent 1px); background-size: 24px 24px;"
+          (wheel)="onCanvasWheel($event)"
         >
           <div
             class="relative"
+            [style.width.px]="canvasWidth * zoomLevel"
+            [style.height.px]="canvasHeight * zoomLevel"
+          >
+            <div
+              class="absolute top-0 left-0 origin-top-left"
             [style.width.px]="canvasWidth"
             [style.height.px]="canvasHeight"
+              [style.transform]="'scale(' + zoomLevel + ')'"
           >
 
+            <!-- Subscription boxes (shown for multi-subscription views) -->
+            @for (bound of subscriptionBounds; track bound.id) {
+              <div
+                class="absolute rounded-2xl border-2 border-dashed border-amber-300 bg-amber-50/30 pointer-events-none"
+                [style.left.px]="bound.x"
+                [style.top.px]="bound.y"
+                [style.width.px]="bound.width"
+                [style.height.px]="bound.height"
+              >
+                <div
+                  class="absolute top-0 left-0 right-0 flex items-center gap-2 px-3 py-2 rounded-t-2xl select-none pointer-events-auto hover:bg-amber-100/60 transition-colors"
+                  [class.cursor-grab]="activeTool === 'pointer' && !isSubscriptionDragging"
+                  [class.cursor-grabbing]="isSubscriptionDragging && subscriptionDragState?.subscriptionId === bound.subscriptionId"
+                  [class.cursor-crosshair]="activeTool !== 'pointer'"
+                  style="z-index: 10; height: 36px"
+                  (mousedown)="onSubscriptionMouseDown($event, bound.subscriptionId)"
+                >
+                  <img [src]="subscriptionIconUrl" alt="" class="w-4 h-4 object-contain flex-shrink-0 opacity-90" (error)="$any($event.target).style.display='none'" />
+                  <span class="text-xs font-semibold text-amber-700 tracking-wide truncate">{{ bound.name }}</span>
+                  <button
+                    type="button"
+                    class="ml-auto w-5 h-5 rounded text-amber-700 hover:bg-amber-200/70 transition-colors"
+                    [title]="bound.collapsed ? 'Expand subscription' : 'Collapse subscription'"
+                    (mousedown)="$event.stopPropagation()"
+                    (click)="toggleSubscriptionCollapsed(bound.subscriptionId); $event.stopPropagation()"
+                  >
+                    {{ bound.collapsed ? '+' : '-' }}
+                  </button>
+                </div>
+              </div>
+            }
+
             <!-- Resource group boxes -->
-            @for (bound of rgBounds; track bound.name) {
+            @for (bound of rgBounds; track bound.id) {
               <div
                 class="absolute rounded-xl border border-dashed border-blue-300 bg-blue-50/25 pointer-events-none"
                 [style.left.px]="bound.x"
@@ -92,13 +134,81 @@ import { Annotation, DrawingTool } from '../../core/models/annotation.model';
                 <div
                   class="absolute top-0 left-0 right-0 flex items-center gap-2 px-3 py-1.5 rounded-t-xl select-none pointer-events-auto hover:bg-blue-100/50 transition-colors"
                   [class.cursor-grab]="activeTool === 'pointer' && !isRgDragging"
-                  [class.cursor-grabbing]="isRgDragging && rgDragState?.name === bound.name"
+                  [class.cursor-grabbing]="isRgDragging && rgDragState?.id === bound.id"
                   [class.cursor-crosshair]="activeTool !== 'pointer'"
                   style="z-index: 20; height: 32px"
-                  (mousedown)="onRgMouseDown($event, bound.name)"
+                  (mousedown)="onRgMouseDown($event, bound.id)"
                 >
                   <img [src]="rgIconUrl" alt="" class="w-4 h-4 object-contain flex-shrink-0" (error)="$any($event.target).style.display='none'" />
                   <span class="text-xs font-semibold text-blue-500 tracking-wide truncate">{{ bound.name }}</span>
+                  <button
+                    type="button"
+                    class="ml-auto w-5 h-5 rounded text-blue-600 hover:bg-blue-200/70 transition-colors"
+                    [title]="bound.collapsed ? 'Expand resource group' : 'Collapse resource group'"
+                    (mousedown)="$event.stopPropagation()"
+                    (click)="toggleRgCollapsed(bound.id); $event.stopPropagation()"
+                  >
+                    {{ bound.collapsed ? '+' : '-' }}
+                  </button>
+                </div>
+              </div>
+            }
+
+            <!-- VM sub-containers (VM + related resources) -->
+            @for (bound of vmBounds; track bound.id) {
+              <div
+                class="absolute rounded-lg border border-dashed border-slate-300 bg-slate-50/40 pointer-events-none"
+                [style.left.px]="bound.x"
+                [style.top.px]="bound.y"
+                [style.width.px]="bound.width"
+                [style.height.px]="bound.height"
+              >
+                <div
+                  class="absolute top-0 left-0 right-0 flex items-center gap-2 px-2 py-1 text-[10px] font-semibold text-slate-500 bg-slate-100/70 rounded-t-lg select-none pointer-events-auto"
+                  [class.cursor-grab]="activeTool === 'pointer' && !isVmDragging"
+                  [class.cursor-grabbing]="isVmDragging && vmDragState?.vmId === bound.id"
+                  [class.cursor-crosshair]="activeTool !== 'pointer'"
+                  style="z-index: 25; height: 24px"
+                  (mousedown)="onVmMouseDown($event, bound.id)"
+                >
+                  <span class="truncate">VM Group: {{ bound.name }}</span>
+                  <button
+                    type="button"
+                    class="ml-auto w-4 h-4 rounded text-slate-600 hover:bg-slate-200/70 transition-colors"
+                    [title]="bound.collapsed ? 'Expand VM group' : 'Collapse VM group'"
+                    (mousedown)="$event.stopPropagation()"
+                    (click)="toggleVmCollapsed(bound.id); $event.stopPropagation()"
+                  >
+                    {{ bound.collapsed ? '+' : '-' }}
+                  </button>
+                </div>
+              </div>
+            }
+
+            <!-- Route table route sub-containers -->
+            @for (bound of routeTableBounds; track bound.id) {
+              <div
+                class="absolute rounded-lg border border-dashed border-cyan-300 bg-cyan-50/35 pointer-events-none"
+                [style.left.px]="bound.x"
+                [style.top.px]="bound.y"
+                [style.width.px]="bound.width"
+                [style.height.px]="bound.height"
+              >
+                <div
+                  class="absolute top-0 left-0 right-0 flex items-center gap-2 px-2 py-1 text-[10px] font-semibold text-cyan-700 bg-cyan-100/70 rounded-t-lg select-none pointer-events-auto"
+                  [class.cursor-crosshair]="activeTool !== 'pointer'"
+                  style="z-index: 25; height: 24px"
+                >
+                  <span class="truncate">Routes: {{ bound.name }}</span>
+                  <button
+                    type="button"
+                    class="ml-auto w-4 h-4 rounded text-cyan-700 hover:bg-cyan-200/70 transition-colors"
+                    [title]="bound.collapsed ? 'Expand routes' : 'Collapse routes'"
+                    (mousedown)="$event.stopPropagation()"
+                    (click)="toggleRouteTableCollapsed(bound.id); $event.stopPropagation()"
+                  >
+                    {{ bound.collapsed ? '+' : '-' }}
+                  </button>
                 </div>
               </div>
             }
@@ -136,7 +246,7 @@ import { Annotation, DrawingTool } from '../../core/models/annotation.model';
               </defs>
 
               <!-- Edges (pass-through) -->
-              @for (edge of store.edges(); track edge.id) {
+              @for (edge of visibleEdges; track edge.id) {
                 <line
                   pointer-events="none"
                   [attr.x1]="getEdgeX1(edge.sourceId)"
@@ -334,7 +444,31 @@ import { Annotation, DrawingTool } from '../../core/models/annotation.model';
               ></textarea>
             }
 
+            </div>
           </div>
+
+        </div>
+
+        <!-- Sticky zoom controls (outside scroll container) -->
+        <div
+          class="absolute bottom-4 z-[130] flex items-center gap-1.5 px-2 py-1.5 rounded-xl border border-gray-200 bg-white/95 backdrop-blur shadow"
+          [style.right.px]="store.sidebarOpen() ? 336 : 16"
+        >
+          <button
+            class="w-7 h-7 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50"
+            title="Zoom out"
+            (click)="zoomOut()"
+          >-</button>
+          <button
+            class="px-2 h-7 rounded-lg border border-gray-200 text-xs font-medium text-gray-700 hover:bg-gray-50"
+            title="Reset zoom"
+            (click)="resetZoom()"
+          >{{ zoomPercent }}%</button>
+          <button
+            class="w-7 h-7 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50"
+            title="Zoom in"
+            (click)="zoomIn()"
+          >+</button>
         </div>
 
         @if (store.sidebarOpen()) {
@@ -355,17 +489,31 @@ export class CanvasComponent {
   private driftSvc = inject(DriftService);
   private router = inject(Router);
   readonly rgIconUrl = inject(IconRegistryService).getIconUrl('microsoft.resources/resourcegroups');
+  readonly subscriptionIconUrl = inject(IconRegistryService).getIconUrl('microsoft.resources/subscriptions');
 
   // ── Layout ─────────────────────────────────────────────────────────────────
+  private readonly ZOOM_MIN = 0.4;
+  private readonly ZOOM_MAX = 2.5;
+  private readonly ZOOM_STEP = 0.1;
+
   visibleNodes: DiagramNode[] = [];
+  visibleEdges = this.store.edges();
+  subscriptionBounds: SubscriptionBound[] = [];
   rgBounds: RgBound[] = [];
+  vmBounds: VmBound[] = [];
+  routeTableBounds: RouteTableBound[] = [];
   private rgDragStart = { clientX: 0, clientY: 0 };
+  private collapsedResourceGroups = new Set<string>();
+  private collapsedSubscriptions = new Set<string>();
+  private collapsedVmGroups = new Set<string>();
+  private collapsedRouteTableGroups = new Set<string>();
+  private isResolvingSubscriptionOverlaps = false;
 
   constructor() {
     effect(() => {
       const nodes = this.store.nodes();
-      this.visibleNodes = nodes;
-      this.rgBounds = this.computeRgBounds(nodes);
+      const edges = this.store.edges();
+      this.refreshVisibility(nodes, edges);
     });
   }
 
@@ -396,8 +544,12 @@ export class CanvasComponent {
   private annDragOrigin = { x: 0, y: 0, x2: 0, y2: 0 };
 
   // RG mouse drag (smooth, incremental)
-  rgDragState: { name: string; lastX: number; lastY: number } | null = null;
+  rgDragState: { id: string; lastX: number; lastY: number } | null = null;
   get isRgDragging(): boolean { return this.rgDragState !== null; }
+  subscriptionDragState: { subscriptionId: string; lastX: number; lastY: number } | null = null;
+  get isSubscriptionDragging(): boolean { return this.subscriptionDragState !== null; }
+  vmDragState: { vmId: string; lastX: number; lastY: number } | null = null;
+  get isVmDragging(): boolean { return this.vmDragState !== null; }
 
   // Individual node mouse drag
   nodeDragState: { id: string; lastX: number; lastY: number; hasMoved: boolean } | null = null;
@@ -437,8 +589,8 @@ export class CanvasComponent {
 
     // Individual node drag — incremental delta, pins the node on first move
     if (this.nodeDragState) {
-      const dx = e.clientX - this.nodeDragState.lastX;
-      const dy = e.clientY - this.nodeDragState.lastY;
+      const dx = (e.clientX - this.nodeDragState.lastX) / this.zoomLevel;
+      const dy = (e.clientY - this.nodeDragState.lastY) / this.zoomLevel;
       if (dx !== 0 || dy !== 0) {
         if (!this.nodeDragState.hasMoved) {
           this.store.pinNode(this.nodeDragState.id);
@@ -457,12 +609,36 @@ export class CanvasComponent {
       return;
     }
 
+    // Subscription group drag — moves all nodes in the subscription together
+    if (this.subscriptionDragState) {
+      const dx = (e.clientX - this.subscriptionDragState.lastX) / this.zoomLevel;
+      const dy = (e.clientY - this.subscriptionDragState.lastY) / this.zoomLevel;
+      if (dx !== 0 || dy !== 0) {
+        this.store.moveSubscriptionGroup(this.subscriptionDragState.subscriptionId, { dx, dy });
+        this.subscriptionDragState.lastX = e.clientX;
+        this.subscriptionDragState.lastY = e.clientY;
+      }
+      return;
+    }
+
+    // VM group drag — moves VM and its related components together
+    if (this.vmDragState) {
+      const dx = (e.clientX - this.vmDragState.lastX) / this.zoomLevel;
+      const dy = (e.clientY - this.vmDragState.lastY) / this.zoomLevel;
+      if (dx !== 0 || dy !== 0) {
+        this.store.moveVmGroup(this.vmDragState.vmId, { dx, dy });
+        this.vmDragState.lastX = e.clientX;
+        this.vmDragState.lastY = e.clientY;
+      }
+      return;
+    }
+
     // RG group drag — incremental delta so position tracks the cursor exactly
     if (this.rgDragState) {
-      const dx = e.clientX - this.rgDragState.lastX;
-      const dy = e.clientY - this.rgDragState.lastY;
+      const dx = (e.clientX - this.rgDragState.lastX) / this.zoomLevel;
+      const dy = (e.clientY - this.rgDragState.lastY) / this.zoomLevel;
       if (dx !== 0 || dy !== 0) {
-        this.store.moveNodeGroup(this.rgDragState.name, { dx, dy });
+        this.store.moveNodeGroup(this.rgDragState.id, { dx, dy });
         this.rgDragState.lastX = e.clientX;
         this.rgDragState.lastY = e.clientY;
       }
@@ -483,9 +659,18 @@ export class CanvasComponent {
     }
   }
 
+  onCanvasWheel(event: WheelEvent): void {
+    if (!event.ctrlKey && !event.metaKey) return;
+    event.preventDefault();
+    const delta = event.deltaY < 0 ? this.ZOOM_STEP : -this.ZOOM_STEP;
+    this.setZoom(this.zoomLevel + delta, { x: event.clientX, y: event.clientY });
+  }
+
   @HostListener('document:mouseup')
   onDocMouseUp(): void {
     this.toolbarDragState = null;
+    this.subscriptionDragState = null;
+    this.vmDragState = null;
     this.rgDragState = null;
     this.nodeDragState = null;
     this.annDragId = null;
@@ -627,6 +812,16 @@ export class CanvasComponent {
     }
   }
 
+  clearAllAnnotations(): void {
+    if (this.store.annotations().length === 0) return;
+    const shouldClear = confirm('Clear all annotations from this diagram?');
+    if (!shouldClear) return;
+    this.store.clearAnnotations();
+    this.selectedAnnotationId = null;
+    this.editingAnnotation = null;
+    this.editingTextValue = '';
+  }
+
   // ── Annotation helpers ─────────────────────────────────────────────────────
   annotationById(id: string): Annotation | undefined {
     return this.store.annotations().find(a => a.id === id);
@@ -674,20 +869,301 @@ export class CanvasComponent {
   // ── RG boxes ───────────────────────────────────────────────────────────────
   private computeRgBounds(nodes: DiagramNode[]): RgBound[] {
     const PAD = 28; const LABEL_H = 28;
-    const map = new Map<string, DiagramNode[]>();
+    const map = new Map<string, { subscriptionId: string; name: string; nodes: DiagramNode[] }>();
     for (const n of nodes) {
       const rg = n.metadata?.resourceGroup || n.groupId || '';
+      const subscriptionId = n.metadata?.subscriptionId || '';
       if (!rg) continue;
-      if (!map.has(rg)) map.set(rg, []);
-      map.get(rg)!.push(n);
+      const id = `${subscriptionId}::${rg}`;
+      if (!map.has(id)) map.set(id, { subscriptionId, name: rg, nodes: [] });
+      map.get(id)!.nodes.push(n);
     }
-    return Array.from(map.entries()).map(([name, rgNodes]) => ({
-      name,
-      x: Math.min(...rgNodes.map(n => n.position.x)) - PAD,
-      y: Math.min(...rgNodes.map(n => n.position.y)) - PAD - LABEL_H,
-      width: Math.max(...rgNodes.map(n => n.position.x + n.size.width)) + PAD - (Math.min(...rgNodes.map(n => n.position.x)) - PAD),
-      height: Math.max(...rgNodes.map(n => n.position.y + n.size.height)) + PAD - (Math.min(...rgNodes.map(n => n.position.y)) - PAD - LABEL_H),
-    }));
+    return Array.from(map.entries()).map(([id, entry]) => {
+      const { subscriptionId, name, nodes: rgNodes } = entry;
+      const xMin = Math.min(...rgNodes.map(n => n.position.x));
+      const yMin = Math.min(...rgNodes.map(n => n.position.y));
+      const xMax = Math.max(...rgNodes.map(n => n.position.x + n.size.width));
+      const yMax = Math.max(...rgNodes.map(n => n.position.y + n.size.height));
+      const collapsed = this.collapsedResourceGroups.has(id);
+
+      return {
+        id,
+        subscriptionId,
+        name,
+        collapsed,
+        x: xMin - PAD,
+        y: yMin - PAD - LABEL_H,
+        width: collapsed ? Math.max(220, Math.ceil(name.length * 7.5) + 72) : xMax + PAD - (xMin - PAD),
+        height: collapsed ? LABEL_H + 8 : yMax + PAD - (yMin - PAD - LABEL_H),
+      };
+    });
+  }
+
+  private computeSubscriptionBounds(rgBounds: RgBound[], nodes: DiagramNode[]): SubscriptionBound[] {
+    const activeSubCount = this.store.activeSubscriptions().length;
+    const nodeSubCount = new Set(nodes.map(n => n.metadata?.subscriptionId).filter(Boolean)).size;
+    if (activeSubCount <= 1 && nodeSubCount <= 1) return [];
+
+    const PAD = 24;
+    const LABEL_H = 32;
+    const nameBySubscriptionId = new Map(
+      this.store.activeSubscriptions().map(s => [s.subscriptionId, s.name]),
+    );
+    const map = new Map<string, RgBound[]>();
+    for (const bound of rgBounds) {
+      if (!map.has(bound.subscriptionId)) map.set(bound.subscriptionId, []);
+      map.get(bound.subscriptionId)!.push(bound);
+    }
+
+    return Array.from(map.entries()).map(([subscriptionId, groups]) => {
+      const xMin = Math.min(...groups.map(g => g.x));
+      const yMin = Math.min(...groups.map(g => g.y));
+      const xMax = Math.max(...groups.map(g => g.x + g.width));
+      const yMax = Math.max(...groups.map(g => g.y + g.height));
+      const collapsed = this.collapsedSubscriptions.has(subscriptionId);
+
+      return {
+        id: subscriptionId || '__unknown-subscription__',
+        subscriptionId,
+        name: nameBySubscriptionId.get(subscriptionId) || subscriptionId || 'Unknown subscription',
+        x: xMin - PAD,
+        y: yMin - PAD - LABEL_H,
+        collapsed,
+        width: collapsed ? Math.max(320, Math.ceil((nameBySubscriptionId.get(subscriptionId) || subscriptionId || 'Unknown subscription').length * 7.5) + 96) : xMax - xMin + PAD * 2,
+        height: collapsed ? LABEL_H + 12 : yMax - yMin + PAD * 2 + LABEL_H,
+      };
+    });
+  }
+
+  private computeVmBounds(nodes: DiagramNode[]): VmBound[] {
+    const PAD = 14;
+    const LABEL_H = 20;
+    const nodeById = new Map(nodes.map(n => [n.id, n]));
+    const bounds: VmBound[] = [];
+
+    for (const vm of nodes) {
+      if (vm.resourceType !== 'microsoft.compute/virtualmachines') continue;
+      if (!vm.children?.length) continue;
+
+      const members: DiagramNode[] = [vm];
+      for (const childId of vm.children) {
+        const child = nodeById.get(childId);
+        if (child) members.push(child);
+      }
+
+      if (members.length < 2) continue;
+
+      const xMin = Math.min(...members.map(n => n.position.x));
+      const yMin = Math.min(...members.map(n => n.position.y));
+      const xMax = Math.max(...members.map(n => n.position.x + n.size.width));
+      const yMax = Math.max(...members.map(n => n.position.y + n.size.height));
+      const collapsed = this.collapsedVmGroups.has(vm.id);
+
+      bounds.push({
+        id: vm.id,
+        name: vm.label,
+        collapsed,
+        x: xMin - PAD,
+        y: yMin - PAD - LABEL_H,
+        width: collapsed ? Math.max(220, Math.ceil(vm.label.length * 7.5) + 88) : xMax + PAD - (xMin - PAD),
+        height: collapsed ? LABEL_H + 10 : yMax + PAD - (yMin - PAD - LABEL_H),
+      });
+    }
+
+    return bounds;
+  }
+
+  private computeRouteTableBounds(nodes: DiagramNode[]): RouteTableBound[] {
+    const PAD = 12;
+    const LABEL_H = 20;
+    const GAP_BELOW_PARENT = 6;
+    const nodeById = new Map(nodes.map(n => [n.id, n]));
+    const bounds: RouteTableBound[] = [];
+
+    for (const routeTable of nodes) {
+      if (routeTable.resourceType !== 'microsoft.network/routetables') continue;
+
+      const routeNodes = (routeTable.children ?? [])
+        .map(id => nodeById.get(id))
+        .filter((n): n is DiagramNode => !!n && n.resourceType === 'microsoft.network/routetables/routes');
+      if (routeNodes.length === 0) continue;
+
+      const collapsed = this.collapsedRouteTableGroups.has(routeTable.id);
+      const tableBottom = routeTable.position.y + routeTable.size.height;
+      const yStart = tableBottom + GAP_BELOW_PARENT;
+      const childBottom = Math.max(yStart, ...routeNodes.map(n => n.position.y + n.size.height));
+
+      const xMin = Math.min(routeTable.position.x, ...routeNodes.map(n => n.position.x));
+      const xMax = Math.max(routeTable.position.x + routeTable.size.width, ...routeNodes.map(n => n.position.x + n.size.width));
+
+      bounds.push({
+        id: routeTable.id,
+        name: routeTable.label,
+        collapsed,
+        x: xMin - PAD,
+        y: yStart,
+        width: collapsed ? Math.max(220, Math.ceil(routeTable.label.length * 7.5) + 88) : xMax - xMin + PAD * 2,
+        height: collapsed ? LABEL_H + 10 : Math.max(LABEL_H + 10, childBottom - yStart + PAD),
+      });
+    }
+
+    return bounds;
+  }
+
+  toggleSubscriptionCollapsed(subscriptionId: string): void {
+    if (this.collapsedSubscriptions.has(subscriptionId)) {
+      this.collapsedSubscriptions.delete(subscriptionId);
+    } else {
+      this.collapsedSubscriptions.add(subscriptionId);
+      const selectedNode = this.store.selectedNode();
+      if (selectedNode && (selectedNode.metadata?.subscriptionId || '') === subscriptionId) {
+        this.store.selectNode(null);
+      }
+    }
+
+    this.refreshVisibility(this.store.nodes(), this.store.edges());
+  }
+
+  toggleRgCollapsed(rgId: string): void {
+    if (this.collapsedResourceGroups.has(rgId)) {
+      this.collapsedResourceGroups.delete(rgId);
+    } else {
+      this.collapsedResourceGroups.add(rgId);
+      const selectedNode = this.store.selectedNode();
+      const selectedRgId = `${selectedNode?.metadata?.subscriptionId || ''}::${selectedNode?.metadata?.resourceGroup || selectedNode?.groupId || ''}`;
+      if (selectedNode && selectedRgId === rgId) {
+        this.store.selectNode(null);
+      }
+    }
+
+    this.refreshVisibility(this.store.nodes(), this.store.edges());
+  }
+
+  toggleVmCollapsed(vmId: string): void {
+    if (this.collapsedVmGroups.has(vmId)) {
+      this.collapsedVmGroups.delete(vmId);
+    } else {
+      this.collapsedVmGroups.add(vmId);
+      const selectedNode = this.store.selectedNode();
+      const vmNode = this.store.nodes().find(n => n.id === vmId);
+      const selectedInVm = !!selectedNode && !!vmNode && (selectedNode.id === vmId || (vmNode.children ?? []).includes(selectedNode.id));
+      if (selectedInVm) {
+        this.store.selectNode(null);
+      }
+    }
+
+    this.refreshVisibility(this.store.nodes(), this.store.edges());
+  }
+
+  toggleRouteTableCollapsed(routeTableId: string): void {
+    if (this.collapsedRouteTableGroups.has(routeTableId)) {
+      this.collapsedRouteTableGroups.delete(routeTableId);
+    } else {
+      this.collapsedRouteTableGroups.add(routeTableId);
+      const selectedNode = this.store.selectedNode();
+      const rtNode = this.store.nodes().find(n => n.id === routeTableId);
+      const selectedInRt = !!selectedNode && !!rtNode
+        && (selectedNode.id === routeTableId || (rtNode.children ?? []).includes(selectedNode.id));
+      if (selectedInRt) {
+        this.store.selectNode(null);
+      }
+    }
+
+    this.refreshVisibility(this.store.nodes(), this.store.edges());
+  }
+
+  private refreshVisibility(nodes: DiagramNode[], edges: ReturnType<DiagramStore['edges']>): void {
+    const isVisibleBySubscription = (n: DiagramNode) => {
+      const subscriptionId = n.metadata?.subscriptionId || '';
+      return !this.collapsedSubscriptions.has(subscriptionId);
+    };
+
+    const baseVisibleNodes = nodes.filter(n => {
+      if (!isVisibleBySubscription(n)) return false;
+      const rg = n.metadata?.resourceGroup || n.groupId || '';
+      const subscriptionId = n.metadata?.subscriptionId || '';
+      return !this.collapsedResourceGroups.has(`${subscriptionId}::${rg}`);
+    });
+
+    const hiddenByVmCollapse = new Set<string>();
+    const baseById = new Map(baseVisibleNodes.map(n => [n.id, n]));
+    for (const vmId of this.collapsedVmGroups) {
+      const vm = baseById.get(vmId);
+      if (!vm) continue;
+      for (const childId of vm.children ?? []) hiddenByVmCollapse.add(childId);
+    }
+
+    const hiddenByRouteTableCollapse = new Set<string>();
+    for (const routeTableId of this.collapsedRouteTableGroups) {
+      const routeTable = baseById.get(routeTableId);
+      if (!routeTable) continue;
+      for (const childId of routeTable.children ?? []) {
+        const child = baseById.get(childId);
+        if (child?.resourceType === 'microsoft.network/routetables/routes') {
+          hiddenByRouteTableCollapse.add(childId);
+        }
+      }
+    }
+
+    this.visibleNodes = baseVisibleNodes.filter(n =>
+      !hiddenByVmCollapse.has(n.id) && !hiddenByRouteTableCollapse.has(n.id),
+    );
+
+    const visibleIds = new Set(this.visibleNodes.map(n => n.id));
+    this.visibleEdges = edges.filter(e => visibleIds.has(e.sourceId) && visibleIds.has(e.targetId));
+    this.rgBounds = this.computeRgBounds(nodes.filter(isVisibleBySubscription));
+    this.subscriptionBounds = this.computeSubscriptionBounds(this.rgBounds, nodes);
+    this.vmBounds = this.computeVmBounds(baseVisibleNodes);
+    this.routeTableBounds = this.computeRouteTableBounds(baseVisibleNodes);
+    this.resolveSubscriptionContainerOverlaps(this.subscriptionBounds);
+  }
+
+  private resolveSubscriptionContainerOverlaps(bounds: SubscriptionBound[]): void {
+    if (this.isResolvingSubscriptionOverlaps) return;
+    if (bounds.length < 2) return;
+
+    const GAP = 24;
+    const MAX_ITERS = 10;
+    this.isResolvingSubscriptionOverlaps = true;
+    try {
+      for (let iter = 0; iter < MAX_ITERS; iter++) {
+        let moved = false;
+        const current = this.computeSubscriptionBounds(
+          this.computeRgBounds(this.store.nodes().filter(n => !this.collapsedSubscriptions.has(n.metadata?.subscriptionId || ''))),
+          this.store.nodes(),
+        );
+
+        outer:
+        for (let i = 0; i < current.length; i++) {
+          for (let j = i + 1; j < current.length; j++) {
+            const a = current[i];
+            const b = current[j];
+            if (!a.subscriptionId || !b.subscriptionId) continue;
+
+            const overlapX = Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x);
+            const overlapY = Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y);
+            if (overlapX <= 0 || overlapY <= 0) continue;
+
+            const moveX = overlapX + GAP;
+            const moveY = overlapY + GAP;
+
+            // Push the latter container along the axis that requires less movement.
+            if (moveX <= moveY) {
+              this.store.moveSubscriptionGroup(b.subscriptionId, { dx: moveX, dy: 0 });
+            } else {
+              this.store.moveSubscriptionGroup(b.subscriptionId, { dx: 0, dy: moveY });
+            }
+
+            moved = true;
+            break outer;
+          }
+        }
+
+        if (!moved) break;
+      }
+    } finally {
+      this.isResolvingSubscriptionOverlaps = false;
+    }
   }
 
   // ── Toolbar drag ───────────────────────────────────────────────────────────
@@ -698,11 +1174,25 @@ export class CanvasComponent {
   }
 
   // ── Node drag ──────────────────────────────────────────────────────────────
-  onRgMouseDown(event: MouseEvent, rgName: string): void {
+  onRgMouseDown(event: MouseEvent, rgId: string): void {
     if (this.activeTool !== 'pointer') return;
     event.preventDefault();
     event.stopPropagation();
-    this.rgDragState = { name: rgName, lastX: event.clientX, lastY: event.clientY };
+    this.rgDragState = { id: rgId, lastX: event.clientX, lastY: event.clientY };
+  }
+
+  onSubscriptionMouseDown(event: MouseEvent, subscriptionId: string): void {
+    if (this.activeTool !== 'pointer') return;
+    event.preventDefault();
+    event.stopPropagation();
+    this.subscriptionDragState = { subscriptionId, lastX: event.clientX, lastY: event.clientY };
+  }
+
+  onVmMouseDown(event: MouseEvent, vmId: string): void {
+    if (this.activeTool !== 'pointer') return;
+    event.preventDefault();
+    event.stopPropagation();
+    this.vmDragState = { vmId, lastX: event.clientX, lastY: event.clientY };
   }
 
   onNodeMouseDown(event: MouseEvent, node: DiagramNode): void {
@@ -722,9 +1212,29 @@ export class CanvasComponent {
     const canvas = this.canvasHostRef?.nativeElement as HTMLElement;
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
-    const x = event.clientX - rect.left - this.dragOffset.x + canvas.scrollLeft;
-    const y = event.clientY - rect.top - this.dragOffset.y + canvas.scrollTop;
+    const x = (event.clientX - rect.left - this.dragOffset.x + canvas.scrollLeft) / this.zoomLevel;
+    const y = (event.clientY - rect.top - this.dragOffset.y + canvas.scrollTop) / this.zoomLevel;
     this.store.moveNode(node.id, { x: Math.max(0, x), y: Math.max(0, y) });
+  }
+
+  get zoomLevel(): number {
+    return this.store.zoomLevel();
+  }
+
+  get zoomPercent(): number {
+    return Math.round(this.zoomLevel * 100);
+  }
+
+  zoomIn(): void {
+    this.setZoom(this.zoomLevel + this.ZOOM_STEP);
+  }
+
+  zoomOut(): void {
+    this.setZoom(this.zoomLevel - this.ZOOM_STEP);
+  }
+
+  resetZoom(): void {
+    this.setZoom(1);
   }
 
   // ── Edge helpers ───────────────────────────────────────────────────────────
@@ -779,7 +1289,33 @@ export class CanvasComponent {
     const host = this.canvasHostRef?.nativeElement as HTMLElement;
     if (!host) return { x: e.clientX, y: e.clientY };
     const rect = host.getBoundingClientRect();
-    return { x: e.clientX - rect.left + host.scrollLeft, y: e.clientY - rect.top + host.scrollTop };
+    return {
+      x: (e.clientX - rect.left + host.scrollLeft) / this.zoomLevel,
+      y: (e.clientY - rect.top + host.scrollTop) / this.zoomLevel,
+    };
+  }
+
+  private setZoom(nextZoom: number, anchor?: { x: number; y: number }): void {
+    const host = this.canvasHostRef?.nativeElement as HTMLElement;
+    const prevZoom = this.zoomLevel;
+    const zoom = Math.max(this.ZOOM_MIN, Math.min(this.ZOOM_MAX, Number(nextZoom.toFixed(2))));
+    if (zoom === prevZoom) return;
+
+    if (!host || !anchor) {
+      this.store.zoomLevel.set(zoom);
+      return;
+    }
+
+    const rect = host.getBoundingClientRect();
+    const localX = anchor.x - rect.left;
+    const localY = anchor.y - rect.top;
+    const worldX = (host.scrollLeft + localX) / prevZoom;
+    const worldY = (host.scrollTop + localY) / prevZoom;
+
+    this.store.zoomLevel.set(zoom);
+
+    host.scrollLeft = Math.max(0, worldX * zoom - localX);
+    host.scrollTop = Math.max(0, worldY * zoom - localY);
   }
 
   private newAnnotation(type: Annotation['type'], x: number, y: number): Annotation {
@@ -814,4 +1350,44 @@ export class CanvasComponent {
   }
 }
 
-interface RgBound { name: string; x: number; y: number; width: number; height: number; }
+interface RgBound {
+  id: string;
+  subscriptionId: string;
+  name: string;
+  collapsed: boolean;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+interface SubscriptionBound {
+  id: string;
+  subscriptionId: string;
+  name: string;
+  collapsed: boolean;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+interface VmBound {
+  id: string;
+  name: string;
+  collapsed: boolean;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+interface RouteTableBound {
+  id: string;
+  name: string;
+  collapsed: boolean;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}

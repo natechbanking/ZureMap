@@ -13,13 +13,13 @@ export interface ELKLayoutOptions {
 const DEFAULT_OPTIONS: ELKLayoutOptions = {
   algorithm: 'layered',
   direction: 'DOWN',
-  nodeSpacing: 60,
-  componentSpacing: 120,
-  groupPadding: 60,
+  nodeSpacing: 40,
+  componentSpacing: 84,
+  groupPadding: 44,
 };
 
 const NODE_W = 140;
-const NODE_H = 80;
+const NODE_H = 92;
 const GRID_COLS = 4;
 const H_GAP = 48;
 const V_GAP = 48;
@@ -27,6 +27,8 @@ const GROUP_LABEL_H = 36;
 const GROUP_PAD = 24;
 const GROUP_GAP_X = 80;
 const GROUP_GAP_Y = 80;
+const CANVAS_MARGIN_X = 72;
+const CANVAS_MARGIN_Y = 96;
 
 @Injectable({ providedIn: 'root' })
 export class ELKLayoutService {
@@ -47,9 +49,10 @@ export class ELKLayoutService {
 
     const opts = { ...DEFAULT_OPTIONS, ...options };
 
-    // Identify subnet IDs that belong to a VNet (they'll be ELK children of the VNet)
+    // Identify true ELK compound children (VNet -> subnet only).
     const childNodeIds = new Set<string>();
     for (const n of nodes) {
+      if (!this.shouldUseElkChildren(n)) continue;
       if (n.children?.length) n.children.forEach(id => childNodeIds.add(id));
     }
 
@@ -62,9 +65,20 @@ export class ELKLayoutService {
       rgMap.get(rg)!.push(node);
     }
 
-    // Sort each resource group's nodes by type so similar resources cluster
+    // Prefer connected nodes first so ELK places edge-related items closer.
+    const degreeByNodeId = new Map<string, number>();
+    for (const edge of edges) {
+      degreeByNodeId.set(edge.sourceId, (degreeByNodeId.get(edge.sourceId) ?? 0) + 1);
+      degreeByNodeId.set(edge.targetId, (degreeByNodeId.get(edge.targetId) ?? 0) + 1);
+    }
+
+    // Sort each resource group's nodes by connectivity, then type.
     for (const [, rgNodes] of rgMap) {
-      rgNodes.sort((a, b) => a.resourceType.localeCompare(b.resourceType));
+      rgNodes.sort((a, b) => {
+        const degreeDelta = (degreeByNodeId.get(b.id) ?? 0) - (degreeByNodeId.get(a.id) ?? 0);
+        if (degreeDelta !== 0) return degreeDelta;
+        return a.resourceType.localeCompare(b.resourceType);
+      });
     }
 
     try {
@@ -84,17 +98,18 @@ export class ELKLayoutService {
       // If ELK gave us real positions for most nodes, use them
       const positioned = positions.size >= Math.max(1, nodes.length * 0.5);
       if (positioned) {
-        return nodes.map(node => {
+        const laidOut = nodes.map(node => {
           if (node.isPinned && node.manualPosition) return { ...node, position: node.manualPosition };
           const pos = positions.get(node.id);
           return pos ? { ...node, position: pos } : node;
         });
+        return this.applyCanvasMargin(laidOut);
       }
     } catch {
       // fall through to manual layout
     }
 
-    return this.manualGroupLayout(nodes, rgMap, childNodeIds);
+    return this.applyCanvasMargin(this.manualGroupLayout(nodes, rgMap, childNodeIds));
   }
 
   private buildElkGraph(
@@ -131,18 +146,16 @@ export class ELKLayoutService {
       }
     }
 
-    const buildVNetNode = (node: DiagramNode): object => {
-      const base: Record<string, unknown> = {
-        id: node.id,
-        width: node.size.width,
-        height: node.size.height,
-      };
+    const buildLayoutNode = (node: DiagramNode): object => {
+      const base: Record<string, unknown> = { id: node.id };
       if (node.isPinned && node.manualPosition) {
         base['layoutOptions'] = { 'org.eclipse.elk.noLayout': 'true' };
       }
-      const children = (node.children ?? [])
-        .map(id => nodeById.get(id))
-        .filter((n): n is DiagramNode => !!n);
+      const children = this.shouldUseElkChildren(node)
+        ? (node.children ?? [])
+          .map(id => nodeById.get(id))
+          .filter((n): n is DiagramNode => !!n)
+        : [];
       if (children.length) {
         base['children'] = children.map(c => ({
           id: c.id,
@@ -155,7 +168,12 @@ export class ELKLayoutService {
           'elk.direction': 'RIGHT',
           'elk.padding': `[top=40,left=20,bottom=20,right=20]`,
           'elk.spacing.nodeNode': String(opts.nodeSpacing),
+          'elk.layered.spacing.nodeNodeBetweenLayers': String(opts.nodeSpacing),
         };
+      } else {
+        // Leaf nodes keep fixed dimensions; compound nodes are auto-sized by ELK.
+        base['width'] = node.size.width;
+        base['height'] = node.size.height;
       }
       return base;
     };
@@ -166,11 +184,17 @@ export class ELKLayoutService {
         'elk.algorithm': 'layered',
         'elk.direction': opts.direction,
         'elk.spacing.nodeNode': String(opts.nodeSpacing),
+        'elk.layered.spacing.nodeNodeBetweenLayers': String(opts.nodeSpacing),
         'elk.padding': `[top=${opts.groupPadding + GROUP_LABEL_H},left=${opts.groupPadding},bottom=${opts.groupPadding},right=${opts.groupPadding}]`,
         'elk.layered.wrapping.strategy': 'MULTI_EDGE',
         'elk.layered.wrapping.additionalEdgeSpacing': '10',
+        'elk.layered.nodePlacement.strategy': 'NETWORK_SIMPLEX',
+        'elk.layered.nodePlacement.favorStraightEdges': 'true',
+        'elk.layered.crossingMinimization.strategy': 'LAYER_SWEEP',
+        'elk.layered.considerModelOrder.strategy': 'NODES_AND_EDGES',
+        'elk.layered.thoroughness': '20',
       },
-      children: rgNodes.map(buildVNetNode),
+      children: rgNodes.map(buildLayoutNode),
       // Intra-RG edges let ELK's layered algorithm place connected nodes close together
       edges: (intraRgEdges.get(rgName) ?? []).map(e => ({
         id: e.id,
@@ -241,7 +265,7 @@ export class ELKLayoutService {
         });
 
         // Place VNet children right below their parent
-        if (node.children?.length) {
+        if (this.shouldUseElkChildren(node) && node.children?.length) {
           node.children.forEach((childId, ci) => {
             result.set(childId, {
               x: groupX + GROUP_PAD + ci * (NODE_W + H_GAP),
@@ -303,6 +327,29 @@ export class ELKLayoutService {
       worker.addEventListener('error', errHandler);
       worker.postMessage(graph);
     });
+  }
+
+  private applyCanvasMargin(nodes: DiagramNode[]): DiagramNode[] {
+    if (!nodes.length) return nodes;
+
+    const minX = Math.min(...nodes.map(n => n.position.x));
+    const minY = Math.min(...nodes.map(n => n.position.y));
+    const dx = Math.max(0, CANVAS_MARGIN_X - minX);
+    const dy = Math.max(0, CANVAS_MARGIN_Y - minY);
+    if (dx === 0 && dy === 0) return nodes;
+
+    return nodes.map(n => {
+      const position = { x: n.position.x + dx, y: n.position.y + dy };
+      if (!n.isPinned) return { ...n, position };
+      const manualPosition = n.manualPosition
+        ? { x: n.manualPosition.x + dx, y: n.manualPosition.y + dy }
+        : position;
+      return { ...n, position, manualPosition };
+    });
+  }
+
+  private shouldUseElkChildren(node: DiagramNode): boolean {
+    return node.resourceType === 'microsoft.network/virtualnetworks';
   }
 }
 

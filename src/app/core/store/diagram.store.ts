@@ -90,14 +90,40 @@ export class DiagramStore {
     );
   }
 
-  moveNodeGroup(resourceGroup: string, delta: { dx: number; dy: number }): void {
+  moveNodeGroup(groupKey: string, delta: { dx: number; dy: number }): void {
     this.nodes.update(current =>
       current.map(n => {
-        if ((n.metadata?.resourceGroup || n.groupId) !== resourceGroup) return n;
+        const rg = n.metadata?.resourceGroup || n.groupId || '';
+        const subscriptionId = n.metadata?.subscriptionId || '';
+        if (`${subscriptionId}::${rg}` !== groupKey) return n;
         const pos = { x: Math.max(0, n.position.x + delta.dx), y: Math.max(0, n.position.y + delta.dy) };
         return { ...n, position: pos, ...(n.isPinned ? { manualPosition: pos } : {}) };
       })
     );
+  }
+
+  moveSubscriptionGroup(subscriptionId: string, delta: { dx: number; dy: number }): void {
+    this.nodes.update(current =>
+      current.map(n => {
+        if ((n.metadata?.subscriptionId || '') !== subscriptionId) return n;
+        const pos = { x: Math.max(0, n.position.x + delta.dx), y: Math.max(0, n.position.y + delta.dy) };
+        return { ...n, position: pos, ...(n.isPinned ? { manualPosition: pos } : {}) };
+      })
+    );
+  }
+
+  moveVmGroup(vmId: string, delta: { dx: number; dy: number }): void {
+    this.nodes.update(current => {
+      const vm = current.find(n => n.id === vmId);
+      if (!vm) return current;
+
+      const groupIds = new Set<string>([vmId, ...(vm.children ?? [])]);
+      return current.map(n => {
+        if (!groupIds.has(n.id)) return n;
+        const pos = { x: Math.max(0, n.position.x + delta.dx), y: Math.max(0, n.position.y + delta.dy) };
+        return { ...n, position: pos, ...(n.isPinned ? { manualPosition: pos } : {}) };
+      });
+    });
   }
 
   pinNode(nodeId: string): void {

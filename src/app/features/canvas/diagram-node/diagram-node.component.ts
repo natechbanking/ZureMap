@@ -12,7 +12,7 @@ import { DiagramStore } from '../../../core/store/diagram.store';
   imports: [CommonModule, AzureIconComponent, CostBadgeComponent],
   template: `
     <div
-      class="relative flex flex-col items-center justify-center gap-1 p-2 rounded-lg bg-white cursor-pointer select-none transition-all"
+      class="relative flex flex-col items-center justify-center gap-0.5 px-2 py-1.5 rounded-lg bg-white cursor-pointer select-none transition-all"
       [style.width.px]="node.size.width"
       [style.height.px]="node.size.height"
       [style.border]="borderStyle"
@@ -28,7 +28,7 @@ import { DiagramStore } from '../../../core/store/diagram.store';
         <span class="absolute top-1 left-1 text-xs" title="Pinned">📌</span>
       }
 
-      <app-azure-icon [resourceType]="node.resourceType" [size]="32" />
+      <app-azure-icon [resourceType]="node.resourceType" [size]="28" />
 
       <span
         class="text-[11px] font-medium text-gray-800 text-center leading-tight max-w-full px-1 break-words overflow-hidden"
@@ -38,7 +38,7 @@ import { DiagramStore } from '../../../core/store/diagram.store';
         {{ node.label }}
       </span>
 
-      <span class="text-[10px] text-gray-400 truncate max-w-full px-1">
+      <span class="text-[10px] leading-tight text-gray-400 truncate max-w-full px-1" [title]="typeLabel">
         {{ typeLabel }}
       </span>
 

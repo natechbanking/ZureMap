@@ -110,9 +110,9 @@ import { Annotation, DrawingTool } from '../../core/models/annotation.model';
                 [style.left.px]="node.position.x"
                 [style.top.px]="node.position.y"
                 [style.pointer-events]="activeTool === 'pointer' ? 'auto' : 'none'"
-                [attr.draggable]="activeTool === 'pointer'"
-                (dragstart)="onDragStart($event, node)"
-                (dragend)="onDragEnd($event, node)"
+                [class.cursor-grab]="activeTool === 'pointer' && nodeDragState?.id !== node.id"
+                [class.cursor-grabbing]="nodeDragState?.id === node.id"
+                (mousedown)="onNodeMouseDown($event, node)"
               >
                 <app-diagram-node
                   [node]="node"
@@ -399,6 +399,9 @@ export class CanvasComponent {
   rgDragState: { name: string; lastX: number; lastY: number } | null = null;
   get isRgDragging(): boolean { return this.rgDragState !== null; }
 
+  // Individual node mouse drag
+  nodeDragState: { id: string; lastX: number; lastY: number; hasMoved: boolean } | null = null;
+
   // Floating toolbar drag
   toolbarPos = { x: 12, y: 12 };
   toolbarDragState: { lastX: number; lastY: number } | null = null;
@@ -432,6 +435,28 @@ export class CanvasComponent {
       return;
     }
 
+    // Individual node drag — incremental delta, pins the node on first move
+    if (this.nodeDragState) {
+      const dx = e.clientX - this.nodeDragState.lastX;
+      const dy = e.clientY - this.nodeDragState.lastY;
+      if (dx !== 0 || dy !== 0) {
+        if (!this.nodeDragState.hasMoved) {
+          this.store.pinNode(this.nodeDragState.id);
+          this.nodeDragState.hasMoved = true;
+        }
+        const node = this.store.nodes().find(n => n.id === this.nodeDragState!.id);
+        if (node) {
+          this.store.moveNode(node.id, {
+            x: Math.max(0, node.position.x + dx),
+            y: Math.max(0, node.position.y + dy),
+          });
+        }
+        this.nodeDragState.lastX = e.clientX;
+        this.nodeDragState.lastY = e.clientY;
+      }
+      return;
+    }
+
     // RG group drag — incremental delta so position tracks the cursor exactly
     if (this.rgDragState) {
       const dx = e.clientX - this.rgDragState.lastX;
@@ -462,6 +487,7 @@ export class CanvasComponent {
   onDocMouseUp(): void {
     this.toolbarDragState = null;
     this.rgDragState = null;
+    this.nodeDragState = null;
     this.annDragId = null;
   }
 
@@ -677,6 +703,13 @@ export class CanvasComponent {
     event.preventDefault();
     event.stopPropagation();
     this.rgDragState = { name: rgName, lastX: event.clientX, lastY: event.clientY };
+  }
+
+  onNodeMouseDown(event: MouseEvent, node: DiagramNode): void {
+    if (this.activeTool !== 'pointer') return;
+    event.preventDefault();
+    event.stopPropagation();
+    this.nodeDragState = { id: node.id, lastX: event.clientX, lastY: event.clientY, hasMoved: false };
   }
 
   onDragStart(event: DragEvent, node: DiagramNode): void {

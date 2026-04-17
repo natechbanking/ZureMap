@@ -84,7 +84,9 @@ export class DiagramStore {
 
   moveNode(nodeId: string, position: { x: number; y: number }): void {
     this.nodes.update(current =>
-      current.map(n => n.id === nodeId ? { ...n, position } : n)
+      current.map(n => n.id === nodeId
+        ? { ...n, position, ...(n.isPinned ? { manualPosition: position } : {}) }
+        : n)
     );
   }
 

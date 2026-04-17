@@ -30,7 +30,11 @@ import { DiagramStore } from '../../../core/store/diagram.store';
 
       <app-azure-icon [resourceType]="node.resourceType" [size]="32" />
 
-      <span class="text-xs font-medium text-gray-800 text-center leading-tight max-w-full truncate px-1">
+      <span
+        class="text-[11px] font-medium text-gray-800 text-center leading-tight max-w-full px-1 break-words overflow-hidden"
+        [title]="node.label"
+        style="display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;"
+      >
         {{ node.label }}
       </span>
 

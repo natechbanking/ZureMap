@@ -106,6 +106,31 @@ export class ELKLayoutService {
   ): object {
     const nodeById = new Map(nodes.map(n => [n.id, n]));
 
+    // Build a map from nodeId -> rgName so we can classify edges
+    const nodeToRg = new Map<string, string>();
+    for (const [rgName, rgNodes] of rgMap) {
+      for (const node of rgNodes) {
+        nodeToRg.set(node.id, rgName);
+        if (node.children) {
+          for (const childId of node.children) nodeToRg.set(childId, rgName);
+        }
+      }
+    }
+
+    // Split edges: intra-RG edges go inside the RG container, inter-RG go at root
+    const intraRgEdges = new Map<string, DiagramEdge[]>();
+    const interRgEdges: DiagramEdge[] = [];
+    for (const edge of edges) {
+      const sourceRg = nodeToRg.get(edge.sourceId);
+      const targetRg = nodeToRg.get(edge.targetId);
+      if (sourceRg && targetRg && sourceRg === targetRg) {
+        if (!intraRgEdges.has(sourceRg)) intraRgEdges.set(sourceRg, []);
+        intraRgEdges.get(sourceRg)!.push(edge);
+      } else {
+        interRgEdges.push(edge);
+      }
+    }
+
     const buildVNetNode = (node: DiagramNode): object => {
       const base: Record<string, unknown> = {
         id: node.id,
@@ -146,9 +171,15 @@ export class ELKLayoutService {
         'elk.layered.wrapping.additionalEdgeSpacing': '10',
       },
       children: rgNodes.map(buildVNetNode),
+      // Intra-RG edges let ELK's layered algorithm place connected nodes close together
+      edges: (intraRgEdges.get(rgName) ?? []).map(e => ({
+        id: e.id,
+        sources: [e.sourceId],
+        targets: [e.targetId],
+      })),
     }));
 
-    const allEdges = edges
+    const rootEdges = interRgEdges
       .filter(e => !childNodeIds.has(e.sourceId) || !childNodeIds.has(e.targetId))
       .map(e => ({ id: e.id, sources: [e.sourceId], targets: [e.targetId] }));
 
@@ -161,7 +192,7 @@ export class ELKLayoutService {
         'elk.hierarchyHandling': 'INCLUDE_CHILDREN',
       },
       children: rgContainers,
-      edges: allEdges,
+      edges: rootEdges,
     };
   }
 

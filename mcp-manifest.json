@@ -1,0 +1,15 @@
+{
+  "name": "zuremap",
+  "description": "Query your live Azure architecture diagram",
+  "version": "1.0.0",
+  "tools": [
+    {
+      "name": "get_diagram_summary",
+      "description": "Returns a Markdown summary of the current Azure resources, connections, costs, and drift status in the ZureMap diagram. Requires ZureMap to be running locally (npm run dev).",
+      "endpoint": "http://localhost:3001/api/mcp/diagram-summary",
+      "method": "GET"
+    }
+  ],
+  "setup": "npm run dev",
+  "docs": "https://github.com/yourorg/zuremap#mcp-integration"
+}

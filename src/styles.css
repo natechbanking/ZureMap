@@ -1,7 +1,6 @@
 /* Tailwind CSS v4 — processed by PostCSS before Sass */
-@import "tailwindcss";
-
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import "tailwindcss";
 
 @theme {
   --color-azure-blue:    #0078d4;

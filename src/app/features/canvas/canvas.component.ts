@@ -48,6 +48,20 @@ import { DiagramNode } from '../../core/models/diagram-node.model';
             [style.width.px]="canvasWidth"
             [style.height.px]="canvasHeight"
           >
+            @for (bound of rgBounds; track bound.name) {
+              <div
+                class="absolute rounded-xl border border-dashed border-blue-200 bg-blue-50/30 pointer-events-none"
+                [style.left.px]="bound.x"
+                [style.top.px]="bound.y"
+                [style.width.px]="bound.width"
+                [style.height.px]="bound.height"
+              >
+                <span class="absolute top-2 left-3 text-xs font-semibold text-blue-400 uppercase tracking-wide select-none">
+                  {{ bound.name }}
+                </span>
+              </div>
+            }
+
             @for (node of visibleNodes; track node.id) {
               <div
                 class="absolute"
@@ -111,6 +125,7 @@ export class CanvasComponent {
   private router = inject(Router);
 
   visibleNodes: DiagramNode[] = [];
+  rgBounds: RgBound[] = [];
 
   constructor() {
     effect(() => {
@@ -131,6 +146,26 @@ export class CanvasComponent {
 
   private renderProgressively(nodes: DiagramNode[]): void {
     this.visibleNodes = nodes;
+    this.rgBounds = this.computeRgBounds(nodes);
+  }
+
+  private computeRgBounds(nodes: DiagramNode[]): RgBound[] {
+    const PAD = 28;
+    const LABEL_H = 28;
+    const map = new Map<string, DiagramNode[]>();
+    for (const n of nodes) {
+      const rg = n.metadata?.resourceGroup || n.groupId || '';
+      if (!rg) continue;
+      if (!map.has(rg)) map.set(rg, []);
+      map.get(rg)!.push(n);
+    }
+    return Array.from(map.entries()).map(([name, rgNodes]) => {
+      const minX = Math.min(...rgNodes.map(n => n.position.x)) - PAD;
+      const minY = Math.min(...rgNodes.map(n => n.position.y)) - PAD - LABEL_H;
+      const maxX = Math.max(...rgNodes.map(n => n.position.x + n.size.width)) + PAD;
+      const maxY = Math.max(...rgNodes.map(n => n.position.y + n.size.height)) + PAD;
+      return { name, x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+    });
   }
 
   getEdgeX1(nodeId: string): number {
@@ -223,4 +258,12 @@ export class CanvasComponent {
     this.store.clearDiagram();
     this.router.navigate(['/scan']);
   }
+}
+
+interface RgBound {
+  name: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
 }

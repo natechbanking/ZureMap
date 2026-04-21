@@ -5,6 +5,18 @@ export type NodeStatus = 'running' | 'stopped' | 'failed' | 'unknown';
 export type LayoutGroup = 'resourceGroup' | 'vnet' | 'subnet' | 'standalone';
 export type DriftStatus = 'matched' | 'missing' | 'unplanned';
 
+export interface NodeInternalItem {
+  id: string;
+  text: string;
+  x: number;
+  y: number;
+}
+
+export interface NodeCustomization {
+  description?: string;
+  internalItems?: NodeInternalItem[];
+}
+
 export interface DiagramNode {
   id: string;
   label: string;
@@ -24,4 +36,5 @@ export interface DiagramNode {
   selected: boolean;
   highlighted: boolean;
   driftStatus?: DriftStatus;
+  custom?: NodeCustomization;
 }

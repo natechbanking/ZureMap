@@ -7,7 +7,7 @@ import { ExportService } from '../../core/services/export.service';
 import { CostService } from '../../core/services/cost.service';
 import { DriftService } from '../../core/services/drift.service';
 import { IconRegistryService } from '../../core/services/icon-registry.service';
-import { DiagramNodeComponent, ContextMenuRequest } from './diagram-node/diagram-node.component';
+import { DiagramNodeComponent, ContextMenuRequest, InternalItemMoveRequest } from './diagram-node/diagram-node.component';
 import { SidebarComponent } from '../sidebar/sidebar.component';
 import { ToolbarComponent } from '../toolbar/toolbar.component';
 import { DrawingToolbarComponent } from './drawing-toolbar/drawing-toolbar.component';
@@ -313,6 +313,8 @@ import { forkJoin, firstValueFrom } from 'rxjs';
                   [node]="node"
                   [finOpsActive]="store.finOpsLayerActive()"
                   (clicked)="store.selectNode($event)"
+                  (editRequested)="openResourceEditor($event)"
+                  (internalItemMoved)="onInternalItemMoved($event)"
                   (contextMenuRequested)="onContextMenuRequested($event)"
                 />
               </div>
@@ -775,6 +777,64 @@ import { forkJoin, firstValueFrom } from 'rxjs';
           </aside>
         }
 
+        @if (resourceEditorOpen && resourceEditorDraft) {
+          <div class="absolute inset-0 z-[170] bg-black/30 flex items-center justify-center p-4" (click)="closeResourceEditor()">
+            <div class="w-full max-w-2xl rounded-xl border border-gray-200 bg-white shadow-2xl" (click)="$event.stopPropagation()">
+              <div class="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+                <h3 class="text-sm font-semibold text-gray-900">Edit Resource</h3>
+                <button class="text-xs text-gray-500 hover:text-gray-700" (click)="closeResourceEditor()">Close</button>
+              </div>
+
+              <div class="p-4 grid grid-cols-2 gap-3">
+                <label class="text-xs text-gray-600">Name
+                  <input class="mt-1 w-full h-9 rounded border border-gray-200 px-2 text-sm" [value]="resourceEditorDraft.label" (input)="resourceEditorDraft.label = textValue($event)" />
+                </label>
+                <label class="text-xs text-gray-600">Status
+                  <select class="mt-1 w-full h-9 rounded border border-gray-200 px-2 text-sm" [value]="resourceEditorDraft.status" (change)="setResourceEditorStatus($event)">
+                    <option value="running">running</option>
+                    <option value="stopped">stopped</option>
+                    <option value="failed">failed</option>
+                    <option value="unknown">unknown</option>
+                  </select>
+                </label>
+                <label class="text-xs text-gray-600">Location
+                  <input class="mt-1 w-full h-9 rounded border border-gray-200 px-2 text-sm" [value]="resourceEditorDraft.location" (input)="resourceEditorDraft.location = textValue($event)" />
+                </label>
+                <label class="text-xs text-gray-600">Resource Group
+                  <input class="mt-1 w-full h-9 rounded border border-gray-200 px-2 text-sm" [value]="resourceEditorDraft.resourceGroup" (input)="resourceEditorDraft.resourceGroup = textValue($event)" />
+                </label>
+              </div>
+
+              <div class="px-4 pb-4">
+                <label class="text-xs text-gray-600 block">Description / Notes
+                  <textarea class="mt-1 w-full rounded border border-gray-200 px-2 py-2 text-sm min-h-20" [value]="resourceEditorDraft.description" (input)="resourceEditorDraft.description = textValue($event)"></textarea>
+                </label>
+              </div>
+
+              <div class="px-4 pb-4">
+                <div class="flex items-center justify-between mb-2">
+                  <p class="text-xs font-semibold text-gray-600 uppercase tracking-wide">Internal Text Items</p>
+                  <button class="h-7 px-2 rounded border border-gray-200 text-xs text-gray-700 hover:bg-gray-50" (click)="addInternalItem()">Add Text</button>
+                </div>
+                <div class="space-y-2 max-h-40 overflow-auto">
+                  @for (item of resourceEditorDraft.internalItems; track item.id) {
+                    <div class="grid grid-cols-[1fr_auto] gap-2 items-center">
+                      <input class="h-8 rounded border border-gray-200 px-2 text-xs" [value]="item.text" (input)="updateInternalItemText(item.id, textValue($event))" />
+                      <button class="h-8 px-2 rounded border border-red-200 text-xs text-red-600 hover:bg-red-50" (click)="removeInternalItem(item.id)">Remove</button>
+                    </div>
+                  }
+                </div>
+                <p class="text-[11px] text-gray-400 mt-2">Tip: after saving, drag these labels inside the resource box on the canvas.</p>
+              </div>
+
+              <div class="px-4 py-3 border-t border-gray-100 flex justify-end gap-2">
+                <button class="h-9 px-3 rounded border border-gray-200 text-xs text-gray-700 hover:bg-gray-50" (click)="closeResourceEditor()">Cancel</button>
+                <button class="h-9 px-3 rounded bg-blue-600 text-xs text-white hover:bg-blue-700" (click)="saveResourceEditor()">Save Changes</button>
+              </div>
+            </div>
+          </div>
+        }
+
         @if (store.sidebarOpen()) {
           <app-sidebar />
         }
@@ -965,6 +1025,16 @@ export class CanvasComponent {
   // Node HTML5 drag
   private dragOffset = { x: 0, y: 0 };
   selectedEdgeId: string | null = null;
+  resourceEditorOpen = false;
+  resourceEditorNodeId: string | null = null;
+  resourceEditorDraft: {
+    label: string;
+    location: string;
+    resourceGroup: string;
+    status: DiagramNode['status'];
+    description: string;
+    internalItems: Array<{ id: string; text: string; x: number; y: number }>;
+  } | null = null;
   finOpsLoading = false;
   finOpsError: string | null = null;
   finOpsLoadedSubscriptions = 0;
@@ -1909,6 +1979,18 @@ export class CanvasComponent {
     return !!(event.target as HTMLInputElement).checked;
   }
 
+  textValue(event: Event): string {
+    return (event.target as HTMLInputElement | HTMLTextAreaElement).value ?? '';
+  }
+
+  setResourceEditorStatus(event: Event): void {
+    if (!this.resourceEditorDraft) return;
+    const value = this.selectValue(event);
+    if (value === 'running' || value === 'stopped' || value === 'failed' || value === 'unknown') {
+      this.resourceEditorDraft.status = value;
+    }
+  }
+
   // ── Context menu ──────────────────────────────────────────────────────────
   onContextMenuRequested(req: ContextMenuRequest): void {
     const node = this.store.nodes().find(n => n.id === req.nodeId);
@@ -1948,6 +2030,91 @@ export class CanvasComponent {
     if (!this.contextMenu) return;
     this.store.selectNode(this.contextMenu.nodeId);
     this.closeContextMenu();
+  }
+
+  // ── Resource editor ───────────────────────────────────────────────────────
+  openResourceEditor(nodeId: string): void {
+    const node = this.store.nodes().find(n => n.id === nodeId);
+    if (!node) return;
+    this.resourceEditorNodeId = nodeId;
+    this.resourceEditorDraft = {
+      label: node.label,
+      location: node.metadata.location ?? '',
+      resourceGroup: node.metadata.resourceGroup ?? '',
+      status: node.status,
+      description: node.custom?.description ?? '',
+      internalItems: (node.custom?.internalItems ?? []).map(i => ({ ...i })),
+    };
+    this.resourceEditorOpen = true;
+  }
+
+  closeResourceEditor(): void {
+    this.resourceEditorOpen = false;
+    this.resourceEditorNodeId = null;
+    this.resourceEditorDraft = null;
+  }
+
+  saveResourceEditor(): void {
+    if (!this.resourceEditorOpen || !this.resourceEditorNodeId || !this.resourceEditorDraft) return;
+    const draft = this.resourceEditorDraft;
+    this.store.setNodes(
+      this.store.nodes().map(n => {
+        if (n.id !== this.resourceEditorNodeId) return n;
+        return {
+          ...n,
+          label: draft.label,
+          status: draft.status,
+          metadata: {
+            ...n.metadata,
+            location: draft.location,
+            resourceGroup: draft.resourceGroup,
+          },
+          custom: {
+            description: draft.description,
+            internalItems: draft.internalItems,
+          },
+        };
+      })
+    );
+    this.closeResourceEditor();
+  }
+
+  addInternalItem(): void {
+    if (!this.resourceEditorDraft) return;
+    this.resourceEditorDraft.internalItems = [
+      ...this.resourceEditorDraft.internalItems,
+      {
+        id: `ni-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        text: 'New item',
+        x: 8,
+        y: 56 + this.resourceEditorDraft.internalItems.length * 16,
+      },
+    ];
+  }
+
+  removeInternalItem(itemId: string): void {
+    if (!this.resourceEditorDraft) return;
+    this.resourceEditorDraft.internalItems = this.resourceEditorDraft.internalItems.filter(i => i.id !== itemId);
+  }
+
+  updateInternalItemText(itemId: string, text: string): void {
+    if (!this.resourceEditorDraft) return;
+    this.resourceEditorDraft.internalItems = this.resourceEditorDraft.internalItems.map(i =>
+      i.id === itemId ? { ...i, text } : i
+    );
+  }
+
+  onInternalItemMoved(req: InternalItemMoveRequest): void {
+    this.store.setNodes(
+      this.store.nodes().map(n => {
+        if (n.id !== req.nodeId) return n;
+        const custom = n.custom ?? {};
+        const items = (custom.internalItems ?? []).map(i =>
+          i.id === req.itemId ? { ...i, x: req.x, y: req.y } : i
+        );
+        return { ...n, custom: { ...custom, internalItems: items } };
+      })
+    );
   }
 
   // ── Container rename ──────────────────────────────────────────────────────

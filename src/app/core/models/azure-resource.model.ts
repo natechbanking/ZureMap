@@ -9,6 +9,11 @@ export interface AzureResource {
   properties: Record<string, unknown>;
   sku?: { name: string; tier?: string; capacity?: number };
   kind?: string;
+  /** Top-level ARM identity block (system/user-assigned managed identities) */
+  identity?: {
+    type?: string;
+    userAssignedIdentities?: Record<string, unknown>;
+  };
 }
 
 export interface AzureSubscription {

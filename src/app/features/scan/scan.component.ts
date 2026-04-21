@@ -105,6 +105,25 @@ interface ConnectionType {
                         </div>
                       }
                     </div>
+                    <div class="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between gap-4">
+                      <div>
+                        <p class="text-xs font-medium text-gray-700">User-Assigned Identity Assignments</p>
+                        <p class="text-[11px] text-gray-400 mt-0.5">Draw edges from UAIs to the resources they are assigned to.</p>
+                      </div>
+                      <button
+                        type="button"
+                        (click)="optionsUserAssignedIdentityEdges = !optionsUserAssignedIdentityEdges"
+                        class="relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors focus:outline-none"
+                        [class.bg-azure-blue]="optionsUserAssignedIdentityEdges"
+                        [class.bg-gray-300]="!optionsUserAssignedIdentityEdges"
+                      >
+                        <span
+                          class="inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform duration-200"
+                          [class.translate-x-6]="optionsUserAssignedIdentityEdges"
+                          [class.translate-x-1]="!optionsUserAssignedIdentityEdges"
+                        ></span>
+                      </button>
+                    </div>
                   </div>
                 } @else {
                   <p class="text-xs text-gray-400 mt-3 pt-3 border-t border-gray-100">
@@ -340,6 +359,7 @@ export class ScanComponent implements OnInit {
   optionsGenerateConnections = true;
   optionsIncludeAppSlots = false;
   optionsIncludeNetworkInterfaces = false;
+  optionsUserAssignedIdentityEdges = false;
   progressLog = signal<string[]>([]);
   scanSteps = signal<Array<{ name: string; status: 'pending' | 'active' | 'done' }>>([]);
 
@@ -354,7 +374,11 @@ export class ScanComponent implements OnInit {
       name: 'VNet Peering',
       description: 'Cross-VNet peering connections for network traffic routing',
     },
-
+    {
+      color: '#8764b8',
+      name: 'Managed Identity Assignments',
+      description: 'User-assigned managed identities linked to the resources they are assigned to',
+    },
   ];
 
   get progressPercent(): number {
@@ -371,6 +395,7 @@ export class ScanComponent implements OnInit {
     this.optionsGenerateConnections = true;
     this.optionsIncludeAppSlots = false;
     this.optionsIncludeNetworkInterfaces = false;
+    this.optionsUserAssignedIdentityEdges = false;
     this.progressLog.set([]);
     this.scanSteps.set([]);
     this.store.scanPhase.set('idle');
@@ -490,7 +515,9 @@ export class ScanComponent implements OnInit {
       let edges: ReturnType<ConnectionResolverService['resolveAll']> = [];
       if (this.optionsGenerateConnections) {
         setProgress(5, totalSteps, 'Building connections between resources...');
-        edges = this.connectionResolver.resolveAll(merged, nodes);
+        edges = this.connectionResolver.resolveAll(merged, nodes, {
+          userAssignedIdentities: this.optionsUserAssignedIdentityEdges,
+        });
         const byType = edges.reduce((acc, e) => {
           acc[e.edgeType] = (acc[e.edgeType] ?? 0) + 1;
           return acc;

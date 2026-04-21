@@ -5,7 +5,7 @@ import { AzureResource } from '../models/azure-resource.model';
 
 const ALL_RESOURCES_KQL = `
 Resources
-| project id, name, type, location, resourceGroup, subscriptionId, tags, properties, sku, kind
+| project id, name, type, location, resourceGroup, subscriptionId, tags, properties, sku, kind, identity
 | order by type asc
 `;
 

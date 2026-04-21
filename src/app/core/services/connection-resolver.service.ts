@@ -6,11 +6,15 @@ import { DiagramEdge, EdgeType, EDGE_STYLES } from '../models/diagram-edge.model
 @Injectable({ providedIn: 'root' })
 export class ConnectionResolverService {
 
-  resolveAll(resources: AzureResource[], nodes: DiagramNode[]): DiagramEdge[] {
+  resolveAll(
+    resources: AzureResource[],
+    nodes: DiagramNode[],
+    options: { userAssignedIdentities?: boolean } = {},
+  ): DiagramEdge[] {
     return [
       ...this.resolvePrivateLinkConnections(resources, nodes),
       ...this.resolveVNetPeering(resources, nodes),
-      ...this.resolveManagedIdentityEdges(resources, nodes),
+      ...(options.userAssignedIdentities ? this.resolveManagedIdentityEdges(resources, nodes) : []),
     ];
   }
 
@@ -102,11 +106,23 @@ export class ConnectionResolverService {
   }
 
   resolveManagedIdentityEdges(resources: AzureResource[], nodes: DiagramNode[]): DiagramEdge[] {
-    // Managed Identity edges are heuristic: resources with system-assigned identity
-    // pointing to Key Vaults and Storage Accounts they have access to.
-    // This requires RBAC data which isn't in Resource Graph — return empty for now,
-    // flagged for Phase 3 enhancement with Azure RBAC API integration.
-    return [];
+    const edges: DiagramEdge[] = [];
+    const nodeIds = new Set(nodes.map(n => n.id));
+    const seen = new Set<string>();
+
+    for (const r of resources) {
+      const uaiMap = r.identity?.userAssignedIdentities;
+      if (!uaiMap) continue;
+      for (const uaiId of Object.keys(uaiMap)) {
+        if (!nodeIds.has(uaiId) || !nodeIds.has(r.id)) continue;
+        // Draw edge from UAI → resource (UAI is the source/identity, resource is the assignee)
+        const key = `${uaiId}|${r.id}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        edges.push(this.createEdge(uaiId, r.id, 'managedIdentity', false));
+      }
+    }
+    return edges;
   }
 
   private createEdge(

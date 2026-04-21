@@ -37,6 +37,12 @@ export interface VirtualNetworkExpansionRequest {
   subnetCount: number;
 }
 
+export interface NsgExpansionRequest {
+  nodeId: string;
+  expanded: boolean;
+  ruleCount: number;
+}
+
 interface RouteEntryView {
   name: string;
   addressPrefix: string;
@@ -47,6 +53,17 @@ interface RouteEntryView {
 interface SubnetEntryView {
   name: string;
   addressPrefix: string;
+}
+
+interface NsgRuleView {
+  name: string;
+  direction: string;
+  priority: number;
+  access: string;
+  protocol: string;
+  sourceAddressPrefix: string;
+  destinationPortRange: string;
+  isDefault: boolean;
 }
 
 @Component({
@@ -103,6 +120,18 @@ interface SubnetEntryView {
           (click)="toggleSubnetsPanel($event)"
         >
           {{ subnetsExpanded ? 'Hide subnets' : 'Show subnets' }} ({{ subnetEntries.length }})
+        </button>
+      }
+
+      @if (isNsg) {
+        <button
+          type="button"
+          class="mt-0.5 px-2 py-0.5 rounded border border-orange-200 bg-orange-50 text-[10px] leading-tight text-orange-700 hover:bg-orange-100"
+          [title]="nsgRulesExpanded ? 'Hide rules' : 'Show rules'"
+          (mousedown)="stopEvent($event)"
+          (click)="toggleNsgRulesPanel($event)"
+        >
+          {{ nsgRulesExpanded ? 'Hide rules' : 'Show rules' }} ({{ nsgRuleEntries.length }})
         </button>
       }
 
@@ -163,7 +192,7 @@ interface SubnetEntryView {
                   <p class="text-[10px] font-semibold text-gray-800 truncate" [title]="route.name">{{ route.name }}</p>
                   <p class="text-[10px] text-gray-600 truncate" [title]="route.addressPrefix">{{ route.addressPrefix }}</p>
                   <p class="text-[10px] text-gray-500 truncate" [title]="route.nextHopType + (route.nextHopIpAddress ? ' • ' + route.nextHopIpAddress : '')">
-                    {{ route.nextHopType }}@if (route.nextHopIpAddress) { • {{ route.nextHopIpAddress }} }
+                    {{ route.nextHopType }}{{ route.nextHopIpAddress ? ' • ' + route.nextHopIpAddress : '' }}
                   </p>
                 </div>
               }
@@ -192,6 +221,47 @@ interface SubnetEntryView {
           }
         </div>
       }
+
+      @if (isNsg && nsgRulesExpanded) {
+        <div
+          class="w-full mt-1 rounded border border-orange-200 bg-white shadow-sm overflow-hidden"
+          (mousedown)="stopEvent($event)"
+          (click)="stopEvent($event)"
+        >
+          @if (nsgRuleEntries.length === 0) {
+            <p class="text-[10px] text-gray-500 px-2 py-1.5">No security rules found.</p>
+          } @else {
+            @for (rule of nsgRuleEntries; track rule.name + rule.priority) {
+              <div
+                class="px-2 py-1.5 border-b last:border-b-0"
+                [ngClass]="rule.isDefault ? 'border-gray-100 bg-gray-50' : 'border-orange-50 bg-white'"
+              >
+                <div class="flex items-center gap-1 flex-wrap mb-0.5">
+                  <span
+                    class="text-[9px] font-semibold px-1.5 py-px rounded-full leading-tight shrink-0"
+                    [ngClass]="rule.access === 'Allow' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'"
+                  >{{ rule.access }}</span>
+                  <span
+                    class="text-[9px] px-1.5 py-px rounded-full leading-tight shrink-0"
+                    [ngClass]="rule.direction === 'Inbound' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'"
+                  >{{ rule.direction }}</span>
+                  <span class="text-[9px] text-gray-400 ml-auto shrink-0">#{{ rule.priority }}</span>
+                </div>
+                <p class="text-[10px] font-medium text-gray-800 break-all leading-snug" [title]="rule.name">{{ rule.name }}</p>
+                <div class="mt-0.5 space-y-px">
+                  <p class="text-[9px] text-gray-500 break-all leading-snug">
+                    <span class="text-gray-400">From </span>{{ rule.sourceAddressPrefix }}
+                  </p>
+                  <p class="text-[9px] text-gray-500 leading-snug">
+                    <span class="text-gray-400">Port </span>{{ rule.destinationPortRange }}
+                    <span class="text-gray-400"> ({{ rule.protocol }})</span>
+                  </p>
+                </div>
+              </div>
+            }
+          }
+        </div>
+      }
     </div>
   `,
 })
@@ -206,6 +276,7 @@ export class DiagramNodeComponent {
   @Output() nodeResized = new EventEmitter<NodeResizeRequest>();
   @Output() routeTableExpansionChanged = new EventEmitter<RouteTableExpansionRequest>();
   @Output() virtualNetworkExpansionChanged = new EventEmitter<VirtualNetworkExpansionRequest>();
+  @Output() nsgExpansionChanged = new EventEmitter<NsgExpansionRequest>();
 
   private costSvc = inject(CostService);
   private store = inject(DiagramStore);
@@ -213,6 +284,7 @@ export class DiagramNodeComponent {
   private resizeDrag: { startMouseX: number; startMouseY: number; startW: number; startH: number } | null = null;
   routesExpanded = false;
   subnetsExpanded = false;
+  nsgRulesExpanded = false;
 
   get typeLabel(): string {
     const parts = this.node.resourceType.split('/');
@@ -242,6 +314,10 @@ export class DiagramNodeComponent {
 
   get isVirtualNetwork(): boolean {
     return this.node.resourceType.toLowerCase() === 'microsoft.network/virtualnetworks';
+  }
+
+  get isNsg(): boolean {
+    return this.node.resourceType.toLowerCase() === 'microsoft.network/networksecuritygroups';
   }
 
   get routeEntries(): RouteEntryView[] {
@@ -311,6 +387,51 @@ export class DiagramNodeComponent {
       nodeId: this.node.id,
       expanded: this.subnetsExpanded,
       subnetCount: this.subnetEntries.length,
+    });
+  }
+
+  get nsgRuleEntries(): NsgRuleView[] {
+    const userRules = (this.node.metadata?.properties?.['securityRules'] as unknown[] | undefined) ?? [];
+    const defaultRules = (this.node.metadata?.properties?.['defaultSecurityRules'] as unknown[] | undefined) ?? [];
+    const toView = (raw: unknown, isDefault: boolean): NsgRuleView => {
+      const rule = raw as {
+        name?: string;
+        properties?: {
+          direction?: string;
+          priority?: number;
+          access?: string;
+          protocol?: string;
+          sourceAddressPrefix?: string;
+          destinationPortRange?: string;
+        };
+      };
+      return {
+        name: rule.name ?? 'Unnamed rule',
+        direction: rule.properties?.direction ?? 'Inbound',
+        priority: rule.properties?.priority ?? 0,
+        access: rule.properties?.access ?? 'Allow',
+        protocol: rule.properties?.protocol ?? '*',
+        sourceAddressPrefix: rule.properties?.sourceAddressPrefix ?? '*',
+        destinationPortRange: rule.properties?.destinationPortRange ?? '*',
+        isDefault,
+      };
+    };
+    const entries = [
+      ...userRules.map(r => toView(r, false)),
+      ...defaultRules.map(r => toView(r, true)),
+    ];
+    return entries.sort((a, b) => a.priority - b.priority);
+  }
+
+  toggleNsgRulesPanel(event: MouseEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.clicked.emit(this.node.id);
+    this.nsgRulesExpanded = !this.nsgRulesExpanded;
+    this.nsgExpansionChanged.emit({
+      nodeId: this.node.id,
+      expanded: this.nsgRulesExpanded,
+      ruleCount: this.nsgRuleEntries.length,
     });
   }
 

@@ -10,6 +10,7 @@ import {
   NodeResizeRequest,
   RouteTableExpansionRequest,
   VirtualNetworkExpansionRequest,
+  NsgExpansionRequest,
 } from './diagram-node/diagram-node.component';
 import { SidebarComponent } from '../sidebar/sidebar.component';
 import { ToolbarComponent } from '../toolbar/toolbar.component';
@@ -158,6 +159,7 @@ export class CanvasComponent {
   private dragOffset = { x: 0, y: 0 };
   private routeTableCollapsedHeights = new Map<string, number>();
   private virtualNetworkCollapsedHeights = new Map<string, number>();
+  private nsgCollapsedHeights = new Map<string, number>();
   selectedEdgeId: string | null = null;
   resourceEditorOpen = false;
   resourceEditorNodeId: string | null = null;
@@ -1004,6 +1006,43 @@ export class CanvasComponent {
 
     this.store.setNodes(nodes.map(n => {
       if (n.id === virtualNetwork.id) {
+        return { ...n, size: { ...n.size, height: targetHeight } };
+      }
+      const sameSub = (n.metadata?.subscriptionId || '') === subId;
+      const sameRg = (n.metadata?.resourceGroup || n.groupId || '') === rg;
+      if (!sameSub || !sameRg || n.position.y < cutoffY) return n;
+      return { ...n, position: { ...n.position, y: Math.max(0, n.position.y + delta) } };
+    }));
+  }
+
+  onNsgExpansionChanged(req: NsgExpansionRequest): void {
+    const nodes = this.store.nodes();
+    const nsg = nodes.find(n => n.id === req.nodeId);
+    if (!nsg) return;
+
+    const currentHeight = nsg.size.height;
+    const collapsedHeight = this.nsgCollapsedHeights.get(req.nodeId) ?? currentHeight;
+    if (req.expanded && !this.nsgCollapsedHeights.has(req.nodeId)) {
+      this.nsgCollapsedHeights.set(req.nodeId, currentHeight);
+    }
+    if (!req.expanded) {
+      this.nsgCollapsedHeights.delete(req.nodeId);
+    }
+
+    // NSG rule cards have 3 rows (badges + name + ports) + spacing + panel chrome.
+    const panelHeight = req.ruleCount === 0 ? 40 : req.ruleCount * 52 + 24;
+    const targetHeight = req.expanded
+      ? Math.max(currentHeight, collapsedHeight + panelHeight)
+      : collapsedHeight;
+    const delta = targetHeight - currentHeight;
+    if (delta === 0) return;
+
+    const subId = nsg.metadata?.subscriptionId || '';
+    const rg = nsg.metadata?.resourceGroup || nsg.groupId || '';
+    const cutoffY = nsg.position.y + currentHeight - 2;
+
+    this.store.setNodes(nodes.map(n => {
+      if (n.id === nsg.id) {
         return { ...n, size: { ...n.size, height: targetHeight } };
       }
       const sameSub = (n.metadata?.subscriptionId || '') === subId;

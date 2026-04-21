@@ -130,7 +130,6 @@ export class ELKLayoutService {
       const positioned = positions.size >= Math.max(1, nodes.length * 0.5);
       if (positioned) {
         const laidOut = nodes.map(node => {
-          if (node.isPinned && node.manualPosition) return { ...node, position: node.manualPosition };
           const pos = positions.get(node.id);
           return pos ? { ...node, position: pos } : node;
         });
@@ -228,9 +227,6 @@ export class ELKLayoutService {
     // ── Build leaf / VNet compound nodes ─────────────────────────────────────
     const buildLayoutNode = (node: DiagramNode): object => {
       const base: Record<string, unknown> = { id: node.id };
-      if (node.isPinned && node.manualPosition) {
-        base['layoutOptions'] = { 'org.eclipse.elk.noLayout': 'true' };
-      }
       const children = this.shouldUseElkChildren(node)
         ? (node.children ?? [])
           .map(id => nodeById.get(id))
@@ -274,7 +270,6 @@ export class ELKLayoutService {
         id: n.id,
         width: n.size.width,
         height: n.size.height,
-        ...(n.isPinned && n.manualPosition ? { layoutOptions: { 'org.eclipse.elk.noLayout': 'true' } } : {}),
       })),
     });
 
@@ -507,7 +502,6 @@ export class ELKLayoutService {
     }
 
     return nodes.map(node => {
-      if (node.isPinned && node.manualPosition) return { ...node, position: node.manualPosition };
       const pos = result.get(node.id);
       return pos ? { ...node, position: pos } : node;
     });
@@ -541,14 +535,10 @@ export class ELKLayoutService {
     const dy = Math.max(0, CANVAS_MARGIN_Y - minY);
     if (dx === 0 && dy === 0) return nodes;
 
-    return nodes.map(n => {
-      const position = { x: n.position.x + dx, y: n.position.y + dy };
-      if (!n.isPinned) return { ...n, position };
-      const manualPosition = n.manualPosition
-        ? { x: n.manualPosition.x + dx, y: n.manualPosition.y + dy }
-        : position;
-      return { ...n, position, manualPosition };
-    });
+    return nodes.map(n => ({
+      ...n,
+      position: { x: n.position.x + dx, y: n.position.y + dy }
+    }));
   }
 
   private shouldUseElkChildren(node: DiagramNode): boolean {

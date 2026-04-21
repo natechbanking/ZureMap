@@ -38,10 +38,6 @@ export interface InternalItemMoveRequest {
       (dblclick)="onDoubleClick($event)"
       (contextmenu)="onContextMenu($event)"
     >
-      @if (node.isPinned) {
-        <span class="absolute top-1 left-1 text-xs" title="Pinned">📌</span>
-      }
-
       <app-azure-icon [resourceType]="node.resourceType" [size]="28" />
 
       <span

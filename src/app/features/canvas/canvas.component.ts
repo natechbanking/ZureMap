@@ -204,7 +204,6 @@ export class CanvasComponent {
       annDragOrigin: this.annDragOrigin,
       nodes: this.store.nodes(),
       svgPoint: event => this.svgPoint(event),
-      pinNode: id => this.store.pinNode(id),
       moveNode: (id, position) => this.store.moveNode(id, position),
       moveSubscriptionGroup: (subscriptionId, delta) => this.store.moveSubscriptionGroup(subscriptionId, delta),
       moveVmGroup: (vmId, delta) => this.store.moveVmGroup(vmId, delta),
@@ -762,12 +761,6 @@ export class CanvasComponent {
     this.closeContextMenu();
   }
 
-  ctxTogglePin(): void {
-    if (!this.contextMenu) return;
-    this.togglePin(this.contextMenu.nodeId);
-    this.closeContextMenu();
-  }
-
   ctxCopyName(): void {
     if (!this.contextMenu) return;
     navigator.clipboard.writeText(this.contextMenu.node.label);
@@ -900,12 +893,6 @@ export class CanvasComponent {
   }
 
   // ── Misc ───────────────────────────────────────────────────────────────────
-  togglePin(nodeId: string): void {
-    const node = this.store.nodes().find(n => n.id === nodeId);
-    if (!node) return;
-    node.isPinned ? this.store.unpinNode(nodeId) : this.store.pinNode(nodeId);
-  }
-
   async toggleFinOps(): Promise<void> {
     await this.actions.toggleFinOps();
   }

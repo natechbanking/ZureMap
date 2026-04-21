@@ -70,7 +70,6 @@ export class ResourceMapperService {
       position: { x: 0, y: 0 },
       size: { width: 140, height: 92 },
       children: this.resolveChildren(resource),
-      isPinned: false,
       status: this.resolveStatus(resource),
       metadata: resource,
       selected: false,

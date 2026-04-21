@@ -22,7 +22,6 @@ export interface CanvasDragMoveContext {
   annDragOrigin: { x: number; y: number; x2?: number; y2?: number };
   nodes: DiagramNode[];
   svgPoint: (event: MouseEvent) => { x: number; y: number };
-  pinNode: (id: string) => void;
   moveNode: (id: string, position: { x: number; y: number }) => void;
   moveSubscriptionGroup: (subscriptionId: string, delta: { dx: number; dy: number }) => void;
   moveVmGroup: (vmId: string, delta: { dx: number; dy: number }) => void;
@@ -61,11 +60,6 @@ export class CanvasDragService {
       const dx = (ctx.event.clientX - ctx.nodeDragState.lastX) / ctx.zoomLevel;
       const dy = (ctx.event.clientY - ctx.nodeDragState.lastY) / ctx.zoomLevel;
       if (dx !== 0 || dy !== 0) {
-        let nextNodeDragState = ctx.nodeDragState;
-        if (!ctx.nodeDragState.hasMoved) {
-          ctx.pinNode(ctx.nodeDragState.id);
-          nextNodeDragState = { ...nextNodeDragState, hasMoved: true };
-        }
         const node = ctx.nodes.find(n => n.id === ctx.nodeDragState!.id);
         if (node) {
           ctx.moveNode(node.id, {
@@ -73,7 +67,7 @@ export class CanvasDragService {
             y: Math.max(0, node.position.y + dy),
           });
         }
-        nextNodeDragState = { ...nextNodeDragState, lastX: ctx.event.clientX, lastY: ctx.event.clientY };
+        const nextNodeDragState = { ...ctx.nodeDragState, hasMoved: true, lastX: ctx.event.clientX, lastY: ctx.event.clientY };
         return {
           handled: true,
           toolbarPos: ctx.toolbarPos,

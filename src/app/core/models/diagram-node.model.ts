@@ -28,8 +28,6 @@ export interface DiagramNode {
   size: { width: number; height: number };
   children?: string[];
   parentId?: string;
-  isPinned: boolean;
-  manualPosition?: { x: number; y: number };
   status: NodeStatus;
   metadata: AzureResource;
   costData?: NodeCostData;

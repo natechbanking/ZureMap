@@ -85,9 +85,7 @@ export class DiagramStore {
 
   moveNode(nodeId: string, position: { x: number; y: number }): void {
     this.nodes.update(current =>
-      current.map(n => n.id === nodeId
-        ? { ...n, position, ...(n.isPinned ? { manualPosition: position } : {}) }
-        : n)
+      current.map(n => n.id === nodeId ? { ...n, position } : n)
     );
   }
 
@@ -98,7 +96,7 @@ export class DiagramStore {
         const subscriptionId = n.metadata?.subscriptionId || '';
         if (`${subscriptionId}::${rg}` !== groupKey) return n;
         const pos = { x: Math.max(0, n.position.x + delta.dx), y: Math.max(0, n.position.y + delta.dy) };
-        return { ...n, position: pos, ...(n.isPinned ? { manualPosition: pos } : {}) };
+        return { ...n, position: pos };
       })
     );
   }
@@ -108,7 +106,7 @@ export class DiagramStore {
       current.map(n => {
         if ((n.metadata?.subscriptionId || '') !== subscriptionId) return n;
         const pos = { x: Math.max(0, n.position.x + delta.dx), y: Math.max(0, n.position.y + delta.dy) };
-        return { ...n, position: pos, ...(n.isPinned ? { manualPosition: pos } : {}) };
+        return { ...n, position: pos };
       })
     );
   }
@@ -122,31 +120,9 @@ export class DiagramStore {
       return current.map(n => {
         if (!groupIds.has(n.id)) return n;
         const pos = { x: Math.max(0, n.position.x + delta.dx), y: Math.max(0, n.position.y + delta.dy) };
-        return { ...n, isPinned: true, position: pos, manualPosition: pos };
+        return { ...n, position: pos };
       });
     });
-  }
-
-  pinNode(nodeId: string): void {
-    this.nodes.update(current =>
-      current.map(n =>
-        n.id === nodeId ? { ...n, isPinned: true, manualPosition: n.position } : n
-      )
-    );
-  }
-
-  unpinNode(nodeId: string): void {
-    this.nodes.update(current =>
-      current.map(n =>
-        n.id === nodeId ? { ...n, isPinned: false, manualPosition: undefined } : n
-      )
-    );
-  }
-
-  unpinAll(): void {
-    this.nodes.update(current =>
-      current.map(n => ({ ...n, isPinned: false, manualPosition: undefined }))
-    );
   }
 
   deleteNode(nodeId: string): void {

@@ -45,12 +45,6 @@ import { CommonModule } from '@angular/common';
           title="Compare with baseline"
         >⇄ Drift</button>
 
-        <button
-          (click)="unpinAll.emit()"
-          class="px-3 py-1 rounded text-xs text-white/70 hover:bg-white/10"
-          title="Unpin all nodes"
-        >📌 Unpin All</button>
-
         <div class="h-4 w-px bg-white/20 mx-1"></div>
 
         <label
@@ -91,7 +85,6 @@ export class ToolbarComponent {
   @Output() importJson = new EventEmitter<File>();
   @Output() toggleFinOps = new EventEmitter<void>();
   @Output() toggleDrift = new EventEmitter<void>();
-  @Output() unpinAll = new EventEmitter<void>();
   @Output() rescan = new EventEmitter<void>();
 
   onFileChange(event: Event): void {

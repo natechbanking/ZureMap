@@ -47,6 +47,8 @@
             [activeFillOpacity]="activeFillOpacity"
             [hasSelection]="selectedAnnotationId !== null"
             [annotationCount]="store.annotations().length"
+            [tagRules]="store.tagRules()"
+            [availableTags]="availableTags"
             (toolChange)="setTool($event)"
             (colorChange)="onToolbarColorChange($event)"
             (strokeWidthChange)="onToolbarStrokeWidthChange($event)"
@@ -62,6 +64,7 @@
             (duplicateSelected)="duplicateSelectedAnnotation()"
             (bringToFront)="bringSelectedAnnotationToFront()"
             (sendToBack)="sendSelectedAnnotationToBack()"
+            (tagRulesChange)="onTagRulesChange($event)"
           />
         </div>
 
@@ -85,8 +88,11 @@
 
             <!-- Subscription boxes (shown for multi-subscription views) -->
             @for (bound of subscriptionBounds; track bound.id) {
+              @let subHL = subTagHighlights.get(bound.subscriptionId);
               <div
-                class="absolute rounded-2xl border-2 border-dashed border-amber-300 bg-amber-50/30 pointer-events-none"
+                class="absolute rounded-2xl border-2 border-dashed pointer-events-none"
+                [style.border-color]="subHL ? subHL.borderColor : '#fcd34d'"
+                [style.background-color]="subHL ? subHL.bgColor : 'rgba(255,251,235,0.3)'"
                 [style.left.px]="bound.x"
                 [style.top.px]="bound.y"
                 [style.width.px]="bound.width"
@@ -119,6 +125,9 @@
                       title="Double-click to rename"
                       (dblclick)="$event.stopPropagation(); startRename('sub', bound.subscriptionId, bound.name)"
                     >{{ bound.name }}</span>
+                    @if (subHL?.badgeLabel) {
+                      <span class="ml-1 px-1.5 py-0.5 rounded text-[9px] font-bold text-white" [style.background-color]="subHL!.borderColor">{{ subHL!.badgeLabel }}</span>
+                    }
                   }
                   <button
                     type="button"
@@ -135,8 +144,11 @@
 
             <!-- Resource group boxes -->
             @for (bound of rgBounds; track bound.id) {
+              @let rgHL = rgTagHighlights.get(bound.id);
               <div
-                class="absolute rounded-xl border border-dashed border-blue-300 bg-blue-50/25 pointer-events-none"
+                class="absolute rounded-xl border border-dashed pointer-events-none"
+                [style.border-color]="rgHL ? rgHL.borderColor : '#93c5fd'"
+                [style.background-color]="rgHL ? rgHL.bgColor : 'rgba(239,246,255,0.25)'"
                 [style.left.px]="bound.x"
                 [style.top.px]="bound.y"
                 [style.width.px]="bound.width"
@@ -169,6 +181,9 @@
                       title="Double-click to rename"
                       (dblclick)="$event.stopPropagation(); startRename('rg', bound.id, bound.name)"
                     >{{ bound.name }}</span>
+                    @if (rgHL?.badgeLabel) {
+                      <span class="ml-1 px-1.5 py-0.5 rounded text-[9px] font-bold text-white" [style.background-color]="rgHL!.borderColor">{{ rgHL!.badgeLabel }}</span>
+                    }
                   }
                   <button
                     type="button"
@@ -280,6 +295,7 @@
 
             <!-- Azure resource nodes -->
             @for (node of visibleNodes; track node.id) {
+              @let nodeHL = nodeTagHighlights.get(node.id) ?? null;
               <div
                 class="absolute"
                 [style.left.px]="node.position.x"
@@ -293,6 +309,7 @@
                   [node]="node"
                   [finOpsActive]="store.finOpsLayerActive()"
                   [zoomLevel]="zoomLevel"
+                  [tagHighlightColor]="nodeHL"
                   (clicked)="store.selectNode($event)"
                   (editRequested)="openResourceEditor($event)"
                   (internalItemMoved)="onInternalItemMoved($event)"

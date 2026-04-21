@@ -3,6 +3,7 @@ import { AzureSubscription } from '../models/azure-resource.model';
 import { DiagramNode } from '../models/diagram-node.model';
 import { DiagramEdge } from '../models/diagram-edge.model';
 import { Annotation } from '../models/annotation.model';
+import { TagRule } from '../../features/canvas/canvas.types';
 
 interface DiagramSnapshot {
   nodes: DiagramNode[];
@@ -64,6 +65,9 @@ export class DiagramStore {
 
   // Custom container display names (renames applied by the user)
   readonly customContainerNames = signal<Map<string, string>>(new Map());
+
+  // Tag-based highlight rules (evaluated against RG / subscription resource tags)
+  readonly tagRules = signal<TagRule[]>([]);
 
   setCustomContainerName(key: string, value: string | null): void {
     this.customContainerNames.update(m => {

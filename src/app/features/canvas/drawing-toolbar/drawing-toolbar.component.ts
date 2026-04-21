@@ -1,6 +1,8 @@
 import { Component, Input, Output, EventEmitter, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { DrawingTool, StrokeStyle, EdgeRouting, EdgeMode } from '../../../core/models/annotation.model';
+import { TagRule, TagRuleOperator } from '../canvas.types';
 
 interface Tool {
   id: DrawingTool;
@@ -10,7 +12,7 @@ interface Tool {
   category: 'select' | 'draw' | 'shape' | 'annotate';
 }
 
-type TabId = 'tools' | 'style' | 'actions';
+type TabId = 'tools' | 'style' | 'actions' | 'highlight';
 
 const TOOLS: Tool[] = [
   { id: 'pointer',  label: 'Select',    key: 'V', icon: 'M4 2 L4 14 L7 11 L9 16 L11 15 L9 10 L13 10 Z', category: 'select' },
@@ -37,7 +39,7 @@ const EDGE_MODES: EdgeMode[] = ['none', 'start', 'end', 'both'];
 @Component({
   selector: 'app-drawing-toolbar',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, FormsModule],
   template: `
     <div class="bg-white/95 backdrop-blur rounded-2xl shadow-xl border border-gray-200 select-none overflow-hidden transition-all"
       [style.width.px]="collapsed ? 52 : 280">
@@ -355,6 +357,129 @@ const EDGE_MODES: EdgeMode[] = ['none', 'start', 'end', 'both'];
             </div>
           }
 
+          @if (activeTab === 'highlight') {
+            <!-- HIGHLIGHT TAB -->
+            <div class="space-y-3">
+              <!-- Rule builder -->
+              <div class="bg-gray-50 rounded-lg border border-gray-200 p-2.5 space-y-2">
+                <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">New Rule</p>
+
+                <div class="flex gap-1.5">
+                  <input
+                    type="text"
+                    list="tag-keys-list"
+                    class="flex-1 min-w-0 text-xs border border-gray-200 rounded-md px-2 py-1.5 outline-none focus:border-blue-400"
+                    placeholder="Tag key"
+                    [(ngModel)]="draftKey"
+                  />
+                  <datalist id="tag-keys-list">
+                    @for (k of tagKeyOptions; track k) {
+                      <option [value]="k"></option>
+                    }
+                  </datalist>
+                  <select
+                    class="text-xs border border-gray-200 rounded-md px-1.5 py-1.5 outline-none focus:border-blue-400 bg-white"
+                    [(ngModel)]="draftOperator"
+                  >
+                    <option value="eq">=</option>
+                    <option value="neq">≠</option>
+                    <option value="contains">contains</option>
+                    <option value="exists">exists</option>
+                    <option value="notexists">not exists</option>
+                  </select>
+                </div>
+
+                @if (draftOperator !== 'exists' && draftOperator !== 'notexists') {
+                  <input
+                    type="text"
+                    list="tag-values-list"
+                    class="w-full text-xs border border-gray-200 rounded-md px-2 py-1.5 outline-none focus:border-blue-400"
+                    placeholder="Tag value"
+                    [(ngModel)]="draftValue"
+                  />
+                  <datalist id="tag-values-list">
+                    @for (v of tagValueOptions; track v) {
+                      <option [value]="v"></option>
+                    }
+                  </datalist>
+                }
+
+                <input
+                  type="text"
+                  class="w-full text-xs border border-gray-200 rounded-md px-2 py-1.5 outline-none focus:border-blue-400"
+                  placeholder="Badge label (optional)"
+                  [(ngModel)]="draftBadge"
+                />
+
+                <div class="flex items-center gap-2">
+                  <div class="flex rounded-md border border-gray-200 overflow-hidden text-[10px] font-medium">
+                    @for (t of ruleTargets; track t.id) {
+                      <button
+                        class="px-2 py-1.5 transition-colors"
+                        [class.bg-blue-500]="draftTarget === t.id"
+                        [class.text-white]="draftTarget === t.id"
+                        [class.bg-white]="draftTarget !== t.id"
+                        [class.text-gray-600]="draftTarget !== t.id"
+                        [class.hover:bg-gray-50]="draftTarget !== t.id"
+                        (click)="draftTarget = t.id"
+                      >{{ t.label }}</button>
+                    }
+                  </div>
+                  <div class="flex items-center gap-1.5 ml-auto">
+                    <input
+                      type="color"
+                      class="w-7 h-7 p-0 border-0 rounded cursor-pointer"
+                      [(ngModel)]="draftColor"
+                      title="Highlight color"
+                    />
+                    <button
+                      class="px-2.5 py-1.5 rounded-md text-[10px] font-semibold transition-colors"
+                      [class.bg-blue-500]="draftKey.trim()"
+                      [class.text-white]="draftKey.trim()"
+                      [class.hover:bg-blue-600]="draftKey.trim()"
+                      [class.bg-gray-100]="!draftKey.trim()"
+                      [class.text-gray-400]="!draftKey.trim()"
+                      [disabled]="!draftKey.trim()"
+                      (click)="addRule()"
+                    >Add</button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Active rules list -->
+              @if (tagRules.length === 0) {
+                <p class="text-[11px] text-gray-400 text-center py-3">No rules yet. Add one above.</p>
+              } @else {
+                <div class="space-y-1.5">
+                  <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Active Rules ({{ tagRules.length }})</p>
+                  @for (rule of tagRules; track rule.id) {
+                    <div class="flex items-center gap-2 px-2.5 py-2 bg-white rounded-lg border border-gray-200">
+                      <span
+                        class="w-3 h-3 rounded-sm flex-shrink-0"
+                        [style.background-color]="rule.color"
+                      ></span>
+                      <div class="flex-1 min-w-0">
+                        <p class="text-[11px] font-medium text-gray-700 truncate">
+                          {{ rule.tagKey }} {{ operatorLabel(rule.operator) }}{{ rule.tagValue ? ' ' + rule.tagValue : '' }}
+                        </p>
+                        <p class="text-[10px] text-gray-400">{{ rule.target === 'rg' ? 'Resource Groups' : rule.target === 'sub' ? 'Subscriptions' : 'Both' }}{{ rule.badgeLabel ? ' · "' + rule.badgeLabel + '"' : '' }}</p>
+                      </div>
+                      <button
+                        class="w-5 h-5 flex items-center justify-center text-gray-400 hover:text-red-500 transition-colors rounded"
+                        title="Remove rule"
+                        (click)="removeRule(rule.id)"
+                      >
+                        <svg viewBox="0 0 20 20" class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                          <path d="M4 4 L16 16 M16 4 L4 16" />
+                        </svg>
+                      </button>
+                    </div>
+                  }
+                </div>
+              }
+            </div>
+          }
+
           @if (activeTab === 'actions') {
             <!-- ACTIONS TAB -->
             <div class="space-y-3">
@@ -537,6 +662,10 @@ export class DrawingToolbarComponent {
   @Input() activeFillOpacity = 0.2;
   @Input() hasSelection = false;
   @Input() annotationCount = 0;
+  @Input() tagRules: TagRule[] = [];
+  @Input() availableTags: Map<string, Set<string>> = new Map();
+
+  @Output() tagRulesChange = new EventEmitter<TagRule[]>();
 
   @Output() toolChange = new EventEmitter<DrawingTool>();
   @Output() colorChange = new EventEmitter<string>();
@@ -565,7 +694,60 @@ export class DrawingToolbarComponent {
     { id: 'tools', label: 'Tools' },
     { id: 'style', label: 'Style' },
     { id: 'actions', label: 'Actions' },
+    { id: 'highlight', label: 'Highlight' },
   ];
+
+  readonly ruleTargets: { id: TagRule['target']; label: string }[] = [
+    { id: 'node', label: 'Node' },
+    { id: 'rg', label: 'RG' },
+    { id: 'sub', label: 'Sub' },
+    { id: 'both', label: 'RG+Sub' },
+  ];
+
+  // Draft state for rule builder
+  draftKey = '';
+  draftOperator: TagRuleOperator = 'eq';
+  draftValue = '';
+  draftColor = '#ef4444';
+  draftTarget: TagRule['target'] = 'node';
+  draftBadge = '';
+
+  get tagKeyOptions(): string[] {
+    return Array.from(this.availableTags.keys()).sort();
+  }
+
+  get tagValueOptions(): string[] {
+    if (!this.draftKey) return [];
+    return Array.from(this.availableTags.get(this.draftKey) ?? []).sort();
+  }
+
+  addRule(): void {
+    if (!this.draftKey.trim()) return;
+    const rule: TagRule = {
+      id: `rule-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      tagKey: this.draftKey.trim(),
+      operator: this.draftOperator,
+      tagValue: this.draftValue.trim(),
+      target: this.draftTarget,
+      color: this.draftColor,
+      badgeLabel: this.draftBadge.trim() || undefined,
+    };
+    this.tagRulesChange.emit([...this.tagRules, rule]);
+    this.draftKey = '';
+    this.draftValue = '';
+    this.draftBadge = '';
+  }
+
+  removeRule(id: string): void {
+    this.tagRulesChange.emit(this.tagRules.filter(r => r.id !== id));
+  }
+
+  operatorLabel(op: TagRuleOperator): string {
+    const map: Record<TagRuleOperator, string> = {
+      eq: '=', neq: '≠', contains: 'contains', exists: 'exists', notexists: 'not exists',
+    };
+    return map[op];
+  }
 
   readonly toolCategories = [
     { id: 'select' as const, label: 'Selection' },

@@ -40,6 +40,22 @@ export interface RouteTableBound {
   height: number;
 }
 
+export type TagRuleOperator = 'eq' | 'neq' | 'contains' | 'exists' | 'notexists';
+
+/** A single tag-based highlighting rule evaluated against an RG or subscription. */
+export interface TagRule {
+  id: string;
+  tagKey: string;
+  operator: TagRuleOperator;
+  /** Unused for 'exists' / 'notexists' operators. */
+  tagValue: string;
+  /** Which container level to highlight. */
+  target: 'rg' | 'sub' | 'both' | 'node';
+  color: string;
+  /** Optional badge text shown on the container header. */
+  badgeLabel?: string;
+}
+
 export interface ResourceEditorDraft {
   label: string;
   location: string;

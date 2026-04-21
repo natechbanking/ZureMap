@@ -34,6 +34,7 @@ import {
   RgDragState,
   EdgeWaypointDragState,
   AnnWaypointDragState,
+  TagRule,
 } from './canvas.types';
 import { CanvasEdgeEditorService } from './canvas-edge-editor.service';
 import { CanvasResourceEditorService } from './canvas-resource-editor.service';
@@ -91,6 +92,15 @@ export class CanvasComponent {
   rgBounds: RgBound[] = [];
   vmBounds: VmBound[] = [];
   routeTableBounds: RouteTableBound[] = [];
+
+  /** Map of rgBound.id → { borderColor, bgColor, badgeLabel } for matched tag rules. */
+  rgTagHighlights = new Map<string, { borderColor: string; bgColor: string; badgeLabel?: string }>();
+  /** Map of subscriptionId → same for subscription-level rules. */
+  subTagHighlights = new Map<string, { borderColor: string; bgColor: string; badgeLabel?: string }>();
+  /** Map of node.id → highlight color for node-level tag rules. */
+  nodeTagHighlights = new Map<string, string>();
+  /** All tag keys + their known values across all nodes, for autofill. */
+  availableTags = new Map<string, Set<string>>();
   private collapsedResourceGroups = new Set<string>();
   private collapsedSubscriptions = new Set<string>();
   private collapsedVmGroups = new Set<string>();
@@ -645,6 +655,7 @@ export class CanvasComponent {
     }
     this.resolveSubscriptionContainerOverlaps(this.subscriptionBounds);
     this.resolveRgContainerOverlaps(this.rgBounds);
+    this.recomputeTagHighlights(nodes);
   }
 
   private resolveSubscriptionContainerOverlaps(bounds: SubscriptionBound[]): void {
@@ -695,6 +706,102 @@ export class CanvasComponent {
       }
     } finally {
       this.isResolvingRgOverlaps = false;
+    }
+  }
+
+  onTagRulesChange(rules: TagRule[]): void {
+    this.store.tagRules.set(rules);
+    this.recomputeTagHighlights(this.store.nodes());
+  }
+
+  private recomputeTagHighlights(nodes: DiagramNode[]): void {
+    const rules = this.store.tagRules();
+    this.rgTagHighlights = new Map();
+    this.subTagHighlights = new Map();
+    this.nodeTagHighlights = new Map();
+
+    // Rebuild availableTags from all nodes
+    const tagMap = new Map<string, Set<string>>();
+    for (const node of nodes) {
+      const tags = node.metadata?.tags ?? {};
+      for (const [k, v] of Object.entries(tags)) {
+        if (!tagMap.has(k)) tagMap.set(k, new Set());
+        if (v != null && String(v) !== '') tagMap.get(k)!.add(String(v));
+      }
+    }
+    this.availableTags = tagMap;
+
+    if (!rules.length) return;
+
+    // Build per-RG, per-subscription, and per-node tag maps
+    const rgTagMap = new Map<string, Map<string, Set<string>>>();
+    const subTagMap = new Map<string, Map<string, Set<string>>>();
+    const nodeTagMap = new Map<string, Map<string, Set<string>>>();
+    for (const node of nodes) {
+      const rg = node.metadata?.resourceGroup || '';
+      const sub = node.metadata?.subscriptionId || '';
+      if (!rg || !sub) continue;
+      const rgKey = `${sub}::${rg}`;
+      if (!rgTagMap.has(rgKey)) rgTagMap.set(rgKey, new Map());
+      if (!subTagMap.has(sub)) subTagMap.set(sub, new Map());
+
+      // Per-node: tags on the node itself
+      const nodeTags = new Map<string, Set<string>>();
+      const tags = node.metadata?.tags ?? {};
+      for (const [k, v] of Object.entries(tags)) {
+        const val = String(v ?? '');
+        // aggregate for RG / sub
+        const rgT = rgTagMap.get(rgKey)!;
+        if (!rgT.has(k)) rgT.set(k, new Set());
+        rgT.get(k)!.add(val);
+        const subT = subTagMap.get(sub)!;
+        if (!subT.has(k)) subT.set(k, new Set());
+        subT.get(k)!.add(val);
+        // per-node
+        if (!nodeTags.has(k)) nodeTags.set(k, new Set());
+        nodeTags.get(k)!.add(val);
+      }
+      nodeTagMap.set(node.id, nodeTags);
+    }
+
+    const evalRule = (rule: TagRule, tags: Map<string, Set<string>>): boolean => {
+      switch (rule.operator) {
+        case 'exists':    return tags.has(rule.tagKey);
+        case 'notexists': return !tags.has(rule.tagKey);
+        case 'eq':        return tags.get(rule.tagKey)?.has(rule.tagValue) ?? false;
+        case 'neq':       return !(tags.get(rule.tagKey)?.has(rule.tagValue) ?? false);
+        case 'contains':  return Array.from(tags.get(rule.tagKey) ?? []).some(v => v.includes(rule.tagValue));
+      }
+    };
+
+    const toHighlight = (color: string, badge?: string) => ({
+      borderColor: color,
+      bgColor: color + '22',
+      badgeLabel: badge,
+    });
+
+    for (const rule of rules) {
+      if (rule.target === 'rg' || rule.target === 'both') {
+        for (const [rgKey, tags] of rgTagMap) {
+          if (!this.rgTagHighlights.has(rgKey) && evalRule(rule, tags)) {
+            this.rgTagHighlights.set(rgKey, toHighlight(rule.color, rule.badgeLabel));
+          }
+        }
+      }
+      if (rule.target === 'sub' || rule.target === 'both') {
+        for (const [sub, tags] of subTagMap) {
+          if (!this.subTagHighlights.has(sub) && evalRule(rule, tags)) {
+            this.subTagHighlights.set(sub, toHighlight(rule.color, rule.badgeLabel));
+          }
+        }
+      }
+      if (rule.target === 'node') {
+        for (const [nodeId, tags] of nodeTagMap) {
+          if (!this.nodeTagHighlights.has(nodeId) && evalRule(rule, tags)) {
+            this.nodeTagHighlights.set(nodeId, rule.color);
+          }
+        }
+      }
     }
   }
 

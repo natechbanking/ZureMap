@@ -488,6 +488,7 @@ export class DiagramNodeComponent {
   @Input({ required: true }) node!: DiagramNode;
   @Input() finOpsActive = false;
   @Input() zoomLevel = 1;
+  @Input() tagHighlightColor: string | null = null;
   @Output() clicked = new EventEmitter<string>();
   @Output() contextMenuRequested = new EventEmitter<ContextMenuRequest>();
   @Output() editRequested = new EventEmitter<string>();
@@ -525,6 +526,7 @@ export class DiagramNodeComponent {
     if (this.node.driftStatus === 'missing')   return '2px solid #d13438';
     if (this.node.driftStatus === 'unplanned') return '2px dashed #0078d4';
     if (this.node.selected)                    return '2px solid #0078d4';
+    if (this.tagHighlightColor)                return `2px solid ${this.tagHighlightColor}`;
     if (this.finOpsActive && this.node.costData) {
       const s = this.costSvc.getCostBorderStyle(this.node.costData.monthlyCostUsd);
       return `${s.borderWidth} solid ${s.borderColor}`;

@@ -133,13 +133,16 @@ export class ELKLayoutService {
           const pos = positions.get(node.id);
           return pos ? { ...node, position: pos } : node;
         });
-        return this.applyCanvasMargin(laidOut);
+        return this.gridPackRgGroups(laidOut, nodes, rgMap, vmGroupsByRg);
       }
     } catch {
       // fall through to manual layout
     }
 
-    return this.applyCanvasMargin(this.manualGroupLayout(nodes, rgMap, childNodeIds, vmGroupsByRg));
+    return this.gridPackRgGroups(
+      this.manualGroupLayout(nodes, rgMap, childNodeIds, vmGroupsByRg),
+      nodes, rgMap, vmGroupsByRg,
+    );
   }
 
   private buildElkGraph(
@@ -288,7 +291,7 @@ export class ELKLayoutService {
             id: `__rg__${rgKey}`,
             layoutOptions: {
               'elk.algorithm': 'layered',
-              'elk.direction': opts.direction,
+              'elk.direction': 'RIGHT',
               'elk.spacing.nodeNode': String(opts.nodeSpacing),
               'elk.layered.spacing.nodeNodeBetweenLayers': String(opts.nodeSpacing),
               'elk.padding': `[top=${opts.groupPadding + GROUP_LABEL_H},left=${opts.groupPadding},bottom=${opts.groupPadding},right=${opts.groupPadding}]`,
@@ -321,21 +324,17 @@ export class ELKLayoutService {
       subToRgContainers.get(subId)!.push(rgContainer);
     }
 
-    // ── __sub__ containers (layered — uses inter-RG edges for RG ordering) ────
-    // Using layered instead of box means connected RG containers are placed in
-    // adjacent layers, reducing how many inter-RG edges cross over unrelated RGs.
+    // ── __sub__ containers (rectpacking — spreads RGs in 2-D grid) ────────────
     const topLevelChildren: object[] = multiSub
       ? Array.from(subToRgContainers.entries()).map(([subId, subRgs]) => ({
           id: `__sub__${subId}`,
           layoutOptions: {
-            'elk.algorithm': 'layered',
-            'elk.direction': opts.direction,
+            'elk.algorithm': 'rectpacking',
             'elk.spacing.nodeNode': String(opts.componentSpacing),
-            'elk.layered.spacing.nodeNodeBetweenLayers': String(opts.componentSpacing),
             'elk.padding': `[top=48,left=32,bottom=32,right=32]`,
-            'elk.layered.cycleBreaking.strategy': 'GREEDY',
-            'elk.layered.mergeEdges': 'true',
-            'elk.separateConnectedComponents': 'false',
+            'elk.aspectRatio': '1.6',
+            'elk.rectpacking.optimizationGoal': 'ASPECT_RATIO_DRIVEN',
+            'elk.expandNodes': 'false',
             'elk.hierarchyHandling': 'INCLUDE_CHILDREN',
           },
           children: subRgs,
@@ -345,16 +344,17 @@ export class ELKLayoutService {
         }))
       : Array.from(rgContainersByKey.values());
 
-    // ── Root (box — compact packing; inter-sub edges carried but box ignores ──
-    // them for placement; they are still rendered by the SVG edge layer).
+    // ── Root (rectpacking — arranges sub/RG containers in a 2-D grid) ─────────
     const rootEdges = rootEdgeList.map(e => ({ id: e.id, sources: [e.sourceId], targets: [e.targetId] }));
 
     return {
       id: 'root',
       layoutOptions: {
-        'elk.algorithm': 'box',
+        'elk.algorithm': 'rectpacking',
         'elk.spacing.nodeNode': String(opts.componentSpacing),
-        'elk.box.packingMode': 'GROUP_DEC',
+        'elk.aspectRatio': '1.6',
+        'elk.rectpacking.optimizationGoal': 'ASPECT_RATIO_DRIVEN',
+        'elk.expandNodes': 'false',
         'elk.hierarchyHandling': 'INCLUDE_CHILDREN',
       },
       children: topLevelChildren,
@@ -524,6 +524,132 @@ export class ELKLayoutService {
       worker.addEventListener('message', handler);
       worker.addEventListener('error', errHandler);
       worker.postMessage(graph);
+    });
+  }
+
+  // After ELK lays out each RG's internals, re-arrange the RG bounding boxes
+  // into a grid — keeping each subscription's RGs in their own contiguous block
+  // so that subscription bounding boxes never overlap.
+  private gridPackRgGroups(
+    nodes: DiagramNode[],
+    allNodes: DiagramNode[],
+    rgMap: Map<string, DiagramNode[]>,
+    vmGroupsByRg: Map<string, Map<string, DiagramNode[]>>,
+  ): DiagramNode[] {
+    // Build nodeId -> rgKey
+    const nodeToRg = new Map<string, string>();
+    for (const [rgKey, rgNodes] of rgMap) {
+      for (const n of rgNodes) nodeToRg.set(n.id, rgKey);
+    }
+    for (const [rgKey, vmGroupsInRg] of vmGroupsByRg) {
+      for (const members of vmGroupsInRg.values()) {
+        for (const m of members) nodeToRg.set(m.id, rgKey);
+      }
+    }
+    // Propagate rgKey to VNet children so they move with their parent
+    for (const n of allNodes) {
+      if (n.children?.length) {
+        const rgKey = nodeToRg.get(n.id);
+        if (rgKey) {
+          for (const childId of n.children) nodeToRg.set(childId, rgKey);
+        }
+      }
+    }
+
+    // Compute bounding box per RG
+    const rgBounds = new Map<string, { minX: number; minY: number; maxX: number; maxY: number }>();
+    for (const node of nodes) {
+      const rgKey = nodeToRg.get(node.id);
+      if (!rgKey) continue;
+      const b = rgBounds.get(rgKey) ?? { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
+      b.minX = Math.min(b.minX, node.position.x);
+      b.minY = Math.min(b.minY, node.position.y);
+      b.maxX = Math.max(b.maxX, node.position.x + node.size.width);
+      b.maxY = Math.max(b.maxY, node.position.y + node.size.height);
+      rgBounds.set(rgKey, b);
+    }
+
+    if (rgBounds.size === 0) return this.applyCanvasMargin(nodes);
+
+    // Group RG keys by subscription — each sub gets its own contiguous block
+    // so subscription bounding boxes can never overlap (which would trigger the
+    // overlap-resolver and push subs into a vertical column).
+    const subToRgKeys = new Map<string, string[]>();
+    for (const rgKey of rgBounds.keys()) {
+      const subId = rgKey.split('::')[0];
+      if (!subToRgKeys.has(subId)) subToRgKeys.set(subId, []);
+      subToRgKeys.get(subId)!.push(rgKey);
+    }
+
+    // Sort each sub's RGs largest-first
+    for (const [, keys] of subToRgKeys) {
+      keys.sort((a, b) => {
+        const ba = rgBounds.get(a)!;
+        const bb = rgBounds.get(b)!;
+        const areaA = (ba.maxX - ba.minX) * (ba.maxY - ba.minY);
+        const areaB = (bb.maxX - bb.minX) * (bb.maxY - bb.minY);
+        return areaB - areaA;
+      });
+    }
+
+    // Layout each subscription's RG block and accumulate their widths
+    // so sub blocks are placed side by side.
+    const newRgOrigins = new Map<string, { x: number; y: number }>();
+    let subBlockX = CANVAS_MARGIN_X;
+
+    for (const [, rgKeys] of subToRgKeys) {
+      const count = rgKeys.length;
+      const cols = Math.max(1, Math.round(Math.sqrt(count * 1.4)));
+
+      // Per-column widths and per-row heights for this sub block
+      const colWidths = new Array<number>(cols).fill(0);
+      const rowHeights: number[] = [];
+      for (let i = 0; i < rgKeys.length; i++) {
+        const b = rgBounds.get(rgKeys[i])!;
+        const col = i % cols;
+        const row = Math.floor(i / cols);
+        const w = b.maxX - b.minX + GROUP_PAD * 2;
+        const h = b.maxY - b.minY + GROUP_LABEL_H + GROUP_PAD * 2;
+        colWidths[col] = Math.max(colWidths[col], w);
+        rowHeights[row] = Math.max(rowHeights[row] ?? 0, h);
+      }
+
+      // Cumulative X and Y origins within this sub block
+      const colX: number[] = [];
+      let cx = subBlockX;
+      for (let c = 0; c < cols; c++) { colX[c] = cx; cx += colWidths[c] + GROUP_GAP_X; }
+
+      const rowY: number[] = [];
+      let ry = CANVAS_MARGIN_Y;
+      for (let r = 0; r < rowHeights.length; r++) { rowY[r] = ry; ry += rowHeights[r] + GROUP_GAP_Y; }
+
+      for (let i = 0; i < rgKeys.length; i++) {
+        newRgOrigins.set(rgKeys[i], {
+          x: colX[i % cols] + GROUP_PAD,
+          y: rowY[Math.floor(i / cols)] + GROUP_LABEL_H + GROUP_PAD,
+        });
+      }
+
+      // Advance X for the next subscription block
+      const blockWidth = colWidths.reduce((sum, w) => sum + w, 0)
+        + (cols - 1) * GROUP_GAP_X;
+      subBlockX += blockWidth + SUB_GAP;
+    }
+
+    // Shift every node by the delta between its old RG origin and the new one
+    return nodes.map(node => {
+      const rgKey = nodeToRg.get(node.id);
+      if (!rgKey) return node;
+      const bounds = rgBounds.get(rgKey)!;
+      const newOrigin = newRgOrigins.get(rgKey);
+      if (!newOrigin) return node;
+      return {
+        ...node,
+        position: {
+          x: newOrigin.x + (node.position.x - bounds.minX),
+          y: newOrigin.y + (node.position.y - bounds.minY),
+        },
+      };
     });
   }
 

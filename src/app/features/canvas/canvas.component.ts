@@ -32,6 +32,8 @@ import {
   VmDragState,
   NodeDragState,
   RgDragState,
+  EdgeWaypointDragState,
+  AnnWaypointDragState,
 } from './canvas.types';
 import { CanvasEdgeEditorService } from './canvas-edge-editor.service';
 import { CanvasResourceEditorService } from './canvas-resource-editor.service';
@@ -44,8 +46,10 @@ import { CanvasActionsService } from './canvas-actions.service';
 import {
   diamondPointsFromRect as diamondPointsFromRectUtil,
   edgeAnchorBetween,
+  edgePolylinePoints,
   linePointsFromAnnotation,
   linePointsFromCoords as linePointsFromCoordsUtil,
+  polylinePointsString,
   sloppyFilterForLevel,
   strokeDashArrayForStyle,
 } from './canvas-geometry.util';
@@ -166,6 +170,8 @@ export class CanvasComponent {
   private aksCollapsedHeights = new Map<string, number>();
   private vmDetailCollapsedHeights = new Map<string, number>();
   selectedEdgeId: string | null = null;
+  edgeWaypointDragState: EdgeWaypointDragState | null = null;
+  annWaypointDragState: AnnWaypointDragState | null = null;
   relayoutBusy = false;
   resourceEditorOpen = false;
   resourceEditorNodeId: string | null = null;
@@ -225,6 +231,37 @@ export class CanvasComponent {
       this.onDrawMouseMove(e);
       return;
     }
+
+    if (this.edgeWaypointDragState) {
+      const pt = this.svgPoint(e);
+      const { edgeId, waypointIndex, lastX, lastY } = this.edgeWaypointDragState;
+      const dx = pt.x - lastX;
+      const dy = pt.y - lastY;
+      this.edgeWaypointDragState = { edgeId, waypointIndex, lastX: pt.x, lastY: pt.y };
+      this.store.setEdges(this.store.edges().map(edge => {
+        if (edge.id !== edgeId) return edge;
+        const wps = [...(edge.waypoints ?? [])];
+        wps[waypointIndex] = { x: wps[waypointIndex].x + dx, y: wps[waypointIndex].y + dy };
+        return { ...edge, waypoints: wps };
+      }));
+      return;
+    }
+
+    if (this.annWaypointDragState) {
+      const pt = this.svgPoint(e);
+      const { annId, waypointIndex, lastX, lastY } = this.annWaypointDragState;
+      const dx = pt.x - lastX;
+      const dy = pt.y - lastY;
+      this.annWaypointDragState = { annId, waypointIndex, lastX: pt.x, lastY: pt.y };
+      const ann = this.store.annotations().find(a => a.id === annId);
+      if (ann) {
+        const wps = [...(ann.waypoints ?? [])];
+        wps[waypointIndex] = { x: wps[waypointIndex].x + dx, y: wps[waypointIndex].y + dy };
+        this.store.updateAnnotation(annId, { waypoints: wps });
+      }
+      return;
+    }
+
     const result = this.dragSvc.onDocumentMouseMove({
       event: e,
       zoomLevel: this.zoomLevel,
@@ -272,6 +309,8 @@ export class CanvasComponent {
     this.rgDragState = null;
     this.nodeDragState = null;
     this.annDragId = null;
+    this.edgeWaypointDragState = null;
+    this.annWaypointDragState = null;
   }
 
   // ── Tool management ────────────────────────────────────────────────────────
@@ -767,6 +806,98 @@ export class CanvasComponent {
     this.selectedAnnotationId = null;
     this.store.selectNode(null);
     this.selectedEdgeId = edge.id;
+  }
+
+  // ── Edge waypoint handles ──────────────────────────────────────────────────
+  getEdgePoints(edge: DiagramEdge): { x: number; y: number }[] {
+    return edgePolylinePoints(this.store.nodes(), edge);
+  }
+
+  getEdgePolylineString(edge: DiagramEdge): string {
+    return polylinePointsString(this.getEdgePoints(edge));
+  }
+
+  getEdgeHandles(edge: DiagramEdge): { x: number; y: number; index: number }[] {
+    return (edge.waypoints ?? []).map((wp, i) => ({ x: wp.x, y: wp.y, index: i }));
+  }
+
+  getEdgeMidHandles(edge: DiagramEdge): { x: number; y: number; segmentIndex: number }[] {
+    const pts = this.getEdgePoints(edge);
+    const mids: { x: number; y: number; segmentIndex: number }[] = [];
+    for (let i = 0; i < pts.length - 1; i++) {
+      mids.push({ x: (pts[i].x + pts[i + 1].x) / 2, y: (pts[i].y + pts[i + 1].y) / 2, segmentIndex: i });
+    }
+    return mids;
+  }
+
+  onEdgeWaypointMouseDown(e: MouseEvent, edge: DiagramEdge, waypointIndex: number): void {
+    e.stopPropagation();
+    e.preventDefault();
+    this.store.pushUndo();
+    const pt = this.svgPoint(e);
+    this.edgeWaypointDragState = { edgeId: edge.id, waypointIndex, lastX: pt.x, lastY: pt.y };
+  }
+
+  onEdgeMidpointMouseDown(e: MouseEvent, edge: DiagramEdge, segmentIndex: number): void {
+    e.stopPropagation();
+    e.preventDefault();
+    this.store.pushUndo();
+    const pt = this.svgPoint(e);
+    const waypoints = [...(edge.waypoints ?? [])];
+    waypoints.splice(segmentIndex, 0, { x: pt.x, y: pt.y });
+    this.store.setEdges(this.store.edges().map(ed => ed.id === edge.id ? { ...ed, waypoints } : ed));
+    this.edgeWaypointDragState = { edgeId: edge.id, waypointIndex: segmentIndex, lastX: pt.x, lastY: pt.y };
+  }
+
+  onEdgeWaypointDblClick(e: MouseEvent, edge: DiagramEdge, waypointIndex: number): void {
+    e.stopPropagation();
+    this.store.pushUndo();
+    const waypoints = (edge.waypoints ?? []).filter((_, i) => i !== waypointIndex);
+    this.store.setEdges(this.store.edges().map(ed => ed.id === edge.id ? { ...ed, waypoints: waypoints.length ? waypoints : undefined } : ed));
+  }
+
+  // ── Annotation waypoint handles ────────────────────────────────────────────
+  getAnnHandles(ann: Annotation): { x: number; y: number; index: number }[] {
+    return (ann.waypoints ?? []).map((wp, i) => ({ x: wp.x, y: wp.y, index: i }));
+  }
+
+  getAnnMidHandles(ann: Annotation): { x: number; y: number; segmentIndex: number }[] {
+    const pts: { x: number; y: number }[] = [
+      { x: ann.x, y: ann.y },
+      ...(ann.waypoints ?? []),
+      { x: ann.x2 ?? ann.x, y: ann.y2 ?? ann.y },
+    ];
+    const mids: { x: number; y: number; segmentIndex: number }[] = [];
+    for (let i = 0; i < pts.length - 1; i++) {
+      mids.push({ x: (pts[i].x + pts[i + 1].x) / 2, y: (pts[i].y + pts[i + 1].y) / 2, segmentIndex: i });
+    }
+    return mids;
+  }
+
+  onAnnWaypointMouseDown(e: MouseEvent, ann: Annotation, waypointIndex: number): void {
+    e.stopPropagation();
+    e.preventDefault();
+    this.store.pushUndo();
+    const pt = this.svgPoint(e);
+    this.annWaypointDragState = { annId: ann.id, waypointIndex, lastX: pt.x, lastY: pt.y };
+  }
+
+  onAnnMidpointMouseDown(e: MouseEvent, ann: Annotation, segmentIndex: number): void {
+    e.stopPropagation();
+    e.preventDefault();
+    this.store.pushUndo();
+    const pt = this.svgPoint(e);
+    const waypoints = [...(ann.waypoints ?? [])];
+    waypoints.splice(segmentIndex, 0, { x: pt.x, y: pt.y });
+    this.store.updateAnnotation(ann.id, { waypoints });
+    this.annWaypointDragState = { annId: ann.id, waypointIndex: segmentIndex, lastX: pt.x, lastY: pt.y };
+  }
+
+  onAnnWaypointDblClick(e: MouseEvent, ann: Annotation, waypointIndex: number): void {
+    e.stopPropagation();
+    this.store.pushUndo();
+    const waypoints = (ann.waypoints ?? []).filter((_, i) => i !== waypointIndex);
+    this.store.updateAnnotation(ann.id, { waypoints: waypoints.length ? waypoints : undefined });
   }
 
   updateSelectedEdgeStyle(changes: Partial<EdgeStyle>): void {

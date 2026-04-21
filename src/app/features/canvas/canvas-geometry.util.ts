@@ -1,4 +1,5 @@
 import { Annotation, EdgeRouting, StrokeStyle } from '../../core/models/annotation.model';
+import { DiagramEdge } from '../../core/models/diagram-edge.model';
 import { DiagramNode } from '../../core/models/diagram-node.model';
 
 export function diamondPointsFromRect(r: { x: number; y: number; w: number; h: number }): string {
@@ -56,6 +57,10 @@ export function edgeAnchorBetween(nodes: DiagramNode[], fromId: string, toId: st
 }
 
 export function linePointsFromAnnotation(ann: Annotation): string {
+  if (ann.waypoints && ann.waypoints.length > 0) {
+    const all = [{ x: ann.x, y: ann.y }, ...ann.waypoints, { x: ann.x2 ?? ann.x, y: ann.y2 ?? ann.y }];
+    return polylinePointsString(all);
+  }
   return linePointsFromCoords(
     ann.x,
     ann.y,
@@ -63,4 +68,40 @@ export function linePointsFromAnnotation(ann: Annotation): string {
     ann.y2 ?? ann.y,
     ann.edgeRouting ?? 'straight',
   );
+}
+
+export function anchorTowardPoint(node: DiagramNode, targetPt: { x: number; y: number }): { x: number; y: number } {
+  const cx = node.position.x + node.size.width / 2;
+  const cy = node.position.y + node.size.height / 2;
+  const dx = targetPt.x - cx;
+  const dy = targetPt.y - cy;
+  if (dx === 0 && dy === 0) return { x: cx, y: cy };
+  const halfW = node.size.width / 2;
+  const halfH = node.size.height / 2;
+  const tx = dx === 0 ? Number.POSITIVE_INFINITY : halfW / Math.abs(dx);
+  const ty = dy === 0 ? Number.POSITIVE_INFINITY : halfH / Math.abs(dy);
+  const t = Math.min(tx, ty);
+  return { x: cx + dx * t, y: cy + dy * t };
+}
+
+export function polylinePointsString(points: { x: number; y: number }[]): string {
+  return points.map(p => `${p.x},${p.y}`).join(' ');
+}
+
+export function edgePolylinePoints(nodes: DiagramNode[], edge: Pick<DiagramEdge, 'sourceId' | 'targetId' | 'waypoints'>): { x: number; y: number }[] {
+  const src = nodes.find(n => n.id === edge.sourceId);
+  const tgt = nodes.find(n => n.id === edge.targetId);
+  if (!src || !tgt) return [];
+
+  const waypoints = edge.waypoints ?? [];
+  const tgtCenter = { x: tgt.position.x + tgt.size.width / 2, y: tgt.position.y + tgt.size.height / 2 };
+  const srcCenter = { x: src.position.x + src.size.width / 2, y: src.position.y + src.size.height / 2 };
+
+  const firstTarget = waypoints.length > 0 ? waypoints[0] : tgtCenter;
+  const lastSource = waypoints.length > 0 ? waypoints[waypoints.length - 1] : srcCenter;
+
+  const srcAnchor = anchorTowardPoint(src, firstTarget);
+  const tgtAnchor = anchorTowardPoint(tgt, lastSource);
+
+  return [srcAnchor, ...waypoints, tgtAnchor];
 }

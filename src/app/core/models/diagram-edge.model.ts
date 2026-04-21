@@ -22,6 +22,7 @@ export interface DiagramEdge {
   label?: string;
   animated: boolean;
   style: EdgeStyle;
+  waypoints?: { x: number; y: number }[];
 }
 
 export const EDGE_STYLES: Record<EdgeType, EdgeStyle> = {

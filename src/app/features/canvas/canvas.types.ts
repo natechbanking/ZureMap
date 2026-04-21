@@ -78,3 +78,17 @@ export interface RgDragState {
   lastX: number;
   lastY: number;
 }
+
+export interface EdgeWaypointDragState {
+  edgeId: string;
+  waypointIndex: number;
+  lastX: number;
+  lastY: number;
+}
+
+export interface AnnWaypointDragState {
+  annId: string;
+  waypointIndex: number;
+  lastX: number;
+  lastY: number;
+}

@@ -38,6 +38,10 @@ export class CanvasEdgeEditorService {
     );
   }
 
+  setWaypoints(edges: DiagramEdge[], edgeId: string, waypoints: { x: number; y: number }[]): DiagramEdge[] {
+    return edges.map(e => e.id === edgeId ? { ...e, waypoints: waypoints.length > 0 ? waypoints : undefined } : e);
+  }
+
   dashStyleValue(style: EdgeStyle): string {
     if (!style.dashArray) return 'solid';
     if (style.dashArray === '6 3' || style.dashArray === '8 4') return 'dashed';

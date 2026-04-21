@@ -21,6 +21,7 @@ export interface Annotation {
   height?: number;
   x2?: number;        // arrow endpoint
   y2?: number;
+  waypoints?: { x: number; y: number }[];
   text?: string;      // text / sticky content
   fontSize?: number;
 }

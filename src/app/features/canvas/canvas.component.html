@@ -337,34 +337,70 @@
 
               <!-- Edges (pass-through) -->
               @for (edge of visibleEdges; track edge.id) {
+                @let edgePts = getEdgePolylineString(edge);
                 <g>
                   @if (selectedEdgeId === edge.id) {
-                    <line
+                    <polyline
                       pointer-events="none"
-                      [attr.x1]="getEdgeX1(edge.sourceId, edge.targetId)"
-                      [attr.y1]="getEdgeY1(edge.sourceId, edge.targetId)"
-                      [attr.x2]="getEdgeX2(edge.sourceId, edge.targetId)"
-                      [attr.y2]="getEdgeY2(edge.sourceId, edge.targetId)"
+                      [attr.points]="edgePts"
+                      fill="none"
                       stroke="#2563eb"
                       [attr.stroke-width]="edge.style.strokeWidth + 4"
                       stroke-linecap="round"
+                      stroke-linejoin="round"
                       opacity="0.25"
                     />
                   }
-                  <line
+                  <polyline
                     [attr.pointer-events]="activeTool === 'pointer' ? 'stroke' : 'none'"
-                    [attr.x1]="getEdgeX1(edge.sourceId, edge.targetId)"
-                    [attr.y1]="getEdgeY1(edge.sourceId, edge.targetId)"
-                    [attr.x2]="getEdgeX2(edge.sourceId, edge.targetId)"
-                    [attr.y2]="getEdgeY2(edge.sourceId, edge.targetId)"
+                    [attr.points]="edgePts"
+                    fill="none"
                     [attr.stroke]="edge.style.strokeColor"
                     [attr.stroke-width]="edge.style.strokeWidth"
                     [attr.stroke-dasharray]="edge.style.dashArray ?? null"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
                     [attr.marker-end]="edge.style.markerEnd === 'arrow' ? 'url(#edge-arrow)' : null"
                     [class.animate-pulse]="edge.animated"
                     style="cursor: pointer"
                     (click)="onEdgeClick($event, edge)"
                   />
+                  <!-- Waypoint handles (shown when selected and pointer tool active) -->
+                  @if (selectedEdgeId === edge.id && activeTool === 'pointer') {
+                    @let edgeAllPts = getEdgePoints(edge);
+                    <!-- Endpoint anchors (visual only) -->
+                    @if (edgeAllPts.length > 0) {
+                      <circle
+                        [attr.cx]="edgeAllPts[0].x" [attr.cy]="edgeAllPts[0].y"
+                        [attr.r]="5 / zoomLevel" fill="#3b82f6" stroke="white" [attr.stroke-width]="1.5 / zoomLevel"
+                        pointer-events="none"
+                      />
+                      <circle
+                        [attr.cx]="edgeAllPts[edgeAllPts.length - 1].x" [attr.cy]="edgeAllPts[edgeAllPts.length - 1].y"
+                        [attr.r]="5 / zoomLevel" fill="#3b82f6" stroke="white" [attr.stroke-width]="1.5 / zoomLevel"
+                        pointer-events="none"
+                      />
+                    }
+                    <!-- Virtual midpoint handles (insert new waypoint) -->
+                    @for (mid of getEdgeMidHandles(edge); track mid.segmentIndex) {
+                      <circle
+                        [attr.cx]="mid.x" [attr.cy]="mid.y"
+                        [attr.r]="4 / zoomLevel" fill="#bfdbfe" stroke="#3b82f6" [attr.stroke-width]="1.5 / zoomLevel"
+                        style="cursor: crosshair; pointer-events: all"
+                        (mousedown)="onEdgeMidpointMouseDown($event, edge, mid.segmentIndex)"
+                      />
+                    }
+                    <!-- Real waypoint handles (drag to move, dblclick to delete) -->
+                    @for (handle of getEdgeHandles(edge); track handle.index) {
+                      <circle
+                        [attr.cx]="handle.x" [attr.cy]="handle.y"
+                        [attr.r]="6 / zoomLevel" fill="white" stroke="#3b82f6" [attr.stroke-width]="2 / zoomLevel"
+                        style="cursor: move; pointer-events: all"
+                        (mousedown)="onEdgeWaypointMouseDown($event, edge, handle.index)"
+                        (dblclick)="onEdgeWaypointDblClick($event, edge, handle.index)"
+                      />
+                    }
+                  }
                 </g>
               }
 
@@ -410,6 +446,28 @@
                       stroke="transparent" stroke-width="12"
                     />
                   </g>
+                  <!-- Waypoint handles for selected arrow -->
+                  @if (selectedAnnotationId === ann.id && activeTool === 'pointer') {
+                    <!-- Virtual midpoint handles -->
+                    @for (mid of getAnnMidHandles(ann); track mid.segmentIndex) {
+                      <circle
+                        [attr.cx]="mid.x" [attr.cy]="mid.y"
+                        [attr.r]="4 / zoomLevel" fill="#bfdbfe" stroke="#3b82f6" [attr.stroke-width]="1.5 / zoomLevel"
+                        style="cursor: crosshair; pointer-events: all"
+                        (mousedown)="onAnnMidpointMouseDown($event, ann, mid.segmentIndex)"
+                      />
+                    }
+                    <!-- Real waypoint handles -->
+                    @for (handle of getAnnHandles(ann); track handle.index) {
+                      <circle
+                        [attr.cx]="handle.x" [attr.cy]="handle.y"
+                        [attr.r]="6 / zoomLevel" fill="white" stroke="#3b82f6" [attr.stroke-width]="2 / zoomLevel"
+                        style="cursor: move; pointer-events: all"
+                        (mousedown)="onAnnWaypointMouseDown($event, ann, handle.index)"
+                        (dblclick)="onAnnWaypointDblClick($event, ann, handle.index)"
+                      />
+                    }
+                  }
                 }
                 @if (ann.type === 'line') {
                   <g
@@ -434,6 +492,28 @@
                       stroke="transparent" stroke-width="12"
                     />
                   </g>
+                  <!-- Waypoint handles for selected line -->
+                  @if (selectedAnnotationId === ann.id && activeTool === 'pointer') {
+                    <!-- Virtual midpoint handles -->
+                    @for (mid of getAnnMidHandles(ann); track mid.segmentIndex) {
+                      <circle
+                        [attr.cx]="mid.x" [attr.cy]="mid.y"
+                        [attr.r]="4 / zoomLevel" fill="#bfdbfe" stroke="#3b82f6" [attr.stroke-width]="1.5 / zoomLevel"
+                        style="cursor: crosshair; pointer-events: all"
+                        (mousedown)="onAnnMidpointMouseDown($event, ann, mid.segmentIndex)"
+                      />
+                    }
+                    <!-- Real waypoint handles -->
+                    @for (handle of getAnnHandles(ann); track handle.index) {
+                      <circle
+                        [attr.cx]="handle.x" [attr.cy]="handle.y"
+                        [attr.r]="6 / zoomLevel" fill="white" stroke="#3b82f6" [attr.stroke-width]="2 / zoomLevel"
+                        style="cursor: move; pointer-events: all"
+                        (mousedown)="onAnnWaypointMouseDown($event, ann, handle.index)"
+                        (dblclick)="onAnnWaypointDblClick($event, ann, handle.index)"
+                      />
+                    }
+                  }
                 }
                 @if (ann.type === 'rect' && ann.width && ann.height) {
                   <rect

@@ -25,6 +25,19 @@ export interface NodeResizeRequest {
   height: number;
 }
 
+export interface RouteTableExpansionRequest {
+  nodeId: string;
+  expanded: boolean;
+  routeCount: number;
+}
+
+interface RouteEntryView {
+  name: string;
+  addressPrefix: string;
+  nextHopType: string;
+  nextHopIpAddress: string | null;
+}
+
 @Component({
   selector: 'app-diagram-node',
   standalone: true,
@@ -57,6 +70,18 @@ export interface NodeResizeRequest {
       <span class="text-[10px] leading-tight text-gray-400 truncate max-w-full px-1" [title]="typeLabel">
         {{ typeLabel }}
       </span>
+
+      @if (isRouteTable) {
+        <button
+          type="button"
+          class="mt-0.5 px-2 py-0.5 rounded border border-cyan-200 bg-cyan-50 text-[10px] leading-tight text-cyan-700 hover:bg-cyan-100"
+          [title]="routesExpanded ? 'Hide routes' : 'Show routes'"
+          (mousedown)="stopEvent($event)"
+          (click)="toggleRoutesPanel($event)"
+        >
+          {{ routesExpanded ? 'Hide routes' : 'Show routes' }} ({{ routeEntries.length }})
+        </button>
+      }
 
       @if (node.custom?.description) {
         <span class="text-[10px] leading-tight text-gray-500 text-center max-w-full px-1 truncate" [title]="node.custom?.description">
@@ -99,6 +124,30 @@ export interface NodeResizeRequest {
       @if (node.driftStatus === 'unplanned') {
         <span class="absolute -top-2 -left-2 text-xs bg-blue-500 text-white rounded-full w-4 h-4 flex items-center justify-center" title="New in Azure">+</span>
       }
+
+      @if (isRouteTable && routesExpanded) {
+        <div
+          class="w-full mt-1 rounded border border-cyan-200 bg-white shadow-sm p-1.5"
+          (mousedown)="stopEvent($event)"
+          (click)="stopEvent($event)"
+        >
+          @if (routeEntries.length === 0) {
+            <p class="text-[10px] text-gray-500 px-1 py-0.5">No routes found on this table.</p>
+          } @else {
+            <div class="space-y-1">
+              @for (route of routeEntries; track route.name + route.addressPrefix + route.nextHopType) {
+                <div class="rounded border border-cyan-100 bg-cyan-50/40 px-1.5 py-1">
+                  <p class="text-[10px] font-semibold text-gray-800 truncate" [title]="route.name">{{ route.name }}</p>
+                  <p class="text-[10px] text-gray-600 truncate" [title]="route.addressPrefix">{{ route.addressPrefix }}</p>
+                  <p class="text-[10px] text-gray-500 truncate" [title]="route.nextHopType + (route.nextHopIpAddress ? ' • ' + route.nextHopIpAddress : '')">
+                    {{ route.nextHopType }}@if (route.nextHopIpAddress) { • {{ route.nextHopIpAddress }} }
+                  </p>
+                </div>
+              }
+            </div>
+          }
+        </div>
+      }
     </div>
   `,
 })
@@ -111,11 +160,13 @@ export class DiagramNodeComponent {
   @Output() editRequested = new EventEmitter<string>();
   @Output() internalItemMoved = new EventEmitter<InternalItemMoveRequest>();
   @Output() nodeResized = new EventEmitter<NodeResizeRequest>();
+  @Output() routeTableExpansionChanged = new EventEmitter<RouteTableExpansionRequest>();
 
   private costSvc = inject(CostService);
   private store = inject(DiagramStore);
   private internalDrag: { itemId: string; startMouseX: number; startMouseY: number; startX: number; startY: number } | null = null;
   private resizeDrag: { startMouseX: number; startMouseY: number; startW: number; startH: number } | null = null;
+  routesExpanded = false;
 
   get typeLabel(): string {
     const parts = this.node.resourceType.split('/');
@@ -139,6 +190,28 @@ export class DiagramNodeComponent {
     return this.costSvc.getCostHeatmapGlow(this.node.costData.monthlyCostUsd, maxCost);
   }
 
+  get isRouteTable(): boolean {
+    return this.node.resourceType.toLowerCase() === 'microsoft.network/routetables';
+  }
+
+  get routeEntries(): RouteEntryView[] {
+    const routes = (this.node.metadata?.properties?.['routes'] as unknown[] | undefined) ?? [];
+    const entries: RouteEntryView[] = [];
+    for (const raw of routes) {
+      const route = raw as {
+        name?: string;
+        properties?: { addressPrefix?: string; nextHopType?: string; nextHopIpAddress?: string };
+      };
+      entries.push({
+        name: route.name ?? 'Unnamed route',
+        addressPrefix: route.properties?.addressPrefix ?? 'N/A',
+        nextHopType: route.properties?.nextHopType ?? 'Unknown',
+        nextHopIpAddress: route.properties?.nextHopIpAddress ?? null,
+      });
+    }
+    return entries;
+  }
+
   onContextMenu(event: MouseEvent): void {
     event.preventDefault();
     event.stopPropagation();
@@ -149,6 +222,23 @@ export class DiagramNodeComponent {
     event.preventDefault();
     event.stopPropagation();
     this.editRequested.emit(this.node.id);
+  }
+
+  toggleRoutesPanel(event: MouseEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.clicked.emit(this.node.id);
+    this.routesExpanded = !this.routesExpanded;
+    this.routeTableExpansionChanged.emit({
+      nodeId: this.node.id,
+      expanded: this.routesExpanded,
+      routeCount: this.routeEntries.length,
+    });
+  }
+
+  stopEvent(event: MouseEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
   }
 
   onInternalItemMouseDown(event: MouseEvent, item: NodeInternalItem): void {

@@ -3,7 +3,13 @@ import { CommonModule } from '@angular/common';
 import { DiagramStore } from '../../core/store/diagram.store';
 import { ELKLayoutService } from '../../core/services/elk-layout.service';
 import { IconRegistryService } from '../../core/services/icon-registry.service';
-import { DiagramNodeComponent, ContextMenuRequest, InternalItemMoveRequest, NodeResizeRequest } from './diagram-node/diagram-node.component';
+import {
+  DiagramNodeComponent,
+  ContextMenuRequest,
+  InternalItemMoveRequest,
+  NodeResizeRequest,
+  RouteTableExpansionRequest,
+} from './diagram-node/diagram-node.component';
 import { SidebarComponent } from '../sidebar/sidebar.component';
 import { ToolbarComponent } from '../toolbar/toolbar.component';
 import { DrawingToolbarComponent } from './drawing-toolbar/drawing-toolbar.component';
@@ -148,6 +154,7 @@ export class CanvasComponent {
 
   // Node HTML5 drag
   private dragOffset = { x: 0, y: 0 };
+  private routeTableCollapsedHeights = new Map<string, number>();
   selectedEdgeId: string | null = null;
   resourceEditorOpen = false;
   resourceEditorNodeId: string | null = null;
@@ -885,6 +892,44 @@ export class CanvasComponent {
         size: { width, height },
         custom: n.custom ? { ...n.custom, internalItems: items } : n.custom,
       };
+    }));
+  }
+
+  onRouteTableExpansionChanged(req: RouteTableExpansionRequest): void {
+    const nodes = this.store.nodes();
+    const routeTable = nodes.find(n => n.id === req.nodeId);
+    if (!routeTable) return;
+
+    const currentHeight = routeTable.size.height;
+    const collapsedHeight = this.routeTableCollapsedHeights.get(req.nodeId) ?? currentHeight;
+    if (req.expanded && !this.routeTableCollapsedHeights.has(req.nodeId)) {
+      this.routeTableCollapsedHeights.set(req.nodeId, currentHeight);
+    }
+    if (!req.expanded) {
+      this.routeTableCollapsedHeights.delete(req.nodeId);
+    }
+
+    // Route cards are compact but include 3 text rows + spacing + panel chrome.
+    // Keep a small safety buffer to avoid clipping at different font metrics/zoom.
+    const panelHeight = req.routeCount === 0 ? 48 : req.routeCount * 52 + 28;
+    const targetHeight = req.expanded
+      ? Math.max(currentHeight, collapsedHeight + panelHeight)
+      : collapsedHeight;
+    const delta = targetHeight - currentHeight;
+    if (delta === 0) return;
+
+    const subId = routeTable.metadata?.subscriptionId || '';
+    const rg = routeTable.metadata?.resourceGroup || routeTable.groupId || '';
+    const cutoffY = routeTable.position.y + currentHeight - 2;
+
+    this.store.setNodes(nodes.map(n => {
+      if (n.id === routeTable.id) {
+        return { ...n, size: { ...n.size, height: targetHeight } };
+      }
+      const sameSub = (n.metadata?.subscriptionId || '') === subId;
+      const sameRg = (n.metadata?.resourceGroup || n.groupId || '') === rg;
+      if (!sameSub || !sameRg || n.position.y < cutoffY) return n;
+      return { ...n, position: { ...n.position, y: Math.max(0, n.position.y + delta) } };
     }));
   }
 

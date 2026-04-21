@@ -12,6 +12,7 @@ import {
   VirtualNetworkExpansionRequest,
   NsgExpansionRequest,
   StorageAccountExpansionRequest,
+  AksExpansionRequest,
 } from './diagram-node/diagram-node.component';
 import { SidebarComponent } from '../sidebar/sidebar.component';
 import { ToolbarComponent } from '../toolbar/toolbar.component';
@@ -161,6 +162,7 @@ export class CanvasComponent {
   private virtualNetworkCollapsedHeights = new Map<string, number>();
   private nsgCollapsedHeights = new Map<string, number>();
   private storageAccountCollapsedHeights = new Map<string, number>();
+  private aksCollapsedHeights = new Map<string, number>();
   selectedEdgeId: string | null = null;
   relayoutBusy = false;
   resourceEditorOpen = false;
@@ -1126,6 +1128,45 @@ export class CanvasComponent {
 
     this.store.setNodes(nodes.map(n => {
       if (n.id === sa.id) {
+        return { ...n, size: { ...n.size, height: targetHeight } };
+      }
+      const sameSub = (n.metadata?.subscriptionId || '') === subId;
+      const sameRg = (n.metadata?.resourceGroup || n.groupId || '') === rg;
+      if (!sameSub || !sameRg || n.position.y < cutoffY) return n;
+      return { ...n, position: { ...n.position, y: Math.max(0, n.position.y + delta) } };
+    }));
+  }
+
+  onAksExpansionChanged(req: AksExpansionRequest): void {
+    const nodes = this.store.nodes();
+    const aks = nodes.find(n => n.id === req.nodeId);
+    if (!aks) return;
+
+    this.store.pushUndo();
+
+    const currentHeight = aks.size.height;
+    const collapsedHeight = this.aksCollapsedHeights.get(req.nodeId) ?? currentHeight;
+    if (req.expanded && !this.aksCollapsedHeights.has(req.nodeId)) {
+      this.aksCollapsedHeights.set(req.nodeId, currentHeight);
+    }
+    if (!req.expanded) {
+      this.aksCollapsedHeights.delete(req.nodeId);
+    }
+
+    // Cluster metadata header ~28px + each node pool card ~52px + panel chrome 20px.
+    const panelHeight = req.nodePoolCount === 0 ? 48 : req.nodePoolCount * 52 + 48;
+    const targetHeight = req.expanded
+      ? Math.max(currentHeight, collapsedHeight + panelHeight)
+      : collapsedHeight;
+    const delta = targetHeight - currentHeight;
+    if (delta === 0) return;
+
+    const subId = aks.metadata?.subscriptionId || '';
+    const rg = aks.metadata?.resourceGroup || aks.groupId || '';
+    const cutoffY = aks.position.y + currentHeight - 2;
+
+    this.store.setNodes(nodes.map(n => {
+      if (n.id === aks.id) {
         return { ...n, size: { ...n.size, height: targetHeight } };
       }
       const sameSub = (n.metadata?.subscriptionId || '') === subId;

@@ -50,6 +50,26 @@ export interface StorageAccountExpansionRequest {
   itemCount: number;
 }
 
+export interface AksExpansionRequest {
+  nodeId: string;
+  expanded: boolean;
+  nodePoolCount: number;
+}
+
+interface AksNodePoolView {
+  name: string;
+  count: number;
+  vmSize: string;
+  mode: string;
+  osType: string;
+}
+
+interface AksInfoView {
+  kubernetesVersion: string;
+  networkPlugin: string;
+  nodePools: AksNodePoolView[];
+}
+
 interface RouteEntryView {
   name: string;
   addressPrefix: string;
@@ -157,6 +177,18 @@ interface NsgRuleView {
           } @else {
             Show storage ({{ storageItemCount }})
           }
+        </button>
+      }
+
+      @if (isAks) {
+        <button
+          type="button"
+          class="mt-0.5 px-2 py-0.5 rounded border border-violet-200 bg-violet-50 text-[10px] leading-tight text-violet-700 hover:bg-violet-100"
+          [title]="aksExpanded ? 'Hide cluster details' : 'Show cluster details'"
+          (mousedown)="stopEvent($event)"
+          (click)="toggleAksPanel($event)"
+        >
+          {{ aksExpanded ? 'Hide cluster' : 'Show cluster' }} ({{ aksInfo.nodePools.length }} pools)
         </button>
       }
 
@@ -348,6 +380,45 @@ interface NsgRuleView {
           }
         </div>
       }
+
+      @if (isAks && aksExpanded) {
+        <div
+          class="w-full mt-1 rounded border border-violet-200 bg-white shadow-sm overflow-hidden"
+          (mousedown)="stopEvent($event)"
+          (click)="stopEvent($event)"
+        >
+          <!-- Cluster metadata row -->
+          <div class="px-2 pt-1.5 pb-1 flex flex-wrap gap-1 border-b border-violet-100">
+            <span class="text-[9px] font-semibold px-1.5 py-px rounded-full bg-violet-100 text-violet-700 leading-tight">
+              k8s {{ aksInfo.kubernetesVersion }}
+            </span>
+            <span class="text-[9px] px-1.5 py-px rounded-full bg-blue-100 text-blue-700 leading-tight">
+              {{ aksInfo.networkPlugin }}
+            </span>
+          </div>
+          <!-- Node pools -->
+          @if (aksInfo.nodePools.length === 0) {
+            <p class="text-[10px] text-gray-400 px-2 py-1.5">No node pools found.</p>
+          } @else {
+            <div class="px-2 pt-1 pb-0.5">
+              <p class="text-[9px] font-semibold text-violet-600 uppercase tracking-wide mb-0.5">Node Pools</p>
+              @for (pool of aksInfo.nodePools; track pool.name) {
+                <div class="rounded border border-violet-100 bg-violet-50/40 px-1.5 py-1 mb-1 last:mb-0">
+                  <div class="flex items-center gap-1 mb-0.5">
+                    <span class="text-[10px] font-semibold text-gray-800 truncate flex-1" [title]="pool.name">{{ pool.name }}</span>
+                    <span
+                      class="text-[9px] px-1 py-px rounded-full leading-tight shrink-0"
+                      [ngClass]="pool.mode === 'System' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'"
+                    >{{ pool.mode }}</span>
+                  </div>
+                  <p class="text-[10px] text-gray-600 truncate" [title]="pool.vmSize">{{ pool.vmSize }}</p>
+                  <p class="text-[10px] text-gray-500">{{ pool.count }} node{{ pool.count !== 1 ? 's' : '' }} &middot; {{ pool.osType }}</p>
+                </div>
+              }
+            </div>
+          }
+        </div>
+      }
     </div>
   `,
 })
@@ -364,6 +435,7 @@ export class DiagramNodeComponent {
   @Output() virtualNetworkExpansionChanged = new EventEmitter<VirtualNetworkExpansionRequest>();
   @Output() nsgExpansionChanged = new EventEmitter<NsgExpansionRequest>();
   @Output() storageAccountExpansionChanged = new EventEmitter<StorageAccountExpansionRequest>();
+  @Output() aksExpansionChanged = new EventEmitter<AksExpansionRequest>();
 
   private costSvc = inject(CostService);
   private store = inject(DiagramStore);
@@ -378,6 +450,7 @@ export class DiagramNodeComponent {
   storageDetailsLoading = false;
   storageDetailsLoaded = false;
   storageDetailsError: string | null = null;
+  aksExpanded = false;
 
   get typeLabel(): string {
     const parts = this.node.resourceType.split('/');
@@ -415,6 +488,33 @@ export class DiagramNodeComponent {
 
   get isStorageAccount(): boolean {
     return this.node.resourceType.toLowerCase() === 'microsoft.storage/storageaccounts';
+  }
+
+  get isAks(): boolean {
+    return this.node.resourceType.toLowerCase() === 'microsoft.containerservice/managedclusters';
+  }
+
+  get aksInfo(): AksInfoView {
+    const props = this.node.metadata?.properties ?? {};
+    const pools = (props['agentPoolProfiles'] as Array<{
+      name?: string;
+      count?: number;
+      vmSize?: string;
+      mode?: string;
+      osType?: string;
+    }> | undefined) ?? [];
+    const netProfile = props['networkProfile'] as { networkPlugin?: string } | undefined;
+    return {
+      kubernetesVersion: (props['kubernetesVersion'] as string | undefined) ?? 'Unknown',
+      networkPlugin: netProfile?.networkPlugin ?? 'Unknown',
+      nodePools: pools.map(p => ({
+        name: p.name ?? 'unnamed',
+        count: p.count ?? 0,
+        vmSize: p.vmSize ?? 'Unknown',
+        mode: p.mode ?? 'User',
+        osType: p.osType ?? 'Linux',
+      })),
+    };
   }
 
   get storageContainers(): string[] {
@@ -587,6 +687,18 @@ export class DiagramNodeComponent {
         itemCount: this.storageItemCount,
       });
     }
+  }
+
+  toggleAksPanel(event: MouseEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.clicked.emit(this.node.id);
+    this.aksExpanded = !this.aksExpanded;
+    this.aksExpansionChanged.emit({
+      nodeId: this.node.id,
+      expanded: this.aksExpanded,
+      nodePoolCount: this.aksInfo.nodePools.length,
+    });
   }
 
   stopEvent(event: MouseEvent): void {

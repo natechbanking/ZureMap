@@ -175,7 +175,7 @@ const EDGE_MODES: EdgeMode[] = ['none', 'start', 'end', 'both'];
 
             <div>
               <p class="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Fill</p>
-              <div class="flex gap-1">
+              <div class="flex gap-1 mb-1.5">
                 <button
                   class="h-7 px-2 rounded-lg border text-xs"
                   [class.border-blue-300]="activeFill !== 'none'"
@@ -191,6 +191,26 @@ const EDGE_MODES: EdgeMode[] = ['none', 'start', 'end', 'both'];
                   title="Set fill to stroke color"
                   (click)="fillChange.emit(activeColor)"
                 ></button>
+              </div>
+              <div class="flex items-center gap-2">
+                <input
+                  type="color"
+                  class="w-8 h-7 p-0 border border-gray-200 rounded-lg cursor-pointer"
+                  [value]="activeFill !== 'none' ? activeFill : activeColor"
+                  (input)="fillChange.emit(colorValue($event))"
+                  title="Fill color"
+                />
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.05"
+                  class="w-full"
+                  [value]="activeFillOpacity"
+                  (input)="fillOpacityChange.emit(toFloat($event))"
+                  title="Fill opacity"
+                />
+                <span class="text-[10px] text-gray-500 w-8 text-right">{{ (activeFillOpacity * 100).toFixed(0) }}%</span>
               </div>
             </div>
           </div>
@@ -341,6 +361,7 @@ export class DrawingToolbarComponent {
   @Input() activeEdgeRouting: EdgeRouting = 'straight';
   @Input() activeEdgeMode: EdgeMode = 'end';
   @Input() activeFill = 'none';
+  @Input() activeFillOpacity = 0.2;
   @Input() hasSelection = false;
   @Input() annotationCount = 0;
 
@@ -352,6 +373,7 @@ export class DrawingToolbarComponent {
   @Output() edgeRoutingChange = new EventEmitter<EdgeRouting>();
   @Output() edgeModeChange = new EventEmitter<EdgeMode>();
   @Output() fillChange = new EventEmitter<string>();
+  @Output() fillOpacityChange = new EventEmitter<number>();
   @Output() undo = new EventEmitter<void>();
   @Output() clearAll = new EventEmitter<void>();
   @Output() deleteSelected = new EventEmitter<void>();
@@ -376,6 +398,14 @@ export class DrawingToolbarComponent {
 
   toNumber(event: Event): number {
     return Number((event.target as HTMLInputElement).value || 0);
+  }
+
+  toFloat(event: Event): number {
+    return Number((event.target as HTMLInputElement).value || 0);
+  }
+
+  colorValue(event: Event): string {
+    return (event.target as HTMLInputElement).value || this.activeColor;
   }
 
   @HostListener('window:keydown', ['$event'])

@@ -66,6 +66,7 @@ import { forkJoin, firstValueFrom } from 'rxjs';
             [activeEdgeRouting]="activeEdgeRouting"
             [activeEdgeMode]="activeEdgeMode"
             [activeFill]="activeFill"
+            [activeFillOpacity]="activeFillOpacity"
             [hasSelection]="selectedAnnotationId !== null"
             [annotationCount]="store.annotations().length"
             (toolChange)="setTool($event)"
@@ -76,6 +77,7 @@ import { forkJoin, firstValueFrom } from 'rxjs';
             (edgeRoutingChange)="activeEdgeRouting = $event"
             (edgeModeChange)="activeEdgeMode = $event"
             (fillChange)="activeFill = $event"
+            (fillOpacityChange)="activeFillOpacity = $event"
             (undo)="store.undoLastAnnotation()"
             (clearAll)="clearAllAnnotations()"
             (deleteSelected)="deleteSelectedAnnotation()"
@@ -452,6 +454,7 @@ import { forkJoin, firstValueFrom } from 'rxjs';
                     [attr.stroke-dasharray]="strokeDashArray(ann)"
                     [attr.filter]="sloppyFilter(ann)"
                     [attr.fill]="ann.fill" rx="3"
+                    [attr.fill-opacity]="ann.fill !== 'none' ? (ann.fillOpacity ?? 1) : null"
                     [attr.pointer-events]="activeTool === 'pointer' ? 'all' : 'none'"
                     [class.cursor-move]="activeTool === 'pointer'"
                     (mousedown)="onAnnotationMouseDown($event, ann)"
@@ -467,6 +470,7 @@ import { forkJoin, firstValueFrom } from 'rxjs';
                     [attr.stroke-dasharray]="strokeDashArray(ann)"
                     [attr.filter]="sloppyFilter(ann)"
                     [attr.fill]="ann.fill"
+                    [attr.fill-opacity]="ann.fill !== 'none' ? (ann.fillOpacity ?? 1) : null"
                     [attr.pointer-events]="activeTool === 'pointer' ? 'all' : 'none'"
                     [class.cursor-move]="activeTool === 'pointer'"
                     (mousedown)="onAnnotationMouseDown($event, ann)"
@@ -479,6 +483,7 @@ import { forkJoin, firstValueFrom } from 'rxjs';
                     [attr.stroke-dasharray]="strokeDashArray(ann)"
                     [attr.filter]="sloppyFilter(ann)"
                     [attr.fill]="ann.fill"
+                    [attr.fill-opacity]="ann.fill !== 'none' ? (ann.fillOpacity ?? 1) : null"
                     [attr.pointer-events]="activeTool === 'pointer' ? 'all' : 'none'"
                     [class.cursor-move]="activeTool === 'pointer'"
                     (mousedown)="onAnnotationMouseDown($event, ann)"
@@ -528,13 +533,14 @@ import { forkJoin, firstValueFrom } from 'rxjs';
                 <rect [attr.x]="previewRect.x" [attr.y]="previewRect.y"
                   [attr.width]="previewRect.w" [attr.height]="previewRect.h"
                   [attr.stroke]="activeColor" [attr.stroke-width]="activeStrokeWidth"
-                  [attr.fill]="activeFill" stroke-dasharray="6 3" rx="3" pointer-events="none" />
+                  [attr.fill]="activeFill" [attr.fill-opacity]="activeFill !== 'none' ? activeFillOpacity : null" stroke-dasharray="6 3" rx="3" pointer-events="none" />
               }
               @if (previewDiamond) {
                 <polygon
                   [attr.points]="diamondPointsFromRect(previewDiamond)"
                   [attr.stroke]="activeColor" [attr.stroke-width]="activeStrokeWidth"
                   [attr.fill]="activeFill"
+                  [attr.fill-opacity]="activeFill !== 'none' ? activeFillOpacity : null"
                   stroke-dasharray="6 3" pointer-events="none"
                 />
               }
@@ -543,7 +549,7 @@ import { forkJoin, firstValueFrom } from 'rxjs';
                   [attr.cx]="previewEllipse.cx" [attr.cy]="previewEllipse.cy"
                   [attr.rx]="previewEllipse.rx" [attr.ry]="previewEllipse.ry"
                   [attr.stroke]="activeColor" [attr.stroke-width]="activeStrokeWidth"
-                  [attr.fill]="activeFill" stroke-dasharray="6 3" pointer-events="none" />
+                  [attr.fill]="activeFill" [attr.fill-opacity]="activeFill !== 'none' ? activeFillOpacity : null" stroke-dasharray="6 3" pointer-events="none" />
               }
 
             </svg>
@@ -976,6 +982,7 @@ export class CanvasComponent {
   activeEdgeRouting: EdgeRouting = 'straight';
   activeEdgeMode: EdgeMode = 'end';
   activeFill = 'none';
+  activeFillOpacity = 0.2;
 
   selectedAnnotationId: string | null = null;
   editingAnnotation: Annotation | null = null;
@@ -2273,6 +2280,7 @@ export class CanvasComponent {
       sloppiness: this.activeSloppiness,
       edgeRouting: this.activeEdgeRouting,
       edgeMode: type === 'arrow' ? (this.activeEdgeMode === 'none' ? 'end' : this.activeEdgeMode) : this.activeEdgeMode,
+      fillOpacity: this.activeFillOpacity,
       fill: this.activeFill, x, y, fontSize: 14,
     };
   }

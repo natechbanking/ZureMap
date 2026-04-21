@@ -13,6 +13,7 @@ export interface Annotation {
   edgeRouting?: EdgeRouting;
   edgeMode?: EdgeMode;
   fill: string;       // 'none' or a hex color
+  fillOpacity?: number; // 0..1
   x: number;
   y: number;
   pathData?: string;  // freehand

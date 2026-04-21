@@ -8,6 +8,7 @@ export type ScanPhase =
   | 'idle'
   | 'authenticating'
   | 'selecting-subscription'
+  | 'selecting-options'
   | 'scanning'
   | 'laying-out'
   | 'ready'

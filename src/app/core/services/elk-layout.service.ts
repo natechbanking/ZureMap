@@ -153,11 +153,12 @@ export class ELKLayoutService {
   ): object {
     const nodeById = new Map(nodes.map(n => [n.id, n]));
 
-    // Map every node id (including VM group members) to its RG key for edge classification
+    // Map every node id to its RG key (`${subId}::${rgName}`)
     const nodeToRg = new Map<string, string>();
     for (const [rgKey, rgNodes] of rgMap) {
       for (const node of rgNodes) {
         nodeToRg.set(node.id, rgKey);
+        // VNet children inherit the parent's RG
         if (node.children) {
           for (const childId of node.children) nodeToRg.set(childId, rgKey);
         }
@@ -169,20 +170,62 @@ export class ELKLayoutService {
       }
     }
 
-    // Intra-RG edges stay inside the RG container; inter-RG edges bubble up to root
-    const intraRgEdges = new Map<string, DiagramEdge[]>();
-    const interRgEdges: DiagramEdge[] = [];
-    for (const edge of edges) {
-      const sourceRg = nodeToRg.get(edge.sourceId);
-      const targetRg = nodeToRg.get(edge.targetId);
-      if (sourceRg && targetRg && sourceRg === targetRg) {
-        if (!intraRgEdges.has(sourceRg)) intraRgEdges.set(sourceRg, []);
-        intraRgEdges.get(sourceRg)!.push(edge);
-      } else {
-        interRgEdges.push(edge);
+    // Map each VM group member to its VM parent id for intra-VM edge detection
+    const nodeToVm = new Map<string, string>();
+    for (const [rgKey, vmGroupsInRg] of vmGroupsByRg) {
+      void rgKey;
+      for (const [vmId, members] of vmGroupsInRg) {
+        for (const m of members) nodeToVm.set(m.id, vmId);
       }
     }
 
+    // Determine how many unique subscriptions are present so we know whether
+    // __sub__ containers exist (multiSub) before classifying edges.
+    const allRgKeys = new Set([...rgMap.keys(), ...vmGroupsByRg.keys()]);
+    const uniqueSubs = new Set(Array.from(allRgKeys).map(k => k.split('::')[0]));
+    const multiSub = uniqueSubs.size > 1;
+
+    // ── LCA edge routing ──────────────────────────────────────────────────────
+    // Each edge is placed at its Lowest Common Ancestor container so the layout
+    // algorithm at that level can use the edge to pull connected containers
+    // closer together and minimise crossings.
+    //
+    //  intra-VM  → __vm__ (both endpoints in the same VM group)
+    //  intra-RG  → __rg__ (same RG, different VMs or one/both non-VM)
+    //  intra-sub → __sub__ (same subscription, different RGs; only when multiSub)
+    //  inter-sub → root   (different subscriptions, or unclassified)
+    const intraVmEdges  = new Map<string, DiagramEdge[]>(); // vmId   → edges
+    const intraRgEdges  = new Map<string, DiagramEdge[]>(); // rgKey  → edges
+    const intraSubEdges = new Map<string, DiagramEdge[]>(); // subId  → edges
+    const rootEdgeList: DiagramEdge[] = [];
+
+    for (const edge of edges) {
+      // Skip edges whose endpoints are purely VNet-subnet internal (childNodeIds
+      // are laid out inside their VNet node; routing them externally causes noise).
+      if (childNodeIds.has(edge.sourceId) && childNodeIds.has(edge.targetId)) continue;
+
+      const sourceRg  = nodeToRg.get(edge.sourceId);
+      const targetRg  = nodeToRg.get(edge.targetId);
+      const sourceVm  = nodeToVm.get(edge.sourceId);
+      const targetVm  = nodeToVm.get(edge.targetId);
+      const sourceSub = sourceRg?.split('::')[0];
+      const targetSub = targetRg?.split('::')[0];
+
+      if (sourceVm && targetVm && sourceVm === targetVm) {
+        if (!intraVmEdges.has(sourceVm)) intraVmEdges.set(sourceVm, []);
+        intraVmEdges.get(sourceVm)!.push(edge);
+      } else if (sourceRg && targetRg && sourceRg === targetRg) {
+        if (!intraRgEdges.has(sourceRg)) intraRgEdges.set(sourceRg, []);
+        intraRgEdges.get(sourceRg)!.push(edge);
+      } else if (multiSub && sourceSub && targetSub && sourceSub === targetSub) {
+        if (!intraSubEdges.has(sourceSub)) intraSubEdges.set(sourceSub, []);
+        intraSubEdges.get(sourceSub)!.push(edge);
+      } else {
+        rootEdgeList.push(edge);
+      }
+    }
+
+    // ── Build leaf / VNet compound nodes ─────────────────────────────────────
     const buildLayoutNode = (node: DiagramNode): object => {
       const base: Record<string, unknown> = { id: node.id };
       if (node.isPinned && node.manualPosition) {
@@ -206,6 +249,8 @@ export class ELKLayoutService {
           'elk.padding': `[top=40,left=20,bottom=20,right=20]`,
           'elk.spacing.nodeNode': String(opts.nodeSpacing),
           'elk.layered.spacing.nodeNodeBetweenLayers': String(opts.nodeSpacing),
+          'elk.layered.cycleBreaking.strategy': 'GREEDY',
+          'elk.layered.mergeEdges': 'true',
         };
       } else {
         base['width'] = node.size.width;
@@ -214,33 +259,32 @@ export class ELKLayoutService {
       return base;
     };
 
-    // Collect all RG keys (may have VM groups but no standalone nodes, or vice versa)
-    const allRgKeys = new Set([...rgMap.keys(), ...vmGroupsByRg.keys()]);
+    // ── __vm__ containers (box — keeps members tightly packed) ────────────────
+    // box doesn't use edges for placement, but we still route intra-VM edges here
+    // so they stay at the right hierarchy level semantically.
+    const buildVmElkNode = (vmId: string, members: DiagramNode[]): object => ({
+      id: `__vm__${vmId}`,
+      layoutOptions: {
+        'elk.algorithm': 'box',
+        'elk.spacing.nodeNode': String(Math.round(opts.nodeSpacing * 0.5)),
+        'elk.box.packingMode': 'GROUP_DEC',
+        'elk.padding': `[top=20,left=14,bottom=14,right=14]`,
+      },
+      children: members.map((n: DiagramNode) => ({
+        id: n.id,
+        width: n.size.width,
+        height: n.size.height,
+        ...(n.isPinned && n.manualPosition ? { layoutOptions: { 'org.eclipse.elk.noLayout': 'true' } } : {}),
+      })),
+    });
 
+    // ── __rg__ containers (layered — uses intra-RG edges for node ordering) ──
     const rgContainersByKey = new Map(
       Array.from(allRgKeys).map(rgKey => {
         const standaloneNodes = rgMap.get(rgKey) ?? [];
         const vmGroupsInRg = vmGroupsByRg.get(rgKey) ?? new Map();
-
-        // Each VM group becomes a __vm__ compound node inside the RG container.
-        // Using the box algorithm keeps the VM+children tightly packed.
-        // hierarchyHandling on the RG container ensures edges between VM members
-        // and standalone nodes are routed correctly across hierarchy boundaries.
-        const vmElkNodes = Array.from(vmGroupsInRg.entries()).map(([vmId, members]) => ({
-          id: `__vm__${vmId}`,
-          layoutOptions: {
-            'elk.algorithm': 'box',
-            'elk.spacing.nodeNode': String(Math.round(opts.nodeSpacing * 0.5)),
-            'elk.box.packingMode': 'GROUP_DEC',
-            'elk.padding': `[top=20,left=14,bottom=14,right=14]`,
-          },
-          children: members.map((n: DiagramNode) => ({
-            id: n.id,
-            width: n.size.width,
-            height: n.size.height,
-            ...(n.isPinned && n.manualPosition ? { layoutOptions: { 'org.eclipse.elk.noLayout': 'true' } } : {}),
-          })),
-        }));
+        const vmElkNodes = Array.from(vmGroupsInRg.entries())
+          .map(([vmId, members]) => buildVmElkNode(vmId, members));
 
         return [
           rgKey,
@@ -259,20 +303,21 @@ export class ELKLayoutService {
               'elk.layered.crossingMinimization.strategy': 'LAYER_SWEEP',
               'elk.layered.considerModelOrder.strategy': 'NODES_AND_EDGES',
               'elk.layered.thoroughness': '20',
+              'elk.layered.cycleBreaking.strategy': 'GREEDY',
+              'elk.layered.mergeEdges': 'true',
+              'elk.separateConnectedComponents': 'false',
               'elk.hierarchyHandling': 'INCLUDE_CHILDREN',
             },
             children: [...vmElkNodes, ...standaloneNodes.map(buildLayoutNode)],
             edges: (intraRgEdges.get(rgKey) ?? []).map(e => ({
-              id: e.id,
-              sources: [e.sourceId],
-              targets: [e.targetId],
+              id: e.id, sources: [e.sourceId], targets: [e.targetId],
             })),
           },
         ] as [string, object];
       })
     );
 
-    // Group RG containers by subscription for multi-subscription isolation
+    // ── Group RG containers by subscription ───────────────────────────────────
     const subToRgContainers = new Map<string, object[]>();
     for (const [rgKey, rgContainer] of rgContainersByKey) {
       const subId = rgKey.split('::')[0];
@@ -280,24 +325,33 @@ export class ELKLayoutService {
       subToRgContainers.get(subId)!.push(rgContainer);
     }
 
-    const multiSub = subToRgContainers.size > 1;
-
+    // ── __sub__ containers (layered — uses inter-RG edges for RG ordering) ────
+    // Using layered instead of box means connected RG containers are placed in
+    // adjacent layers, reducing how many inter-RG edges cross over unrelated RGs.
     const topLevelChildren: object[] = multiSub
       ? Array.from(subToRgContainers.entries()).map(([subId, subRgs]) => ({
           id: `__sub__${subId}`,
           layoutOptions: {
-            'elk.algorithm': 'box',
+            'elk.algorithm': 'layered',
+            'elk.direction': opts.direction,
             'elk.spacing.nodeNode': String(opts.componentSpacing),
-            'elk.box.packingMode': 'GROUP_DEC',
+            'elk.layered.spacing.nodeNodeBetweenLayers': String(opts.componentSpacing),
             'elk.padding': `[top=48,left=32,bottom=32,right=32]`,
+            'elk.layered.cycleBreaking.strategy': 'GREEDY',
+            'elk.layered.mergeEdges': 'true',
+            'elk.separateConnectedComponents': 'false',
+            'elk.hierarchyHandling': 'INCLUDE_CHILDREN',
           },
           children: subRgs,
+          edges: (intraSubEdges.get(subId) ?? []).map(e => ({
+            id: e.id, sources: [e.sourceId], targets: [e.targetId],
+          })),
         }))
       : Array.from(rgContainersByKey.values());
 
-    const rootEdges = interRgEdges
-      .filter(e => !childNodeIds.has(e.sourceId) || !childNodeIds.has(e.targetId))
-      .map(e => ({ id: e.id, sources: [e.sourceId], targets: [e.targetId] }));
+    // ── Root (box — compact packing; inter-sub edges carried but box ignores ──
+    // them for placement; they are still rendered by the SVG edge layer).
+    const rootEdges = rootEdgeList.map(e => ({ id: e.id, sources: [e.sourceId], targets: [e.targetId] }));
 
     return {
       id: 'root',

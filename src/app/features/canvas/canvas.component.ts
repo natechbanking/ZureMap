@@ -12,7 +12,7 @@ import { SidebarComponent } from '../sidebar/sidebar.component';
 import { ToolbarComponent } from '../toolbar/toolbar.component';
 import { DrawingToolbarComponent } from './drawing-toolbar/drawing-toolbar.component';
 import { DiagramNode } from '../../core/models/diagram-node.model';
-import { Annotation, DrawingTool } from '../../core/models/annotation.model';
+import { Annotation, DrawingTool, StrokeStyle, EdgeRouting, EdgeMode } from '../../core/models/annotation.model';
 import { forkJoin, firstValueFrom } from 'rxjs';
 
 @Component({
@@ -60,16 +60,27 @@ import { forkJoin, firstValueFrom } from 'rxjs';
             [activeTool]="activeTool"
             [activeColor]="activeColor"
             [activeStrokeWidth]="activeStrokeWidth"
+            [activeStrokeStyle]="activeStrokeStyle"
+            [activeSloppiness]="activeSloppiness"
+            [activeEdgeRouting]="activeEdgeRouting"
+            [activeEdgeMode]="activeEdgeMode"
             [activeFill]="activeFill"
             [hasSelection]="selectedAnnotationId !== null"
             [annotationCount]="store.annotations().length"
             (toolChange)="setTool($event)"
             (colorChange)="activeColor = $event"
             (strokeWidthChange)="activeStrokeWidth = $event"
+            (strokeStyleChange)="activeStrokeStyle = $event"
+            (sloppinessChange)="activeSloppiness = $event"
+            (edgeRoutingChange)="activeEdgeRouting = $event"
+            (edgeModeChange)="activeEdgeMode = $event"
             (fillChange)="activeFill = $event"
             (undo)="store.undoLastAnnotation()"
             (clearAll)="clearAllAnnotations()"
             (deleteSelected)="deleteSelectedAnnotation()"
+            (duplicateSelected)="duplicateSelectedAnnotation()"
+            (bringToFront)="bringSelectedAnnotationToFront()"
+            (sendToBack)="sendSelectedAnnotationToBack()"
           />
         </div>
 
@@ -244,6 +255,21 @@ import { forkJoin, firstValueFrom } from 'rxjs';
                 <marker id="edge-arrow" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
                   <path d="M0,0 L0,6 L6,3 z" fill="#605e5c" />
                 </marker>
+                <marker id="ann-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto-start-reverse">
+                  <path d="M0,0 L0,8 L8,4 z" fill="currentColor" />
+                </marker>
+                <filter id="sloppy-1">
+                  <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="1" seed="7" result="noise" />
+                  <feDisplacementMap in="SourceGraphic" in2="noise" scale="0.45" xChannelSelector="R" yChannelSelector="G" />
+                </filter>
+                <filter id="sloppy-2">
+                  <feTurbulence type="fractalNoise" baseFrequency="0.8" numOctaves="1" seed="11" result="noise" />
+                  <feDisplacementMap in="SourceGraphic" in2="noise" scale="0.9" xChannelSelector="R" yChannelSelector="G" />
+                </filter>
+                <filter id="sloppy-3">
+                  <feTurbulence type="fractalNoise" baseFrequency="0.7" numOctaves="1" seed="17" result="noise" />
+                  <feDisplacementMap in="SourceGraphic" in2="noise" scale="1.4" xChannelSelector="R" yChannelSelector="G" />
+                </filter>
               </defs>
 
               <!-- Edges (pass-through) -->
@@ -269,6 +295,8 @@ import { forkJoin, firstValueFrom } from 'rxjs';
                     [attr.d]="ann.pathData"
                     [attr.stroke]="ann.color"
                     [attr.stroke-width]="ann.strokeWidth"
+                    [attr.stroke-dasharray]="strokeDashArray(ann)"
+                    [attr.filter]="sloppyFilter(ann)"
                     fill="none"
                     stroke-linecap="round"
                     stroke-linejoin="round"
@@ -281,22 +309,45 @@ import { forkJoin, firstValueFrom } from 'rxjs';
                   <g
                     [attr.pointer-events]="activeTool === 'pointer' ? 'all' : 'none'"
                     [class.cursor-move]="activeTool === 'pointer'"
+                    [style.color]="ann.color"
                     (mousedown)="onAnnotationMouseDown($event, ann)"
                   >
-                    <line
-                      [attr.x1]="ann.x" [attr.y1]="ann.y"
-                      [attr.x2]="ann.x2 ?? ann.x" [attr.y2]="ann.y2 ?? ann.y"
+                    <polyline
+                      [attr.points]="linePoints(ann)"
                       [attr.stroke]="ann.color" [attr.stroke-width]="ann.strokeWidth"
+                      [attr.stroke-dasharray]="strokeDashArray(ann)"
+                      [attr.filter]="sloppyFilter(ann)"
+                      [attr.marker-start]="markerStart(ann)"
+                      [attr.marker-end]="markerEnd(ann)"
+                      fill="none"
                       stroke-linecap="round"
                     />
-                    <path
-                      [attr.d]="arrowHead(ann.x, ann.y, ann.x2 ?? ann.x, ann.y2 ?? ann.y)"
-                      [attr.fill]="ann.color" stroke="none"
-                    />
                     <!-- wider invisible hit area -->
-                    <line
-                      [attr.x1]="ann.x" [attr.y1]="ann.y"
-                      [attr.x2]="ann.x2 ?? ann.x" [attr.y2]="ann.y2 ?? ann.y"
+                    <polyline
+                      [attr.points]="linePoints(ann)"
+                      stroke="transparent" stroke-width="12"
+                    />
+                  </g>
+                }
+                @if (ann.type === 'line') {
+                  <g
+                    [attr.pointer-events]="activeTool === 'pointer' ? 'all' : 'none'"
+                    [class.cursor-move]="activeTool === 'pointer'"
+                    [style.color]="ann.color"
+                    (mousedown)="onAnnotationMouseDown($event, ann)"
+                  >
+                    <polyline
+                      [attr.points]="linePoints(ann)"
+                      [attr.stroke]="ann.color" [attr.stroke-width]="ann.strokeWidth"
+                      [attr.stroke-dasharray]="strokeDashArray(ann)"
+                      [attr.filter]="sloppyFilter(ann)"
+                      [attr.marker-start]="markerStart(ann)"
+                      [attr.marker-end]="markerEnd(ann)"
+                      fill="none"
+                      stroke-linecap="round"
+                    />
+                    <polyline
+                      [attr.points]="linePoints(ann)"
                       stroke="transparent" stroke-width="12"
                     />
                   </g>
@@ -306,6 +357,8 @@ import { forkJoin, firstValueFrom } from 'rxjs';
                     [attr.x]="ann.x" [attr.y]="ann.y"
                     [attr.width]="ann.width" [attr.height]="ann.height"
                     [attr.stroke]="ann.color" [attr.stroke-width]="ann.strokeWidth"
+                    [attr.stroke-dasharray]="strokeDashArray(ann)"
+                    [attr.filter]="sloppyFilter(ann)"
                     [attr.fill]="ann.fill" rx="3"
                     [attr.pointer-events]="activeTool === 'pointer' ? 'all' : 'none'"
                     [class.cursor-move]="activeTool === 'pointer'"
@@ -319,6 +372,20 @@ import { forkJoin, firstValueFrom } from 'rxjs';
                     [attr.rx]="ann.width / 2"
                     [attr.ry]="ann.height / 2"
                     [attr.stroke]="ann.color" [attr.stroke-width]="ann.strokeWidth"
+                    [attr.stroke-dasharray]="strokeDashArray(ann)"
+                    [attr.filter]="sloppyFilter(ann)"
+                    [attr.fill]="ann.fill"
+                    [attr.pointer-events]="activeTool === 'pointer' ? 'all' : 'none'"
+                    [class.cursor-move]="activeTool === 'pointer'"
+                    (mousedown)="onAnnotationMouseDown($event, ann)"
+                  />
+                }
+                @if (ann.type === 'diamond' && ann.width && ann.height) {
+                  <polygon
+                    [attr.points]="diamondPoints(ann)"
+                    [attr.stroke]="ann.color" [attr.stroke-width]="ann.strokeWidth"
+                    [attr.stroke-dasharray]="strokeDashArray(ann)"
+                    [attr.filter]="sloppyFilter(ann)"
                     [attr.fill]="ann.fill"
                     [attr.pointer-events]="activeTool === 'pointer' ? 'all' : 'none'"
                     [class.cursor-move]="activeTool === 'pointer'"
@@ -327,7 +394,7 @@ import { forkJoin, firstValueFrom } from 'rxjs';
                 }
                 <!-- Selection highlight -->
                 @if (selectedAnnotationId === ann.id && activeTool === 'pointer') {
-                  @if (ann.type === 'rect' || ann.type === 'ellipse') {
+                  @if (ann.type === 'rect' || ann.type === 'ellipse' || ann.type === 'diamond') {
                     <rect
                       [attr.x]="ann.x - 4" [attr.y]="ann.y - 4"
                       [attr.width]="(ann.width ?? 0) + 8" [attr.height]="(ann.height ?? 0) + 8"
@@ -345,20 +412,39 @@ import { forkJoin, firstValueFrom } from 'rxjs';
                   fill="none" stroke-linecap="round" stroke-linejoin="round" pointer-events="none" />
               }
               @if (previewArrow) {
-                <g pointer-events="none">
-                  <line [attr.x1]="previewArrow.x1" [attr.y1]="previewArrow.y1"
-                    [attr.x2]="previewArrow.x2" [attr.y2]="previewArrow.y2"
+                <g pointer-events="none" [style.color]="activeColor">
+                  <polyline [attr.points]="linePointsFromCoords(previewArrow.x1, previewArrow.y1, previewArrow.x2, previewArrow.y2, activeEdgeRouting)"
                     [attr.stroke]="activeColor" [attr.stroke-width]="activeStrokeWidth"
-                    stroke-dasharray="6 3" stroke-linecap="round" />
-                  <path [attr.d]="arrowHead(previewArrow.x1, previewArrow.y1, previewArrow.x2, previewArrow.y2)"
-                    [attr.fill]="activeColor" stroke="none" />
+                    [attr.stroke-dasharray]="activeStrokeStyle === 'solid' ? '6 3' : strokeDashArray(undefined, activeStrokeStyle)"
+                    [attr.filter]="sloppyFilter(undefined, activeSloppiness)"
+                    [attr.marker-start]="previewMarkerStart()"
+                    [attr.marker-end]="previewMarkerEnd()"
+                    fill="none" stroke-linecap="round" />
                 </g>
+              }
+              @if (previewLine) {
+                <polyline [attr.points]="linePointsFromCoords(previewLine.x1, previewLine.y1, previewLine.x2, previewLine.y2, activeEdgeRouting)"
+                  [attr.stroke]="activeColor" [attr.stroke-width]="activeStrokeWidth"
+                  [attr.stroke-dasharray]="activeStrokeStyle === 'solid' ? '6 3' : strokeDashArray(undefined, activeStrokeStyle)"
+                  [attr.filter]="sloppyFilter(undefined, activeSloppiness)"
+                  [attr.marker-start]="previewMarkerStart()"
+                  [attr.marker-end]="previewMarkerEnd()"
+                  [style.color]="activeColor"
+                  fill="none" stroke-linecap="round" pointer-events="none" />
               }
               @if (previewRect) {
                 <rect [attr.x]="previewRect.x" [attr.y]="previewRect.y"
                   [attr.width]="previewRect.w" [attr.height]="previewRect.h"
                   [attr.stroke]="activeColor" [attr.stroke-width]="activeStrokeWidth"
                   [attr.fill]="activeFill" stroke-dasharray="6 3" rx="3" pointer-events="none" />
+              }
+              @if (previewDiamond) {
+                <polygon
+                  [attr.points]="diamondPointsFromRect(previewDiamond)"
+                  [attr.stroke]="activeColor" [attr.stroke-width]="activeStrokeWidth"
+                  [attr.fill]="activeFill"
+                  stroke-dasharray="6 3" pointer-events="none"
+                />
               }
               @if (previewEllipse) {
                 <ellipse
@@ -653,6 +739,10 @@ export class CanvasComponent {
   activeTool: DrawingTool = 'pointer';
   activeColor = '#1e1e1e';
   activeStrokeWidth = 2;
+  activeStrokeStyle: StrokeStyle = 'solid';
+  activeSloppiness = 0;
+  activeEdgeRouting: EdgeRouting = 'straight';
+  activeEdgeMode: EdgeMode = 'end';
   activeFill = 'none';
 
   selectedAnnotationId: string | null = null;
@@ -662,7 +752,9 @@ export class CanvasComponent {
   // In-progress drawing previews
   previewPath = '';
   previewArrow: { x1: number; y1: number; x2: number; y2: number } | null = null;
+  previewLine: { x1: number; y1: number; x2: number; y2: number } | null = null;
   previewRect: { x: number; y: number; w: number; h: number } | null = null;
+  previewDiamond: { x: number; y: number; w: number; h: number } | null = null;
   previewEllipse: { cx: number; cy: number; rx: number; ry: number } | null = null;
 
   // Internal drawing state
@@ -673,7 +765,7 @@ export class CanvasComponent {
   // Annotation drag state
   private annDragId: string | null = null;
   private annDragMouse = { x: 0, y: 0 };
-  private annDragOrigin = { x: 0, y: 0, x2: 0, y2: 0 };
+  private annDragOrigin: { x: number; y: number; x2?: number; y2?: number } = { x: 0, y: 0 };
 
   // RG mouse drag (smooth, incremental)
   rgDragState: { id: string; lastX: number; lastY: number } | null = null;
@@ -703,6 +795,21 @@ export class CanvasComponent {
   @HostListener('document:keydown', ['$event'])
   onKeyDown(e: KeyboardEvent): void {
     if ((e.target as HTMLElement).matches('input,textarea,[contenteditable]')) return;
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd' && this.selectedAnnotationId) {
+      e.preventDefault();
+      this.duplicateSelectedAnnotation();
+      return;
+    }
+    if (e.key === ']' && this.selectedAnnotationId) {
+      e.preventDefault();
+      this.bringSelectedAnnotationToFront();
+      return;
+    }
+    if (e.key === '[' && this.selectedAnnotationId) {
+      e.preventDefault();
+      this.sendSelectedAnnotationToBack();
+      return;
+    }
     if ((e.key === 'Delete' || e.key === 'Backspace') && this.selectedAnnotationId) {
       this.deleteSelectedAnnotation();
     }
@@ -789,11 +896,12 @@ export class CanvasComponent {
       const pt = this.svgPoint(e);
       const dx = pt.x - this.annDragMouse.x;
       const dy = pt.y - this.annDragMouse.y;
+      const { x2, y2 } = this.annDragOrigin;
       this.store.updateAnnotation(this.annDragId, {
         x: this.annDragOrigin.x + dx,
         y: this.annDragOrigin.y + dy,
-        x2: this.annDragOrigin.x2 ? this.annDragOrigin.x2 + dx : undefined,
-        y2: this.annDragOrigin.y2 ? this.annDragOrigin.y2 + dy : undefined,
+        x2: typeof x2 === 'number' ? x2 + dx : undefined,
+        y2: typeof y2 === 'number' ? y2 + dy : undefined,
       });
     }
   }
@@ -858,9 +966,14 @@ export class CanvasComponent {
       const s = this.shapeStart;
       if (this.activeTool === 'arrow') {
         this.previewArrow = { x1: s.x, y1: s.y, x2: pt.x, y2: pt.y };
+      } else if (this.activeTool === 'line') {
+        this.previewLine = { x1: s.x, y1: s.y, x2: pt.x, y2: pt.y };
       } else if (this.activeTool === 'rect') {
         const r = this.normalizeRect(s.x, s.y, pt.x, pt.y);
         this.previewRect = r;
+      } else if (this.activeTool === 'diamond') {
+        const r = this.normalizeRect(s.x, s.y, pt.x, pt.y);
+        this.previewDiamond = r;
       } else if (this.activeTool === 'ellipse') {
         const r = this.normalizeRect(s.x, s.y, pt.x, pt.y);
         this.previewEllipse = { cx: r.x + r.w / 2, cy: r.y + r.h / 2, rx: r.w / 2, ry: r.h / 2 };
@@ -882,10 +995,20 @@ export class CanvasComponent {
         if (Math.hypot(dx, dy) > 5) {
           this.store.addAnnotation({ ...this.newAnnotation('arrow', s.x, s.y), x2: pt.x, y2: pt.y });
         }
+      } else if (this.activeTool === 'line') {
+        const dx = pt.x - s.x; const dy = pt.y - s.y;
+        if (Math.hypot(dx, dy) > 5) {
+          this.store.addAnnotation({ ...this.newAnnotation('line', s.x, s.y), x2: pt.x, y2: pt.y });
+        }
       } else if (this.activeTool === 'rect') {
         const r = this.normalizeRect(s.x, s.y, pt.x, pt.y);
         if (r.w > 4 && r.h > 4) {
           this.store.addAnnotation({ ...this.newAnnotation('rect', r.x, r.y), width: r.w, height: r.h, fill: this.activeFill });
+        }
+      } else if (this.activeTool === 'diamond') {
+        const r = this.normalizeRect(s.x, s.y, pt.x, pt.y);
+        if (r.w > 4 && r.h > 4) {
+          this.store.addAnnotation({ ...this.newAnnotation('diamond', r.x, r.y), width: r.w, height: r.h, fill: this.activeFill });
         }
       } else if (this.activeTool === 'ellipse') {
         const r = this.normalizeRect(s.x, s.y, pt.x, pt.y);
@@ -908,7 +1031,7 @@ export class CanvasComponent {
     const pt = this.svgPoint(e);
     this.annDragId = ann.id;
     this.annDragMouse = { x: pt.x, y: pt.y };
-    this.annDragOrigin = { x: ann.x, y: ann.y, x2: ann.x2 ?? 0, y2: ann.y2 ?? 0 };
+    this.annDragOrigin = { x: ann.x, y: ann.y, x2: ann.x2, y2: ann.y2 };
   }
 
   startEditAnnotation(ann: Annotation): void {
@@ -951,6 +1074,42 @@ export class CanvasComponent {
     }
   }
 
+  duplicateSelectedAnnotation(): void {
+    if (!this.selectedAnnotationId) return;
+    const source = this.annotationById(this.selectedAnnotationId);
+    if (!source) return;
+    const duplicated: Annotation = {
+      ...source,
+      id: `ann-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      x: source.x + 20,
+      y: source.y + 20,
+      x2: source.x2 !== undefined ? source.x2 + 20 : undefined,
+      y2: source.y2 !== undefined ? source.y2 + 20 : undefined,
+    };
+    this.store.addAnnotation(duplicated);
+    this.selectedAnnotationId = duplicated.id;
+  }
+
+  bringSelectedAnnotationToFront(): void {
+    if (!this.selectedAnnotationId) return;
+    this.store.annotations.update(list => {
+      const idx = list.findIndex(a => a.id === this.selectedAnnotationId);
+      if (idx < 0 || idx === list.length - 1) return list;
+      const picked = list[idx];
+      return [...list.slice(0, idx), ...list.slice(idx + 1), picked];
+    });
+  }
+
+  sendSelectedAnnotationToBack(): void {
+    if (!this.selectedAnnotationId) return;
+    this.store.annotations.update(list => {
+      const idx = list.findIndex(a => a.id === this.selectedAnnotationId);
+      if (idx <= 0) return list;
+      const picked = list[idx];
+      return [picked, ...list.slice(0, idx), ...list.slice(idx + 1)];
+    });
+  }
+
   clearAllAnnotations(): void {
     if (this.store.annotations().length === 0) return;
     const shouldClear = confirm('Clear all annotations from this diagram?');
@@ -967,13 +1126,77 @@ export class CanvasComponent {
   }
 
   annDeleteBtnX(ann: Annotation): number {
-    if (ann.type === 'arrow') return Math.max(ann.x, ann.x2 ?? ann.x) + 8;
+    if (ann.type === 'arrow' || ann.type === 'line') return Math.max(ann.x, ann.x2 ?? ann.x) + 8;
     return ann.x + (ann.width ?? 120) + 4;
   }
 
   annDeleteBtnY(ann: Annotation): number {
-    if (ann.type === 'arrow') return Math.min(ann.y, ann.y2 ?? ann.y) - 10;
+    if (ann.type === 'arrow' || ann.type === 'line') return Math.min(ann.y, ann.y2 ?? ann.y) - 10;
     return ann.y - 10;
+  }
+
+  diamondPoints(ann: Annotation): string {
+    if (!ann.width || !ann.height) return '';
+    const cx = ann.x + ann.width / 2;
+    const cy = ann.y + ann.height / 2;
+    return `${cx},${ann.y} ${ann.x + ann.width},${cy} ${cx},${ann.y + ann.height} ${ann.x},${cy}`;
+  }
+
+  diamondPointsFromRect(r: { x: number; y: number; w: number; h: number }): string {
+    const cx = r.x + r.w / 2;
+    const cy = r.y + r.h / 2;
+    return `${cx},${r.y} ${r.x + r.w},${cy} ${cx},${r.y + r.h} ${r.x},${cy}`;
+  }
+
+  linePoints(ann: Annotation): string {
+    return this.linePointsFromCoords(
+      ann.x,
+      ann.y,
+      ann.x2 ?? ann.x,
+      ann.y2 ?? ann.y,
+      ann.edgeRouting ?? 'straight',
+    );
+  }
+
+  linePointsFromCoords(x1: number, y1: number, x2: number, y2: number, routing: EdgeRouting): string {
+    if (routing === 'elbow' && (x1 !== x2 || y1 !== y2)) {
+      const midX = x1 + (x2 - x1) / 2;
+      return `${x1},${y1} ${midX},${y1} ${midX},${y2} ${x2},${y2}`;
+    }
+    return `${x1},${y1} ${x2},${y2}`;
+  }
+
+  strokeDashArray(ann?: Annotation, styleOverride?: StrokeStyle): string | null {
+    const style = styleOverride ?? ann?.strokeStyle ?? 'solid';
+    if (style === 'dashed') return '8 4';
+    if (style === 'dotted') return '2 5';
+    return null;
+  }
+
+  sloppyFilter(ann?: Annotation, sloppinessOverride?: number): string | null {
+    const level = Math.max(0, Math.min(3, Math.round(sloppinessOverride ?? ann?.sloppiness ?? 0)));
+    if (level === 1) return 'url(#sloppy-1)';
+    if (level === 2) return 'url(#sloppy-2)';
+    if (level === 3) return 'url(#sloppy-3)';
+    return null;
+  }
+
+  markerStart(ann: Annotation): string | null {
+    const mode = ann.edgeMode ?? (ann.type === 'arrow' ? 'end' : 'none');
+    return mode === 'start' || mode === 'both' ? 'url(#ann-arrow)' : null;
+  }
+
+  markerEnd(ann: Annotation): string | null {
+    const mode = ann.edgeMode ?? (ann.type === 'arrow' ? 'end' : 'none');
+    return mode === 'end' || mode === 'both' ? 'url(#ann-arrow)' : null;
+  }
+
+  previewMarkerStart(): string | null {
+    return this.activeEdgeMode === 'start' || this.activeEdgeMode === 'both' ? 'url(#ann-arrow)' : null;
+  }
+
+  previewMarkerEnd(): string | null {
+    return this.activeEdgeMode === 'end' || this.activeEdgeMode === 'both' ? 'url(#ann-arrow)' : null;
   }
 
   arrowHead(x1: number, y1: number, x2: number, y2: number): string {
@@ -1546,6 +1769,10 @@ export class CanvasComponent {
     return {
       id: `ann-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
       type, color: this.activeColor, strokeWidth: this.activeStrokeWidth,
+      strokeStyle: this.activeStrokeStyle,
+      sloppiness: this.activeSloppiness,
+      edgeRouting: this.activeEdgeRouting,
+      edgeMode: type === 'arrow' ? (this.activeEdgeMode === 'none' ? 'end' : this.activeEdgeMode) : this.activeEdgeMode,
       fill: this.activeFill, x, y, fontSize: 14,
     };
   }
@@ -1569,7 +1796,9 @@ export class CanvasComponent {
   private clearPreviews(): void {
     this.previewPath = '';
     this.previewArrow = null;
+    this.previewLine = null;
     this.previewRect = null;
+    this.previewDiamond = null;
     this.previewEllipse = null;
   }
 }

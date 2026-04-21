@@ -1,10 +1,17 @@
-export type DrawingTool = 'pointer' | 'draw' | 'arrow' | 'text' | 'rect' | 'ellipse' | 'sticky';
+export type DrawingTool = 'pointer' | 'draw' | 'line' | 'arrow' | 'text' | 'rect' | 'ellipse' | 'diamond' | 'sticky';
+export type StrokeStyle = 'solid' | 'dashed' | 'dotted';
+export type EdgeRouting = 'straight' | 'elbow';
+export type EdgeMode = 'none' | 'start' | 'end' | 'both';
 
 export interface Annotation {
   id: string;
   type: Exclude<DrawingTool, 'pointer'>;
   color: string;
   strokeWidth: number;
+  strokeStyle?: StrokeStyle;
+  sloppiness?: number; // 0 (clean) .. 3 (rough)
+  edgeRouting?: EdgeRouting;
+  edgeMode?: EdgeMode;
   fill: string;       // 'none' or a hex color
   x: number;
   y: number;

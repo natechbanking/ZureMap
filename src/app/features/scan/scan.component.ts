@@ -1,4 +1,4 @@
-import { Component, inject, NgZone, OnInit } from '@angular/core';
+import { Component, inject, NgZone, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import { AzAuthService } from '../../core/services/az-auth.service';
@@ -9,6 +9,12 @@ import { ELKLayoutService } from '../../core/services/elk-layout.service';
 import { DiagramStore } from '../../core/store/diagram.store';
 import { AzureResource, AzureSubscription } from '../../core/models/azure-resource.model';
 import { SubscriptionSelectorComponent } from './subscription-selector/subscription-selector.component';
+
+interface ConnectionType {
+  color: string;
+  name: string;
+  description: string;
+}
 
 @Component({
   selector: 'app-scan',
@@ -27,62 +33,168 @@ import { SubscriptionSelectorComponent } from './subscription-selector/subscript
         </div>
 
         @switch (store.scanPhase()) {
+
           @case ('idle') {
             <div class="text-center py-4">
-              <p class="text-gray-600 mb-6">Checking Azure CLI login status...</p>
+              <div class="w-6 h-6 border-2 border-azure-blue border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
+              <p class="text-sm text-gray-600">Checking Azure CLI login status...</p>
             </div>
           }
+
           @case ('authenticating') {
             <div class="text-center py-4">
               <div class="w-12 h-12 border-4 border-azure-blue border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-              <p class="text-gray-600">Opening Azure login in your browser...</p>
+              <p class="text-gray-700 font-medium">Opening Azure login in your browser...</p>
               <p class="text-sm text-gray-400 mt-2">Complete the sign-in then return here.</p>
             </div>
           }
+
           @case ('selecting-subscription') {
             <app-subscription-selector
               [subscriptions]="store.availableSubscriptions()"
               (confirmed)="onSubscriptionsSelected($event)"
             />
           }
+
+          @case ('selecting-options') {
+            <div>
+              <h2 class="text-base font-semibold text-gray-900 mb-1">Configure Scan</h2>
+              <p class="text-sm text-gray-500 mb-5">
+                Ready to scan
+                <span class="font-medium text-gray-700">{{ store.activeSubscriptions().length }} subscription{{ store.activeSubscriptions().length !== 1 ? 's' : '' }}</span>.
+                Choose what to include in your diagram.
+              </p>
+
+              <div class="border border-gray-200 rounded-lg p-4 mb-5">
+                <div class="flex items-start justify-between gap-4 mb-1">
+                  <div>
+                    <h3 class="text-sm font-semibold text-gray-800">Generate Connections</h3>
+                    <p class="text-xs text-gray-500 mt-0.5 max-w-xs">
+                      Detect relationships between resources and draw arrows on your diagram.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    (click)="optionsGenerateConnections = !optionsGenerateConnections"
+                    class="relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors focus:outline-none"
+                    [class.bg-azure-blue]="optionsGenerateConnections"
+                    [class.bg-gray-300]="!optionsGenerateConnections"
+                  >
+                    <span
+                      class="inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform duration-200"
+                      [class.translate-x-6]="optionsGenerateConnections"
+                      [class.translate-x-1]="!optionsGenerateConnections"
+                    ></span>
+                  </button>
+                </div>
+
+                @if (optionsGenerateConnections) {
+                  <div class="mt-4 pt-3 border-t border-gray-100">
+                    <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2.5">Connection types</p>
+                    <div class="space-y-2.5">
+                      @for (ct of connectionTypes; track ct.name) {
+                        <div class="flex items-start gap-2.5">
+                          <span
+                            class="inline-block w-2.5 h-2.5 rounded-sm flex-shrink-0 mt-0.5"
+                            [style.background-color]="ct.color"
+                          ></span>
+                          <p class="text-xs text-gray-600 leading-snug">
+                            <span class="font-medium">{{ ct.name }}</span>
+                            <span class="text-gray-400"> — {{ ct.description }}</span>
+                          </p>
+                        </div>
+                      }
+                    </div>
+                  </div>
+                } @else {
+                  <p class="text-xs text-gray-400 mt-3 pt-3 border-t border-gray-100">
+                    Your diagram will show resources and containers only, with no connection arrows.
+                  </p>
+                }
+              </div>
+
+              <button
+                type="button"
+                (click)="confirmOptions()"
+                class="w-full py-2.5 px-4 bg-azure-blue text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors"
+              >
+                Start Scan
+              </button>
+            </div>
+          }
+
           @case ('scanning') {
             <div>
-              <div class="flex items-center justify-between mb-2">
-                <span class="text-sm text-gray-700 font-medium">{{ store.scanProgress().label }}</span>
-                <span class="text-sm font-medium text-azure-blue">
-                  Step {{ store.scanProgress().current }} of {{ store.scanProgress().total }}
-                </span>
+              <div class="flex items-center justify-between mb-1.5">
+                <span class="text-sm font-semibold text-gray-800">Scanning Azure Resources</span>
+                <span class="text-xs font-semibold text-azure-blue tabular-nums">{{ progressPercent }}%</span>
               </div>
-              <div class="w-full bg-gray-200 rounded-full h-2.5 overflow-hidden">
+
+              <div class="w-full bg-gray-100 rounded-full h-1 mb-5 overflow-hidden">
                 <div
-                  class="bg-azure-blue h-2.5 rounded-full transition-all duration-500"
+                  class="bg-azure-blue h-1 rounded-full transition-all duration-700 ease-out"
                   [style.width.%]="progressPercent"
                 ></div>
               </div>
-              <div class="flex justify-between mt-2">
-                <span class="text-xs text-gray-400">{{ progressPercent }}% complete</span>
+
+              <div class="flex items-center gap-3 p-3 bg-blue-50 rounded-lg border border-blue-100 mb-4">
+                <div class="w-4 h-4 border-2 border-azure-blue border-t-transparent rounded-full animate-spin flex-shrink-0"></div>
+                <span class="text-sm text-gray-700">{{ store.scanProgress().label }}</span>
               </div>
+
+              @if (progressLog().length > 0) {
+                <div class="space-y-2">
+                  @for (entry of progressLog(); track $index) {
+                    <div class="flex items-start gap-2 text-xs text-gray-500">
+                      <span class="text-green-500 font-bold flex-shrink-0 leading-none mt-0.5">&#10003;</span>
+                      <span>{{ entry }}</span>
+                    </div>
+                  }
+                </div>
+              }
             </div>
           }
+
           @case ('laying-out') {
             <div>
-              <p class="text-sm text-gray-700 font-medium mb-2">{{ store.scanProgress().label }}</p>
-              <div class="w-full bg-gray-200 rounded-full h-2.5 overflow-hidden">
-                <div class="bg-azure-blue h-2.5 rounded-full animate-pulse w-full"></div>
+              <div class="flex items-center justify-between mb-1.5">
+                <span class="text-sm font-semibold text-gray-800">Computing Layout</span>
+                <span class="text-xs text-gray-400">ELK engine</span>
               </div>
-              <p class="text-xs text-gray-400 mt-2">Arranging {{ store.nodeCount() }} nodes with ELK layout engine...</p>
+
+              <div class="w-full bg-gray-100 rounded-full h-1 mb-5 overflow-hidden">
+                <div class="bg-azure-blue h-1 rounded-full animate-pulse" style="width: 85%"></div>
+              </div>
+
+              <div class="flex items-center gap-3 p-3 bg-blue-50 rounded-lg border border-blue-100 mb-4">
+                <div class="w-4 h-4 border-2 border-azure-blue border-t-transparent rounded-full animate-spin flex-shrink-0"></div>
+                <span class="text-sm text-gray-700">{{ store.scanProgress().label }}</span>
+              </div>
+
+              @if (progressLog().length > 0) {
+                <div class="space-y-2">
+                  @for (entry of progressLog(); track $index) {
+                    <div class="flex items-start gap-2 text-xs text-gray-500">
+                      <span class="text-green-500 font-bold flex-shrink-0 leading-none mt-0.5">&#10003;</span>
+                      <span>{{ entry }}</span>
+                    </div>
+                  }
+                </div>
+              }
             </div>
           }
+
           @case ('error') {
             <div class="text-center py-4">
               <div class="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <span class="text-red-600 text-xl">✕</span>
+                <span class="text-red-600 text-xl font-bold">&#10005;</span>
               </div>
               <p class="text-red-600 font-medium mb-2">Scan failed</p>
               <p class="text-sm text-gray-500 mb-4">{{ store.errorMessage() }}</p>
               <button (click)="startScan()" class="text-azure-blue hover:underline text-sm">Try again</button>
             </div>
           }
+
         }
 
         @if (needsLogin) {
@@ -117,6 +229,36 @@ export class ScanComponent implements OnInit {
   private zone = inject(NgZone);
 
   needsLogin = false;
+  optionsGenerateConnections = true;
+  progressLog = signal<string[]>([]);
+
+  readonly connectionTypes: ConnectionType[] = [
+    {
+      color: '#0078d4',
+      name: 'Private Link',
+      description: 'Private Endpoints connecting to PaaS services (Storage, Key Vault, SQL, etc.)',
+    },
+    {
+      color: '#107c10',
+      name: 'VNet Peering',
+      description: 'Cross-VNet peering connections for network traffic routing',
+    },
+    {
+      color: '#605e5c',
+      name: 'VNet / Subnets',
+      description: 'Virtual Networks linked to their subnet children',
+    },
+    {
+      color: '#ca5010',
+      name: 'NSG Associations',
+      description: 'Network Security Groups attached to network interfaces and subnets',
+    },
+    {
+      color: '#a19f9d',
+      name: 'SQL Hierarchy',
+      description: 'SQL Databases linked to their parent SQL Server resources',
+    },
+  ];
 
   get progressPercent(): number {
     const p = this.store.scanProgress();
@@ -129,6 +271,8 @@ export class ScanComponent implements OnInit {
 
   startScan(): void {
     this.needsLogin = false;
+    this.optionsGenerateConnections = true;
+    this.progressLog.set([]);
     this.store.scanPhase.set('idle');
     this.store.errorMessage.set(null);
 
@@ -172,38 +316,71 @@ export class ScanComponent implements OnInit {
 
   onSubscriptionsSelected(subs: AzureSubscription[]): void {
     this.store.activeSubscriptions.set(subs);
-    this.runScan(subs.map(s => s.subscriptionId));
+    this.store.scanPhase.set('selecting-options');
+  }
+
+  confirmOptions(): void {
+    const subIds = this.store.activeSubscriptions().map(s => s.subscriptionId);
+    this.runScan(subIds);
   }
 
   private async runScan(subscriptionIds: string[]): Promise<void> {
+    const addLog = (msg: string) =>
+      this.zone.run(() => this.progressLog.update(log => [...log, msg]));
     const setProgress = (current: number, total: number, label: string) =>
       this.zone.run(() => this.store.scanProgress.set({ current, total, label }));
 
     this.zone.run(() => {
       this.store.scanPhase.set('scanning');
       this.store.clearDiagram();
+      this.progressLog.set([]);
     });
 
     try {
-      const total = 5;
+      const subLabel = subscriptionIds.length === 1 ? '1 subscription' : `${subscriptionIds.length} subscriptions`;
+      const totalSteps = this.optionsGenerateConnections ? 6 : 5;
 
-      setProgress(1, total, 'Querying all resources...');
+      setProgress(1, totalSteps, `Querying all resources across ${subLabel}...`);
       const allResources = await this.resourceGraph.queryAllResources(subscriptionIds).toPromise() ?? [];
-      setProgress(2, total, `Found ${allResources.length} resources — fetching VNet topology...`);
+      addLog(`Discovered ${allResources.length} resource${allResources.length !== 1 ? 's' : ''} across ${subLabel}`);
 
+      setProgress(2, totalSteps, 'Fetching virtual network topology...');
       const vnetResources = await this.resourceGraph.queryVNetTopology(subscriptionIds).toPromise() ?? [];
-      setProgress(3, total, `Resolving private endpoints...`);
+      const vnetCount = vnetResources.filter(r => r.type.toLowerCase() === 'microsoft.network/virtualnetworks').length;
+      addLog(`Fetched VNet topology — ${vnetCount} virtual network${vnetCount !== 1 ? 's' : ''}`);
 
+      setProgress(3, totalSteps, 'Resolving private endpoints...');
       const peResources = await this.resourceGraph.queryPrivateEndpoints(subscriptionIds).toPromise() ?? [];
+      addLog(`Resolved ${peResources.length} private endpoint${peResources.length !== 1 ? 's' : ''}`);
+
       const merged = this.mergeDedup([...allResources, ...vnetResources, ...peResources]);
 
-      setProgress(4, total, `Mapping ${merged.length} resources to diagram nodes...`);
+      setProgress(4, totalSteps, `Mapping ${merged.length} resources to diagram nodes...`);
       const nodes = this.mapper.mapResources(merged);
-      const edges = this.connectionResolver.resolveAll(merged, nodes);
+      addLog(`Mapped ${nodes.length} diagram node${nodes.length !== 1 ? 's' : ''} with hierarchy`);
+
+      let edges: ReturnType<ConnectionResolverService['resolveAll']> = [];
+      if (this.optionsGenerateConnections) {
+        setProgress(5, totalSteps, 'Building connections between resources...');
+        edges = this.connectionResolver.resolveAll(merged, nodes);
+        const byType = edges.reduce<Record<string, number>>((acc, e) => {
+          acc[e.edgeType] = (acc[e.edgeType] ?? 0) + 1;
+          return acc;
+        }, {});
+        const summary = Object.entries(byType)
+          .map(([t, n]) => `${n} ${t}`)
+          .join(', ');
+        addLog(`Built ${edges.length} connection${edges.length !== 1 ? 's' : ''}${edges.length > 0 ? ` (${summary})` : ''}`);
+      } else {
+        addLog('Connection generation skipped');
+      }
+
       this.zone.run(() => { this.store.setNodes(nodes); this.store.setEdges(edges); });
 
-      setProgress(5, total, `Computing layout for ${nodes.length} nodes...`);
+      const layoutLabel = `Arranging ${nodes.length} nodes${edges.length > 0 ? ` and ${edges.length} edges` : ''} with ELK...`;
+      setProgress(totalSteps, totalSteps, layoutLabel);
       this.zone.run(() => this.store.scanPhase.set('laying-out'));
+
       const positioned = await this.elkLayout.layout(nodes, edges);
       this.zone.run(() => this.store.setNodes(positioned));
 
@@ -212,8 +389,10 @@ export class ScanComponent implements OnInit {
         this.router.navigate(['/canvas']);
       });
     } catch (err: unknown) {
-      this.store.scanPhase.set('error');
-      this.store.errorMessage.set(err instanceof Error ? err.message : 'Scan failed');
+      this.zone.run(() => {
+        this.store.scanPhase.set('error');
+        this.store.errorMessage.set(err instanceof Error ? err.message : 'Scan failed');
+      });
     }
   }
 

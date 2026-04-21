@@ -7,6 +7,7 @@
         [finOpsActive]="store.finOpsLayerActive()"
         [comparisonMode]="store.comparisonMode()"
         [driftSummary]="store.driftSummary()"
+        [relayoutBusy]="relayoutBusy"
         (exportSvg)="exportSvg()"
         (exportPng)="exportPng()"
         (exportJson)="exportJson()"
@@ -14,6 +15,7 @@
         (rescan)="rescan()"
         (importJson)="onImportJson($event)"
         (toggleDrift)="toggleDrift()"
+        (relayout)="relayoutCanvas()"
       />
 
       <div class="flex flex-1 overflow-hidden relative">
@@ -297,7 +299,7 @@
                   (nodeResized)="onNodeResized($event)"
                   (routeTableExpansionChanged)="onRouteTableExpansionChanged($event)"
                   (virtualNetworkExpansionChanged)="onVirtualNetworkExpansionChanged($event)"
-                  (nsgExpansionChanged)="onNsgExpansionChanged($event)"
+                  (nsgExpansionChanged)="onNsgExpansionChanged($event)"\n          (storageAccountExpansionChanged)="onStorageAccountExpansionChanged($event)"
                   (contextMenuRequested)="onContextMenuRequested($event)"
                 />
               </div>

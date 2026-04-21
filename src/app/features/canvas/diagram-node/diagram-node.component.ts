@@ -5,6 +5,7 @@ import { AzureIconComponent } from '../../../shared/components/azure-icon/azure-
 import { CostBadgeComponent } from '../../../shared/components/cost-badge/cost-badge.component';
 import { CostService } from '../../../core/services/cost.service';
 import { DiagramStore } from '../../../core/store/diagram.store';
+import { StorageDetailsService, StorageDetails } from '../../../core/services/storage-details.service';
 
 export interface ContextMenuRequest {
   nodeId: string;
@@ -41,6 +42,12 @@ export interface NsgExpansionRequest {
   nodeId: string;
   expanded: boolean;
   ruleCount: number;
+}
+
+export interface StorageAccountExpansionRequest {
+  nodeId: string;
+  expanded: boolean;
+  itemCount: number;
 }
 
 interface RouteEntryView {
@@ -132,6 +139,24 @@ interface NsgRuleView {
           (click)="toggleNsgRulesPanel($event)"
         >
           {{ nsgRulesExpanded ? 'Hide rules' : 'Show rules' }} ({{ nsgRuleEntries.length }})
+        </button>
+      }
+
+      @if (isStorageAccount) {
+        <button
+          type="button"
+          class="mt-0.5 px-2 py-0.5 rounded border border-teal-200 bg-teal-50 text-[10px] leading-tight text-teal-700 hover:bg-teal-100"
+          [title]="storageDetailsExpanded ? 'Hide storage details' : 'Show storage details'"
+          (mousedown)="stopEvent($event)"
+          (click)="toggleStorageDetailsPanel($event)"
+        >
+          @if (storageDetailsExpanded) {
+            Hide storage
+          } @else if (!storageDetailsLoaded) {
+            Show storage
+          } @else {
+            Show storage ({{ storageItemCount }})
+          }
         </button>
       }
 
@@ -262,6 +287,67 @@ interface NsgRuleView {
           }
         </div>
       }
+
+      @if (isStorageAccount && storageDetailsExpanded) {
+        <div
+          class="w-full mt-1 rounded border border-teal-200 bg-white shadow-sm overflow-hidden"
+          (mousedown)="stopEvent($event)"
+          (click)="stopEvent($event)"
+        >
+          @if (storageDetailsLoading) {
+            <p class="text-[10px] text-gray-400 px-2 py-1.5 text-center">Loading...</p>
+          } @else if (storageDetailsError) {
+            <p class="text-[10px] text-red-400 px-2 py-1.5">{{ storageDetailsError }}</p>
+          } @else if (storageItemCount === 0) {
+            <p class="text-[10px] text-gray-400 px-2 py-1.5">No containers, shares, tables or queues found.</p>
+          } @else {
+          @if (storageContainers.length > 0) {
+            <div class="px-2 pt-1.5 pb-0.5">
+              <p class="text-[9px] font-semibold text-teal-600 uppercase tracking-wide mb-1">Blob Containers</p>
+              @for (name of storageContainers; track name) {
+                <div class="flex items-center gap-1 py-px border-b border-teal-50 last:border-b-0">
+                  <span class="text-[9px] text-gray-500">📦</span>
+                  <span class="text-[10px] text-gray-700 truncate" [title]="name">{{ name }}</span>
+                </div>
+              }
+            </div>
+          }
+          @if (storageFileShares.length > 0) {
+            <div class="px-2 pt-1.5 pb-0.5" [ngClass]="storageContainers.length > 0 ? 'border-t border-teal-100' : ''">
+              <p class="text-[9px] font-semibold text-teal-600 uppercase tracking-wide mb-1">File Shares</p>
+              @for (name of storageFileShares; track name) {
+                <div class="flex items-center gap-1 py-px border-b border-teal-50 last:border-b-0">
+                  <span class="text-[9px] text-gray-500">📁</span>
+                  <span class="text-[10px] text-gray-700 truncate" [title]="name">{{ name }}</span>
+                </div>
+              }
+            </div>
+          }
+          @if (storageTables.length > 0) {
+            <div class="px-2 pt-1.5 pb-0.5" [ngClass]="storageContainers.length + storageFileShares.length > 0 ? 'border-t border-teal-100' : ''">
+              <p class="text-[9px] font-semibold text-teal-600 uppercase tracking-wide mb-1">Tables</p>
+              @for (name of storageTables; track name) {
+                <div class="flex items-center gap-1 py-px border-b border-teal-50 last:border-b-0">
+                  <span class="text-[9px] text-gray-500">📋</span>
+                  <span class="text-[10px] text-gray-700 truncate" [title]="name">{{ name }}</span>
+                </div>
+              }
+            </div>
+          }
+          @if (storageQueues.length > 0) {
+            <div class="px-2 pt-1.5 pb-0.5" [ngClass]="storageContainers.length + storageFileShares.length + storageTables.length > 0 ? 'border-t border-teal-100' : ''">
+              <p class="text-[9px] font-semibold text-teal-600 uppercase tracking-wide mb-1">Queues</p>
+              @for (name of storageQueues; track name) {
+                <div class="flex items-center gap-1 py-px border-b border-teal-50 last:border-b-0">
+                  <span class="text-[9px] text-gray-500">📨</span>
+                  <span class="text-[10px] text-gray-700 truncate" [title]="name">{{ name }}</span>
+                </div>
+              }
+            </div>
+          }
+          }
+        </div>
+      }
     </div>
   `,
 })
@@ -277,14 +363,21 @@ export class DiagramNodeComponent {
   @Output() routeTableExpansionChanged = new EventEmitter<RouteTableExpansionRequest>();
   @Output() virtualNetworkExpansionChanged = new EventEmitter<VirtualNetworkExpansionRequest>();
   @Output() nsgExpansionChanged = new EventEmitter<NsgExpansionRequest>();
+  @Output() storageAccountExpansionChanged = new EventEmitter<StorageAccountExpansionRequest>();
 
   private costSvc = inject(CostService);
   private store = inject(DiagramStore);
+  private storageDetailsSvc = inject(StorageDetailsService);
   private internalDrag: { itemId: string; startMouseX: number; startMouseY: number; startX: number; startY: number } | null = null;
   private resizeDrag: { startMouseX: number; startMouseY: number; startW: number; startH: number } | null = null;
+  private _storageDetails: StorageDetails | null = null;
   routesExpanded = false;
   subnetsExpanded = false;
   nsgRulesExpanded = false;
+  storageDetailsExpanded = false;
+  storageDetailsLoading = false;
+  storageDetailsLoaded = false;
+  storageDetailsError: string | null = null;
 
   get typeLabel(): string {
     const parts = this.node.resourceType.split('/');
@@ -318,6 +411,31 @@ export class DiagramNodeComponent {
 
   get isNsg(): boolean {
     return this.node.resourceType.toLowerCase() === 'microsoft.network/networksecuritygroups';
+  }
+
+  get isStorageAccount(): boolean {
+    return this.node.resourceType.toLowerCase() === 'microsoft.storage/storageaccounts';
+  }
+
+  get storageContainers(): string[] {
+    return this._storageDetails?.containers ?? [];
+  }
+
+  get storageFileShares(): string[] {
+    return this._storageDetails?.fileShares ?? [];
+  }
+
+  get storageTables(): string[] {
+    return this._storageDetails?.tables ?? [];
+  }
+
+  get storageQueues(): string[] {
+    return this._storageDetails?.queues ?? [];
+  }
+
+  get storageItemCount(): number {
+    return this.storageContainers.length + this.storageFileShares.length +
+           this.storageTables.length + this.storageQueues.length;
   }
 
   get routeEntries(): RouteEntryView[] {
@@ -433,6 +551,42 @@ export class DiagramNodeComponent {
       expanded: this.nsgRulesExpanded,
       ruleCount: this.nsgRuleEntries.length,
     });
+  }
+
+  toggleStorageDetailsPanel(event: MouseEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.clicked.emit(this.node.id);
+    this.storageDetailsExpanded = !this.storageDetailsExpanded;
+
+    if (this.storageDetailsExpanded && !this.storageDetailsLoaded && !this.storageDetailsLoading) {
+      this.storageDetailsLoading = true;
+      this.storageDetailsError = null;
+      // Emit preliminary expand so canvas resizes the node while loading
+      this.storageAccountExpansionChanged.emit({ nodeId: this.node.id, expanded: true, itemCount: 3 });
+
+      const resourceId = (this.node.metadata?.id as string | undefined) ?? this.node.id;
+      this.storageDetailsSvc.getDetails(resourceId)
+        .then(details => {
+          this._storageDetails = details;
+          this.storageDetailsLoaded = true;
+          this.storageDetailsLoading = false;
+          this.storageAccountExpansionChanged.emit({
+            nodeId: this.node.id, expanded: true, itemCount: this.storageItemCount,
+          });
+        })
+        .catch(err => {
+          this.storageDetailsLoading = false;
+          this.storageDetailsError = 'Failed to load storage details';
+          console.warn('[ZureMap] Storage details fetch failed:', err);
+        });
+    } else {
+      this.storageAccountExpansionChanged.emit({
+        nodeId: this.node.id,
+        expanded: this.storageDetailsExpanded,
+        itemCount: this.storageItemCount,
+      });
+    }
   }
 
   stopEvent(event: MouseEvent): void {

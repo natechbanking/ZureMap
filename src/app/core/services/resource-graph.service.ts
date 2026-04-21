@@ -30,6 +30,29 @@ Resources
 | project id, name, type, location, resourceGroup, subscriptionId, properties, tags
 `;
 
+const STORAGE_SUB_RESOURCES_KQL = `
+StorageAccountResources
+| where type in~ (
+    "microsoft.storage/storageaccounts/blobservices/containers",
+    "microsoft.storage/storageaccounts/fileservices/shares",
+    "microsoft.storage/storageaccounts/tableservices/tables",
+    "microsoft.storage/storageaccounts/queueservices/queues"
+  )
+| project id, name, type, resourceGroup, subscriptionId, properties
+`;
+
+// Fallback: some tenants/API versions surface these in the main Resources table
+const STORAGE_SUB_RESOURCES_FALLBACK_KQL = `
+Resources
+| where type in~ (
+    "microsoft.storage/storageaccounts/blobservices/containers",
+    "microsoft.storage/storageaccounts/fileservices/shares",
+    "microsoft.storage/storageaccounts/tableservices/tables",
+    "microsoft.storage/storageaccounts/queueservices/queues"
+  )
+| project id, name, type, resourceGroup, subscriptionId, properties
+`;
+
 interface ResourceGraphResponse {
   data: AzureResource[];
   $skipToken?: string;
@@ -58,6 +81,15 @@ export class ResourceGraphService {
 
   queryNetworkInterfaces(subscriptionIds: string[]): Observable<AzureResource[]> {
     return this.queryPaginated(NETWORK_INTERFACES_KQL, subscriptionIds);
+  }
+
+  async queryStorageSubResources(subscriptionIds: string[]): Promise<AzureResource[]> {
+    // Try the dedicated StorageAccountResources table first; fall back to Resources table
+    try {
+      return await this.queryPaginated(STORAGE_SUB_RESOURCES_KQL, subscriptionIds).toPromise() ?? [];
+    } catch {
+      return await this.queryPaginated(STORAGE_SUB_RESOURCES_FALLBACK_KQL, subscriptionIds).toPromise() ?? [];
+    }
   }
 
   streamAllResources(subscriptionIds: string[]): Observable<AzureResource[]> {

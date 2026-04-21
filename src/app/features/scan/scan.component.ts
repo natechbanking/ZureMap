@@ -442,16 +442,16 @@ export class ScanComponent implements OnInit {
 
       setProgress(4, totalSteps, `Mapping ${merged.length} resources to diagram nodes...`);
       const nodes = this.mapper.mapResources(merged);
-      addLog(`Mapped ${nodes.length} diagram node${nodes.length !== 1 ? 's' : ''} with hierarchy`);
+      addLog(`Mapped to ${nodes.length} diagram node${nodes.length !== 1 ? 's' : ''}`);
 
       let edges: ReturnType<ConnectionResolverService['resolveAll']> = [];
       if (this.optionsGenerateConnections) {
         setProgress(5, totalSteps, 'Building connections between resources...');
         edges = this.connectionResolver.resolveAll(merged, nodes);
-        const byType = edges.reduce<Record<string, number>>((acc, e) => {
+        const byType = edges.reduce((acc, e) => {
           acc[e.edgeType] = (acc[e.edgeType] ?? 0) + 1;
           return acc;
-        }, {});
+        }, {} as Record<string, number>);
         const summary = Object.entries(byType)
           .map(([t, n]) => `${n} ${t}`)
           .join(', ');

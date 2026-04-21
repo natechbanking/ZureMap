@@ -4,6 +4,13 @@ import { DiagramNode } from '../models/diagram-node.model';
 import { DiagramEdge } from '../models/diagram-edge.model';
 import { Annotation } from '../models/annotation.model';
 
+interface DiagramSnapshot {
+  nodes: DiagramNode[];
+  edges: DiagramEdge[];
+  annotations: Annotation[];
+  customNames: [string, string][];
+}
+
 export type ScanPhase =
   | 'idle'
   | 'authenticating'
@@ -54,6 +61,67 @@ export class DiagramStore {
 
   // Annotations (free-draw, arrows, text, shapes)
   readonly annotations = signal<Annotation[]>([]);
+
+  // Custom container display names (renames applied by the user)
+  readonly customContainerNames = signal<Map<string, string>>(new Map());
+
+  setCustomContainerName(key: string, value: string | null): void {
+    this.customContainerNames.update(m => {
+      const next = new Map(m);
+      if (value) next.set(key, value); else next.delete(key);
+      return next;
+    });
+  }
+
+  // ── Undo / Redo ────────────────────────────────────────────────────────────
+  private _undoStack: DiagramSnapshot[] = [];
+  private _redoStack: DiagramSnapshot[] = [];
+
+  readonly canUndo = signal<boolean>(false);
+  readonly canRedo = signal<boolean>(false);
+
+  /** Snapshot current state onto the undo stack. Call BEFORE any user mutation. */
+  pushUndo(): void {
+    this._undoStack.push(this._snapshot());
+    if (this._undoStack.length > 50) this._undoStack.shift();
+    this._redoStack = [];
+    this.canUndo.set(true);
+    this.canRedo.set(false);
+  }
+
+  undo(): void {
+    const prev = this._undoStack.pop();
+    if (!prev) return;
+    this._redoStack.push(this._snapshot());
+    this._restore(prev);
+    this.canUndo.set(this._undoStack.length > 0);
+    this.canRedo.set(true);
+  }
+
+  redo(): void {
+    const next = this._redoStack.pop();
+    if (!next) return;
+    this._undoStack.push(this._snapshot());
+    this._restore(next);
+    this.canUndo.set(true);
+    this.canRedo.set(this._redoStack.length > 0);
+  }
+
+  private _snapshot(): DiagramSnapshot {
+    return {
+      nodes: this.nodes(),
+      edges: this.edges(),
+      annotations: this.annotations(),
+      customNames: [...this.customContainerNames()],
+    };
+  }
+
+  private _restore(s: DiagramSnapshot): void {
+    this.nodes.set(s.nodes);
+    this.edges.set(s.edges);
+    this.annotations.set(s.annotations);
+    this.customContainerNames.set(new Map(s.customNames));
+  }
 
   addAnnotation(a: Annotation): void { this.annotations.update(list => [...list, a]); }
   updateAnnotation(id: string, changes: Partial<Annotation>): void {
@@ -159,5 +227,9 @@ export class DiagramStore {
     this.sidebarOpen.set(false);
     this.scanPhase.set('idle');
     this.errorMessage.set(null);
+    this._undoStack.length = 0;
+    this._redoStack.length = 0;
+    this.canUndo.set(false);
+    this.canRedo.set(false);
   }
 }

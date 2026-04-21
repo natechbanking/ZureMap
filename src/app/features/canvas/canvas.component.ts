@@ -11,6 +11,7 @@ import {
   RouteTableExpansionRequest,
   VirtualNetworkExpansionRequest,
   NsgExpansionRequest,
+  StorageAccountExpansionRequest,
 } from './diagram-node/diagram-node.component';
 import { SidebarComponent } from '../sidebar/sidebar.component';
 import { ToolbarComponent } from '../toolbar/toolbar.component';
@@ -147,7 +148,6 @@ export class CanvasComponent {
   annotationContextMenu: { x: number; y: number; annotationId: string } | null = null;
 
   // Container rename
-  customContainerNames = new Map<string, string>();
   renamingContainer: { type: 'rg' | 'sub' | 'vm' | 'rt'; id: string } | null = null;
   renamingValue = '';
 
@@ -160,7 +160,9 @@ export class CanvasComponent {
   private routeTableCollapsedHeights = new Map<string, number>();
   private virtualNetworkCollapsedHeights = new Map<string, number>();
   private nsgCollapsedHeights = new Map<string, number>();
+  private storageAccountCollapsedHeights = new Map<string, number>();
   selectedEdgeId: string | null = null;
+  relayoutBusy = false;
   resourceEditorOpen = false;
   resourceEditorNodeId: string | null = null;
   resourceEditorDraft: ResourceEditorDraft | null = null;
@@ -169,6 +171,16 @@ export class CanvasComponent {
   @HostListener('document:keydown', ['$event'])
   onKeyDown(e: KeyboardEvent): void {
     if ((e.target as HTMLElement).matches('input,textarea,[contenteditable]')) return;
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !e.shiftKey) {
+      e.preventDefault();
+      this.store.undo();
+      return;
+    }
+    if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === 'y' || (e.key.toLowerCase() === 'z' && e.shiftKey))) {
+      e.preventDefault();
+      this.store.redo();
+      return;
+    }
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd' && this.selectedAnnotationId) {
       e.preventDefault();
       this.duplicateSelectedAnnotation();
@@ -313,6 +325,7 @@ export class CanvasComponent {
     const result = onDrawStart(this.currentDrawingRuntime(), this.currentDrawingStyle(), pt);
     this.applyDrawingRuntime(result.next);
     if (result.createdAnnotation) {
+      this.store.pushUndo();
       this.store.addAnnotation(result.createdAnnotation);
       if (result.shouldStartEdit) this.startEditAnnotation(result.createdAnnotation);
     }
@@ -327,7 +340,10 @@ export class CanvasComponent {
     const pt = this.svgPoint(e);
     const result = onDrawEnd(this.currentDrawingRuntime(), this.currentDrawingStyle(), pt);
     this.applyDrawingRuntime(result.next);
-    if (result.createdAnnotation) this.store.addAnnotation(result.createdAnnotation);
+    if (result.createdAnnotation) {
+      this.store.pushUndo();
+      this.store.addAnnotation(result.createdAnnotation);
+    }
   }
 
   // ── Annotation interaction ─────────────────────────────────────────────────
@@ -340,6 +356,7 @@ export class CanvasComponent {
     this.selectedAnnotationId = ann.id;
     this.syncToolbarFromAnnotation(ann);
     const pt = this.svgPoint(e);
+    this.store.pushUndo();
     this.annDragId = ann.id;
     this.annDragMouse = { x: pt.x, y: pt.y };
     this.annDragOrigin = { x: ann.x, y: ann.y, x2: ann.x2, y2: ann.y2 };
@@ -354,6 +371,7 @@ export class CanvasComponent {
   finishEdit(): void {
     if (!this.editingAnnotation) return;
     const text = this.editingTextValue.trim();
+    this.store.pushUndo();
     if (text) {
       this.store.updateAnnotation(this.editingAnnotation.id, { text });
     } else {
@@ -380,6 +398,7 @@ export class CanvasComponent {
 
   deleteSelectedAnnotation(): void {
     if (this.selectedAnnotationId) {
+      this.store.pushUndo();
       this.store.deleteAnnotation(this.selectedAnnotationId);
       this.selectedAnnotationId = null;
     }
@@ -390,6 +409,7 @@ export class CanvasComponent {
     const source = this.annotationById(this.selectedAnnotationId);
     if (!source) return;
     const duplicated = this.annotationSvc.duplicate(source);
+    this.store.pushUndo();
     this.store.addAnnotation(duplicated);
     this.selectedAnnotationId = duplicated.id;
     this.syncToolbarFromAnnotation(duplicated);
@@ -398,12 +418,14 @@ export class CanvasComponent {
   bringSelectedAnnotationToFront(): void {
     if (!this.selectedAnnotationId) return;
     const selectedId = this.selectedAnnotationId;
+    this.store.pushUndo();
     this.store.annotations.update(list => this.annotationSvc.bringToFront(list, selectedId));
   }
 
   sendSelectedAnnotationToBack(): void {
     if (!this.selectedAnnotationId) return;
     const selectedId = this.selectedAnnotationId;
+    this.store.pushUndo();
     this.store.annotations.update(list => this.annotationSvc.sendToBack(list, selectedId));
   }
 
@@ -411,6 +433,7 @@ export class CanvasComponent {
     if (this.store.annotations().length === 0) return;
     const shouldClear = confirm('Clear all annotations from this diagram?');
     if (!shouldClear) return;
+    this.store.pushUndo();
     this.store.clearAnnotations();
     this.selectedAnnotationId = null;
     this.editingAnnotation = null;
@@ -565,7 +588,7 @@ export class CanvasComponent {
       collapsedResourceGroups: this.collapsedResourceGroups,
       collapsedVmGroups: this.collapsedVmGroups,
       collapsedRouteTableGroups: this.collapsedRouteTableGroups,
-      customContainerNames: this.customContainerNames,
+      customContainerNames: this.store.customContainerNames(),
       selectedEdgeId: this.selectedEdgeId,
     });
     this.visibleNodes = visibility.visibleNodes;
@@ -588,7 +611,7 @@ export class CanvasComponent {
       activeSubscriptions: this.store.activeSubscriptions(),
       collapsedSubscriptions: this.collapsedSubscriptions,
       collapsedResourceGroups: this.collapsedResourceGroups,
-      customContainerNames: this.customContainerNames,
+      customContainerNames: this.store.customContainerNames(),
       moveSubscriptionGroup: (subscriptionId, delta) => this.store.moveSubscriptionGroup(subscriptionId, delta),
     });
   }
@@ -605,7 +628,7 @@ export class CanvasComponent {
         const current = this.visibilitySvc.computeRgBounds(
           nodes.filter(n => !this.collapsedSubscriptions.has(n.metadata?.subscriptionId || '')),
           this.collapsedResourceGroups,
-          this.customContainerNames,
+          this.store.customContainerNames(),
         );
 
         outer:
@@ -644,6 +667,7 @@ export class CanvasComponent {
     if (this.activeTool !== 'pointer') return;
     event.preventDefault();
     event.stopPropagation();
+    this.store.pushUndo();
     this.rgDragState = { id: rgId, lastX: event.clientX, lastY: event.clientY };
   }
 
@@ -651,6 +675,7 @@ export class CanvasComponent {
     if (this.activeTool !== 'pointer') return;
     event.preventDefault();
     event.stopPropagation();
+    this.store.pushUndo();
     this.subscriptionDragState = { subscriptionId, lastX: event.clientX, lastY: event.clientY };
   }
 
@@ -658,6 +683,7 @@ export class CanvasComponent {
     if (this.activeTool !== 'pointer') return;
     event.preventDefault();
     event.stopPropagation();
+    this.store.pushUndo();
     this.vmDragState = { vmId, lastX: event.clientX, lastY: event.clientY };
   }
 
@@ -666,6 +692,7 @@ export class CanvasComponent {
     event.preventDefault();
     event.stopPropagation();
     this.selectedEdgeId = null;
+    this.store.pushUndo();
     this.nodeDragState = { id: node.id, lastX: event.clientX, lastY: event.clientY, hasMoved: false };
   }
 
@@ -673,6 +700,7 @@ export class CanvasComponent {
     const rect = (event.target as HTMLElement).getBoundingClientRect();
     this.dragOffset = { x: event.clientX - rect.left, y: event.clientY - rect.top };
     event.dataTransfer!.setData('nodeId', node.id);
+    this.store.pushUndo();
   }
 
   onDragEnd(event: DragEvent, node: DiagramNode): void {
@@ -738,22 +766,27 @@ export class CanvasComponent {
   }
 
   updateSelectedEdgeStyle(changes: Partial<EdgeStyle>): void {
+    this.store.pushUndo();
     this.store.setEdges(this.edgeEditor.updateEdgeStyle(this.store.edges(), this.selectedEdgeId, changes));
   }
 
   setSelectedEdgeDashStyle(style: string): void {
+    this.store.pushUndo();
     this.store.setEdges(this.edgeEditor.setDashStyle(this.store.edges(), this.selectedEdgeId, style));
   }
 
   setSelectedEdgeMarker(value: string): void {
+    this.store.pushUndo();
     this.store.setEdges(this.edgeEditor.setMarker(this.store.edges(), this.selectedEdgeId, value));
   }
 
   setSelectedEdgeAnimated(animated: boolean): void {
+    this.store.pushUndo();
     this.store.setEdges(this.edgeEditor.setAnimated(this.store.edges(), this.selectedEdgeId, animated));
   }
 
   resetSelectedEdgeStyle(): void {
+    this.store.pushUndo();
     this.store.setEdges(this.edgeEditor.resetStyle(this.store.edges(), this.selectedEdgeId));
   }
 
@@ -816,6 +849,7 @@ export class CanvasComponent {
 
   ctxDelete(): void {
     if (!this.contextMenu) return;
+    this.store.pushUndo();
     this.store.deleteNode(this.contextMenu.nodeId);
     this.closeContextMenu();
   }
@@ -877,6 +911,7 @@ export class CanvasComponent {
 
   ctxAnnDelete(): void {
     if (!this.annotationContextMenu) return;
+    this.store.pushUndo();
     this.store.deleteAnnotation(this.annotationContextMenu.annotationId);
     if (this.selectedAnnotationId === this.annotationContextMenu.annotationId) this.selectedAnnotationId = null;
     this.closeContextMenu();
@@ -899,6 +934,7 @@ export class CanvasComponent {
 
   saveResourceEditor(): void {
     if (!this.resourceEditorOpen || !this.resourceEditorNodeId || !this.resourceEditorDraft) return;
+    this.store.pushUndo();
     this.store.setNodes(this.resourceEditor.applyDraft(this.store.nodes(), this.resourceEditorNodeId, this.resourceEditorDraft));
     this.closeResourceEditor();
   }
@@ -919,10 +955,12 @@ export class CanvasComponent {
   }
 
   onInternalItemMoved(req: InternalItemMoveRequest): void {
+    this.store.pushUndo();
     this.store.setNodes(this.resourceEditor.applyInternalItemMove(this.store.nodes(), req));
   }
 
   onNodeResized(req: NodeResizeRequest): void {
+    this.store.pushUndo();
     this.store.setNodes(this.store.nodes().map(n => {
       if (n.id !== req.nodeId) return n;
       const width = Math.max(100, req.width);
@@ -944,6 +982,8 @@ export class CanvasComponent {
     const nodes = this.store.nodes();
     const routeTable = nodes.find(n => n.id === req.nodeId);
     if (!routeTable) return;
+
+    this.store.pushUndo();
 
     const currentHeight = routeTable.size.height;
     const collapsedHeight = this.routeTableCollapsedHeights.get(req.nodeId) ?? currentHeight;
@@ -983,6 +1023,8 @@ export class CanvasComponent {
     const virtualNetwork = nodes.find(n => n.id === req.nodeId);
     if (!virtualNetwork) return;
 
+    this.store.pushUndo();
+
     const currentHeight = virtualNetwork.size.height;
     const collapsedHeight = this.virtualNetworkCollapsedHeights.get(req.nodeId) ?? currentHeight;
     if (req.expanded && !this.virtualNetworkCollapsedHeights.has(req.nodeId)) {
@@ -1020,6 +1062,8 @@ export class CanvasComponent {
     const nsg = nodes.find(n => n.id === req.nodeId);
     if (!nsg) return;
 
+    this.store.pushUndo();
+
     const currentHeight = nsg.size.height;
     const collapsedHeight = this.nsgCollapsedHeights.get(req.nodeId) ?? currentHeight;
     if (req.expanded && !this.nsgCollapsedHeights.has(req.nodeId)) {
@@ -1052,6 +1096,45 @@ export class CanvasComponent {
     }));
   }
 
+  onStorageAccountExpansionChanged(req: StorageAccountExpansionRequest): void {
+    const nodes = this.store.nodes();
+    const sa = nodes.find(n => n.id === req.nodeId);
+    if (!sa) return;
+
+    this.store.pushUndo();
+
+    const currentHeight = sa.size.height;
+    const collapsedHeight = this.storageAccountCollapsedHeights.get(req.nodeId) ?? currentHeight;
+    if (req.expanded && !this.storageAccountCollapsedHeights.has(req.nodeId)) {
+      this.storageAccountCollapsedHeights.set(req.nodeId, currentHeight);
+    }
+    if (!req.expanded) {
+      this.storageAccountCollapsedHeights.delete(req.nodeId);
+    }
+
+    // Each item row ~24px + section header ~20px per non-empty category + panel chrome 16px.
+    const panelHeight = req.itemCount === 0 ? 32 : req.itemCount * 24 + 64;
+    const targetHeight = req.expanded
+      ? Math.max(currentHeight, collapsedHeight + panelHeight)
+      : collapsedHeight;
+    const delta = targetHeight - currentHeight;
+    if (delta === 0) return;
+
+    const subId = sa.metadata?.subscriptionId || '';
+    const rg = sa.metadata?.resourceGroup || sa.groupId || '';
+    const cutoffY = sa.position.y + currentHeight - 2;
+
+    this.store.setNodes(nodes.map(n => {
+      if (n.id === sa.id) {
+        return { ...n, size: { ...n.size, height: targetHeight } };
+      }
+      const sameSub = (n.metadata?.subscriptionId || '') === subId;
+      const sameRg = (n.metadata?.resourceGroup || n.groupId || '') === rg;
+      if (!sameSub || !sameRg || n.position.y < cutoffY) return n;
+      return { ...n, position: { ...n.position, y: Math.max(0, n.position.y + delta) } };
+    }));
+  }
+
   // ── Container rename ──────────────────────────────────────────────────────
   startRename(type: 'rg' | 'sub' | 'vm' | 'rt', id: string, currentName: string): void {
     this.renamingContainer = { type, id };
@@ -1066,11 +1149,8 @@ export class CanvasComponent {
     if (!this.renamingContainer) return;
     const { type, id } = this.renamingContainer;
     const trimmed = this.renamingValue.trim();
-    if (trimmed) {
-      this.customContainerNames.set(`${type}::${id}`, trimmed);
-    } else {
-      this.customContainerNames.delete(`${type}::${id}`);
-    }
+    this.store.pushUndo();
+    this.store.setCustomContainerName(`${type}::${id}`, trimmed || null);
     this.renamingContainer = null;
     this.renamingValue = '';
     this.refreshVisibility(this.store.nodes(), this.store.edges());
@@ -1085,6 +1165,7 @@ export class CanvasComponent {
   deleteSelectedNode(): void {
     const selectedNodeId = this.store.selectedNodeId();
     if (!selectedNodeId) return;
+    this.store.pushUndo();
     this.store.deleteNode(selectedNodeId);
   }
 
@@ -1118,6 +1199,18 @@ export class CanvasComponent {
   async onImportJson(file: File): Promise<void> { await this.actions.onImportJson(file); }
 
   rescan(): void { this.actions.rescan(); }
+
+  async relayoutCanvas(): Promise<void> {
+    if (this.relayoutBusy) return;
+    this.store.pushUndo();
+    this.relayoutBusy = true;
+    try {
+      const laid = await this.elkLayout.layout(this.store.nodes(), this.store.edges());
+      this.store.setNodes(laid);
+    } finally {
+      this.relayoutBusy = false;
+    }
+  }
 
   // ── Private helpers ────────────────────────────────────────────────────────
   private svgPoint(e: MouseEvent): { x: number; y: number } {

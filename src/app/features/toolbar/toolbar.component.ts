@@ -67,6 +67,14 @@ import { CommonModule } from '@angular/common';
           title="Re-scan Azure"
         >↺ Rescan</button>
 
+        <button
+          (click)="relayout.emit()"
+          [disabled]="relayoutBusy"
+          class="px-3 py-1 rounded text-xs transition-colors"
+          [ngClass]="relayoutBusy ? 'text-white bg-blue-600' : 'text-white/70 hover:bg-white/10'"
+          title="Re-run ELK auto-layout (undoable with Ctrl+Z)"
+        >{{ relayoutBusy ? '⟳ Arranging…' : '⊞ Auto-layout' }}</button>
+
       </div>
     </header>
   `,
@@ -79,6 +87,8 @@ export class ToolbarComponent {
   @Input() comparisonMode = false;
   @Input() driftSummary: { matched: number; missing: number; unplanned: number } | null = null;
 
+  @Input() relayoutBusy = false;
+
   @Output() exportSvg = new EventEmitter<void>();
   @Output() exportPng = new EventEmitter<void>();
   @Output() exportJson = new EventEmitter<void>();
@@ -86,6 +96,7 @@ export class ToolbarComponent {
   @Output() toggleFinOps = new EventEmitter<void>();
   @Output() toggleDrift = new EventEmitter<void>();
   @Output() rescan = new EventEmitter<void>();
+  @Output() relayout = new EventEmitter<void>();
 
   onFileChange(event: Event): void {
     const file = (event.target as HTMLInputElement).files?.[0];

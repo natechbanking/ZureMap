@@ -6,6 +6,34 @@ const https = require('https');
 const app = express();
 const PORT = 3001;
 
+// ─── Logger ───────────────────────────────────────────────────────────────────
+
+const dim   = s => `\x1b[2m${s}\x1b[0m`;
+const green = s => `\x1b[32m${s}\x1b[0m`;
+const yellow = s => `\x1b[33m${s}\x1b[0m`;
+const red   = s => `\x1b[31m${s}\x1b[0m`;
+const cyan  = s => `\x1b[36m${s}\x1b[0m`;
+
+function log(level, msg, ...extra) {
+  const ts = new Date().toTimeString().slice(0, 8);
+  const prefix = level === 'info'  ? green('[info] ') :
+                 level === 'warn'  ? yellow('[warn] ') :
+                 level === 'error' ? red('[err]  ') :
+                                     dim('[dbg]  ');
+  console.log(`${dim(ts)} ${prefix}${msg}`, ...extra);
+}
+
+app.use((req, res, next) => {
+  const start = Date.now();
+  res.on('finish', () => {
+    const ms = Date.now() - start;
+    const statusColor = res.statusCode >= 500 ? red :
+                        res.statusCode >= 400 ? yellow : green;
+    log('debug', `${req.method} ${cyan(req.path)} → ${statusColor(res.statusCode)} ${dim(ms + 'ms')}`);
+  });
+  next();
+});
+
 app.use(cors({ origin: 'http://localhost:4200' }));
 app.use(express.json());
 
@@ -27,8 +55,10 @@ function runAz(args) {
 app.get('/api/az/login-status', async (req, res) => {
   try {
     const account = await runAz(['account', 'show', '--output', 'json']);
+    log('info', `Login status: signed in as ${account.user?.name ?? account.name} (${account.tenantId})`);
     res.json({ loggedIn: true, account });
   } catch {
+    log('debug', 'Login status: not signed in');
     res.json({ loggedIn: false });
   }
 });
@@ -52,8 +82,10 @@ app.get('/api/az/subscriptions', async (req, res) => {
       state: s.state,
       tenantId: s.tenantId,
     }));
+    log('info', `Subscriptions: returned ${normalized.length}`);
     res.json(normalized);
   } catch (err) {
+    log('error', 'Subscriptions fetch failed:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
@@ -80,15 +112,17 @@ app.post('/api/az/query', async (req, res) => {
     const options = { resultFormat: 'objectArray' };
     if ($skipToken) options.$skipToken = $skipToken;
     const body = JSON.stringify({ query, subscriptions, options });
-
+    log('debug', `Resource Graph query across ${subscriptions.length} sub(s)${$skipToken ? ' [paged]' : ''}`);
     const result = await httpsPost(
       'management.azure.com',
       '/providers/Microsoft.ResourceGraph/resources?api-version=2022-10-01',
       { Authorization: `Bearer ${token.accessToken}`, 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) },
       body
     );
+    log('debug', `Resource Graph: ${result.data?.length ?? 0} rows returned`);
     res.json({ data: result.data ?? [], $skipToken: result.$skipToken });
   } catch (err) {
+    log('error', 'Resource Graph query failed:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
@@ -106,8 +140,9 @@ app.get('/api/az/scan-stream', async (req, res) => {
   try {
     const token = await runAz(['account', 'get-access-token', '--resource', 'https://management.azure.com/', '--output', 'json']);
     const kql = `Resources | project id, name, type, location, resourceGroup, subscriptionId, tags, properties, sku, kind | order by type asc`;
-
+    log('info', `Scan stream started for ${subscriptionIds.length} subscription(s)`);
     let skipToken;
+    let totalRows = 0;
     do {
       const body = JSON.stringify({
         query: kql,
@@ -121,15 +156,19 @@ app.get('/api/az/scan-stream', async (req, res) => {
         body
       );
       const batch = result.data ?? [];
+      totalRows += batch.length;
       if (batch.length > 0) {
+        log('debug', `Scan stream batch: ${batch.length} resources (${totalRows} total so far)`);
         res.write(`data: ${JSON.stringify(batch)}\n\n`);
       }
       skipToken = result.$skipToken;
     } while (skipToken);
 
+    log('info', `Scan stream complete: ${totalRows} total resources`);
     res.write('data: [DONE]\n\n');
     res.end();
   } catch (err) {
+    log('error', 'Scan stream error:', err.message);
     res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);
     res.end();
   }
@@ -183,9 +222,57 @@ app.post('/api/az/cost', async (req, res) => {
       byType[type] = (byType[type] ?? 0) + r.costUsd;
     }
     res.json({ totalUsd: total, currency: 'USD', byResourceGroup: byRg, byResourceType: byType, resources });
+    log('info', `Cost query: $${total.toFixed(2)} across ${resources.length} resources for sub ${subscriptionId}`);
   } catch (err) {
+    log('error', `Cost query failed (sub ${subscriptionId}):`, err.message);
     const status = err.message?.includes('403') ? 403 : 500;
     res.status(status).json({ error: err.message });
+  }
+});
+
+// ─── Storage Account Details ──────────────────────────────────────────────────
+// Returns containers, file shares, tables and queues for a given storage account.
+// Uses ARM REST via `az rest` to avoid Resource Graph StorageAccountResources availability issues.
+
+app.get('/api/az/storage-details', async (req, res) => {
+  const { accountId } = req.query;
+  if (!accountId) return res.status(400).json({ error: 'accountId required' });
+
+  const accountName = accountId.split('/').pop();
+  log('debug', `Storage details requested for ${accountName}`);
+  try {
+    const token = await runAz(['account', 'get-access-token', '--resource', 'https://management.azure.com/', '--output', 'json']);
+    const authHeader = { Authorization: `Bearer ${token.accessToken}`, 'Content-Type': 'application/json' };
+    const base = accountId.replace(/\/$/, '');
+
+    const safeGet = async (path) => {
+      try {
+        return await httpsGet('management.azure.com', path, authHeader);
+      } catch (err) {
+        log('warn', `Storage sub-resource fetch failed (${path.split('/').slice(-3, -1).join('/')}):`, err.message);
+        return { value: [] };
+      }
+    };
+
+    const [containers, shares, tables, queues] = await Promise.all([
+      safeGet(`${base}/blobServices/default/containers?api-version=2023-05-01`),
+      safeGet(`${base}/fileServices/default/shares?api-version=2023-05-01`),
+      safeGet(`${base}/tableServices/default/tables?api-version=2023-05-01`),
+      safeGet(`${base}/queueServices/default/queues?api-version=2023-05-01`),
+    ]);
+
+    const result = {
+      containers: (containers.value ?? []).map(c => c.name),
+      fileShares: (shares.value ?? []).map(s => s.name),
+      tables: (tables.value ?? []).map(t => t.name),
+      queues: (queues.value ?? []).map(q => q.name),
+    };
+    const total = result.containers.length + result.fileShares.length + result.tables.length + result.queues.length;
+    log('info', `Storage details for ${accountName}: ${total} items (${result.containers.length}c ${result.fileShares.length}s ${result.tables.length}t ${result.queues.length}q)`);
+    res.json(result);
+  } catch (err) {
+    log('error', `Storage details failed for ${accountName}:`, err.message);
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -193,6 +280,9 @@ app.post('/api/az/cost', async (req, res) => {
 
 app.post('/api/diagram/state', (req, res) => {
   currentDiagramState = req.body;
+  const nodeCount = req.body?.nodes?.length ?? 0;
+  const edgeCount = req.body?.edges?.length ?? 0;
+  log('debug', `Diagram state updated: ${nodeCount} nodes, ${edgeCount} edges`);
   res.json({ ok: true });
 });
 
@@ -254,6 +344,22 @@ function httpsPost(hostname, path, headers, body) {
   });
 }
 
+function httpsGet(hostname, path, headers) {
+  return new Promise((resolve, reject) => {
+    const req = https.request({ hostname, path, method: 'GET', headers }, (res) => {
+      let data = '';
+      res.on('data', chunk => data += chunk);
+      res.on('end', () => {
+        if (res.statusCode >= 400) return reject(new Error(`HTTP ${res.statusCode}: ${data}`));
+        try { resolve(JSON.parse(data)); }
+        catch { resolve(data); }
+      });
+    });
+    req.on('error', reject);
+    req.end();
+  });
+}
+
 app.listen(PORT, () => {
-  console.log(`ZureMap proxy running on http://localhost:${PORT}`);
+  log('info', `ZureMap proxy running on http://localhost:${PORT}`);
 });

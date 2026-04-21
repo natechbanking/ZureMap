@@ -1,10 +1,7 @@
 import { Component, inject, effect, ViewChild, ElementRef, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { Router } from '@angular/router';
 import { DiagramStore } from '../../core/store/diagram.store';
 import { ELKLayoutService } from '../../core/services/elk-layout.service';
-import { ExportService } from '../../core/services/export.service';
-import { DriftService } from '../../core/services/drift.service';
 import { IconRegistryService } from '../../core/services/icon-registry.service';
 import { DiagramNodeComponent, ContextMenuRequest, InternalItemMoveRequest } from './diagram-node/diagram-node.component';
 import { SidebarComponent } from '../sidebar/sidebar.component';
@@ -13,10 +10,26 @@ import { DrawingToolbarComponent } from './drawing-toolbar/drawing-toolbar.compo
 import { DiagramNode } from '../../core/models/diagram-node.model';
 import { Annotation, DrawingTool, StrokeStyle, EdgeRouting, EdgeMode } from '../../core/models/annotation.model';
 import { DiagramEdge, EdgeStyle } from '../../core/models/diagram-edge.model';
-import { RgBound, SubscriptionBound, VmBound, RouteTableBound, ResourceEditorDraft } from './canvas.types';
+import {
+  RgBound,
+  SubscriptionBound,
+  VmBound,
+  RouteTableBound,
+  ResourceEditorDraft,
+  ToolbarDragState,
+  SubscriptionDragState,
+  VmDragState,
+  NodeDragState,
+  RgDragState,
+} from './canvas.types';
 import { CanvasEdgeEditorService } from './canvas-edge-editor.service';
 import { CanvasResourceEditorService } from './canvas-resource-editor.service';
-import { CanvasFinopsService } from './canvas-finops.service';
+import { CanvasVisibilityService } from './canvas-visibility.service';
+import { CanvasCollapseService } from './canvas-collapse.service';
+import { CanvasAnnotationService } from './canvas-annotation.service';
+import { CanvasDragService } from './canvas-drag.service';
+import { CanvasOverlapService } from './canvas-overlap.service';
+import { CanvasActionsService } from './canvas-actions.service';
 import {
   diamondPointsFromRect as diamondPointsFromRectUtil,
   edgeAnchorBetween,
@@ -25,6 +38,7 @@ import {
   sloppyFilterForLevel,
   strokeDashArrayForStyle,
 } from './canvas-geometry.util';
+import { DrawingRuntimeState, DrawingStyleState, onDrawEnd, onDrawMove, onDrawStart, resetDrawingRuntime } from './canvas-drawing.util';
 
 @Component({
   selector: 'app-canvas',
@@ -40,12 +54,14 @@ export class CanvasComponent {
 
   store = inject(DiagramStore);
   private elkLayout = inject(ELKLayoutService);
-  private exportSvc = inject(ExportService);
-  private driftSvc = inject(DriftService);
+  private actions = inject(CanvasActionsService);
   private edgeEditor = inject(CanvasEdgeEditorService);
   private resourceEditor = inject(CanvasResourceEditorService);
-  private finops = inject(CanvasFinopsService);
-  private router = inject(Router);
+  private visibilitySvc = inject(CanvasVisibilityService);
+  private collapseSvc = inject(CanvasCollapseService);
+  private annotationSvc = inject(CanvasAnnotationService);
+  private dragSvc = inject(CanvasDragService);
+  private overlapSvc = inject(CanvasOverlapService);
   readonly rgIconUrl = inject(IconRegistryService).getIconUrl('microsoft.resources/resourcegroups');
   readonly subscriptionIconUrl = inject(IconRegistryService).getIconUrl('microsoft.resources/subscriptions');
 
@@ -60,12 +76,10 @@ export class CanvasComponent {
   rgBounds: RgBound[] = [];
   vmBounds: VmBound[] = [];
   routeTableBounds: RouteTableBound[] = [];
-  private rgDragStart = { clientX: 0, clientY: 0 };
   private collapsedResourceGroups = new Set<string>();
   private collapsedSubscriptions = new Set<string>();
   private collapsedVmGroups = new Set<string>();
   private collapsedRouteTableGroups = new Set<string>();
-  private isResolvingSubscriptionOverlaps = false;
 
   constructor() {
     effect(() => {
@@ -109,15 +123,15 @@ export class CanvasComponent {
   private annDragOrigin: { x: number; y: number; x2?: number; y2?: number } = { x: 0, y: 0 };
 
   // RG mouse drag (smooth, incremental)
-  rgDragState: { id: string; lastX: number; lastY: number } | null = null;
+  rgDragState: RgDragState | null = null;
   get isRgDragging(): boolean { return this.rgDragState !== null; }
-  subscriptionDragState: { subscriptionId: string; lastX: number; lastY: number } | null = null;
+  subscriptionDragState: SubscriptionDragState | null = null;
   get isSubscriptionDragging(): boolean { return this.subscriptionDragState !== null; }
-  vmDragState: { vmId: string; lastX: number; lastY: number } | null = null;
+  vmDragState: VmDragState | null = null;
   get isVmDragging(): boolean { return this.vmDragState !== null; }
 
   // Individual node mouse drag
-  nodeDragState: { id: string; lastX: number; lastY: number; hasMoved: boolean } | null = null;
+  nodeDragState: NodeDragState | null = null;
 
   // Context menu
   contextMenu: (ContextMenuRequest & { node: DiagramNode }) | null = null;
@@ -129,7 +143,7 @@ export class CanvasComponent {
 
   // Floating toolbar drag
   toolbarPos = { x: 12, y: 12 };
-  toolbarDragState: { lastX: number; lastY: number } | null = null;
+  toolbarDragState: ToolbarDragState | null = null;
 
   // Node HTML5 drag
   private dragOffset = { x: 0, y: 0 };
@@ -137,9 +151,6 @@ export class CanvasComponent {
   resourceEditorOpen = false;
   resourceEditorNodeId: string | null = null;
   resourceEditorDraft: ResourceEditorDraft | null = null;
-  finOpsLoading = false;
-  finOpsError: string | null = null;
-  finOpsLoadedSubscriptions = 0;
 
   // ── Keyboard shortcuts ─────────────────────────────────────────────────────
   @HostListener('document:keydown', ['$event'])
@@ -174,87 +185,38 @@ export class CanvasComponent {
   // ── Document-level mouse events (for drag completion outside SVG) ──────────
   @HostListener('document:mousemove', ['$event'])
   onDocMouseMove(e: MouseEvent): void {
-    // Toolbar drag
-    if (this.toolbarDragState) {
-      const dx = e.clientX - this.toolbarDragState.lastX;
-      const dy = e.clientY - this.toolbarDragState.lastY;
-      this.toolbarPos = { x: Math.max(0, this.toolbarPos.x + dx), y: Math.max(0, this.toolbarPos.y + dy) };
-      this.toolbarDragState.lastX = e.clientX;
-      this.toolbarDragState.lastY = e.clientY;
+    if (this.activeTool !== 'pointer' && this.isDrawing) {
+      this.onDrawMouseMove(e);
       return;
     }
-
-    // Individual node drag — incremental delta, pins the node on first move
-    if (this.nodeDragState) {
-      const dx = (e.clientX - this.nodeDragState.lastX) / this.zoomLevel;
-      const dy = (e.clientY - this.nodeDragState.lastY) / this.zoomLevel;
-      if (dx !== 0 || dy !== 0) {
-        if (!this.nodeDragState.hasMoved) {
-          this.store.pinNode(this.nodeDragState.id);
-          this.nodeDragState.hasMoved = true;
-        }
-        const node = this.store.nodes().find(n => n.id === this.nodeDragState!.id);
-        if (node) {
-          this.store.moveNode(node.id, {
-            x: Math.max(0, node.position.x + dx),
-            y: Math.max(0, node.position.y + dy),
-          });
-        }
-        this.nodeDragState.lastX = e.clientX;
-        this.nodeDragState.lastY = e.clientY;
-      }
-      return;
-    }
-
-    // Subscription group drag — moves all nodes in the subscription together
-    if (this.subscriptionDragState) {
-      const dx = (e.clientX - this.subscriptionDragState.lastX) / this.zoomLevel;
-      const dy = (e.clientY - this.subscriptionDragState.lastY) / this.zoomLevel;
-      if (dx !== 0 || dy !== 0) {
-        this.store.moveSubscriptionGroup(this.subscriptionDragState.subscriptionId, { dx, dy });
-        this.subscriptionDragState.lastX = e.clientX;
-        this.subscriptionDragState.lastY = e.clientY;
-      }
-      return;
-    }
-
-    // VM group drag — moves VM and its related components together
-    if (this.vmDragState) {
-      const dx = (e.clientX - this.vmDragState.lastX) / this.zoomLevel;
-      const dy = (e.clientY - this.vmDragState.lastY) / this.zoomLevel;
-      if (dx !== 0 || dy !== 0) {
-        this.store.moveVmGroup(this.vmDragState.vmId, { dx, dy });
-        this.vmDragState.lastX = e.clientX;
-        this.vmDragState.lastY = e.clientY;
-      }
-      return;
-    }
-
-    // RG group drag — incremental delta so position tracks the cursor exactly
-    if (this.rgDragState) {
-      const dx = (e.clientX - this.rgDragState.lastX) / this.zoomLevel;
-      const dy = (e.clientY - this.rgDragState.lastY) / this.zoomLevel;
-      if (dx !== 0 || dy !== 0) {
-        this.store.moveNodeGroup(this.rgDragState.id, { dx, dy });
-        this.rgDragState.lastX = e.clientX;
-        this.rgDragState.lastY = e.clientY;
-      }
-      return;
-    }
-
-    // Annotation drag
-    if (this.annDragId) {
-      const pt = this.svgPoint(e);
-      const dx = pt.x - this.annDragMouse.x;
-      const dy = pt.y - this.annDragMouse.y;
-      const { x2, y2 } = this.annDragOrigin;
-      this.store.updateAnnotation(this.annDragId, {
-        x: this.annDragOrigin.x + dx,
-        y: this.annDragOrigin.y + dy,
-        x2: typeof x2 === 'number' ? x2 + dx : undefined,
-        y2: typeof y2 === 'number' ? y2 + dy : undefined,
-      });
-    }
+    const result = this.dragSvc.onDocumentMouseMove({
+      event: e,
+      zoomLevel: this.zoomLevel,
+      toolbarPos: this.toolbarPos,
+      toolbarDragState: this.toolbarDragState,
+      nodeDragState: this.nodeDragState,
+      subscriptionDragState: this.subscriptionDragState,
+      vmDragState: this.vmDragState,
+      rgDragState: this.rgDragState,
+      annDragId: this.annDragId,
+      annDragMouse: this.annDragMouse,
+      annDragOrigin: this.annDragOrigin,
+      nodes: this.store.nodes(),
+      svgPoint: event => this.svgPoint(event),
+      pinNode: id => this.store.pinNode(id),
+      moveNode: (id, position) => this.store.moveNode(id, position),
+      moveSubscriptionGroup: (subscriptionId, delta) => this.store.moveSubscriptionGroup(subscriptionId, delta),
+      moveVmGroup: (vmId, delta) => this.store.moveVmGroup(vmId, delta),
+      moveResourceGroup: (id, delta) => this.store.moveNodeGroup(id, delta),
+      updateAnnotation: (id, changes) => this.store.updateAnnotation(id, changes),
+    });
+    if (!result.handled) return;
+    this.toolbarPos = result.toolbarPos;
+    this.toolbarDragState = result.toolbarDragState;
+    this.nodeDragState = result.nodeDragState;
+    this.subscriptionDragState = result.subscriptionDragState;
+    this.vmDragState = result.vmDragState;
+    this.rgDragState = result.rgDragState;
   }
 
   onCanvasWheel(event: WheelEvent): void {
@@ -264,8 +226,11 @@ export class CanvasComponent {
     this.setZoom(this.zoomLevel + delta, { x: event.clientX, y: event.clientY });
   }
 
-  @HostListener('document:mouseup')
-  onDocMouseUp(): void {
+  @HostListener('document:mouseup', ['$event'])
+  onDocMouseUp(e: MouseEvent): void {
+    if (this.activeTool !== 'pointer' && this.isDrawing) {
+      this.onDrawMouseUp(e);
+    }
     this.toolbarDragState = null;
     this.subscriptionDragState = null;
     this.vmDragState = null;
@@ -279,100 +244,71 @@ export class CanvasComponent {
     this.activeTool = tool;
     this.selectedAnnotationId = null;
     this.selectedEdgeId = null;
-    this.clearPreviews();
-    this.isDrawing = false;
-    this.drawPoints = [];
-    this.shapeStart = null;
+    this.applyDrawingRuntime(resetDrawingRuntime(this.currentDrawingRuntime()));
+  }
+
+  onToolbarColorChange(color: string): void {
+    this.activeColor = color;
+    this.updateSelectedAnnotation({ color });
+  }
+
+  onToolbarStrokeWidthChange(strokeWidth: number): void {
+    this.activeStrokeWidth = strokeWidth;
+    this.updateSelectedAnnotation({ strokeWidth });
+  }
+
+  onToolbarStrokeStyleChange(strokeStyle: StrokeStyle): void {
+    this.activeStrokeStyle = strokeStyle;
+    this.updateSelectedAnnotation({ strokeStyle });
+  }
+
+  onToolbarSloppinessChange(sloppiness: number): void {
+    this.activeSloppiness = sloppiness;
+    this.updateSelectedAnnotation({ sloppiness });
+  }
+
+  onToolbarEdgeRoutingChange(edgeRouting: EdgeRouting): void {
+    this.activeEdgeRouting = edgeRouting;
+    this.updateSelectedAnnotation({ edgeRouting }, ['arrow', 'line']);
+  }
+
+  onToolbarEdgeModeChange(edgeMode: EdgeMode): void {
+    this.activeEdgeMode = edgeMode;
+    this.updateSelectedAnnotation({ edgeMode }, ['arrow', 'line']);
+  }
+
+  onToolbarFillChange(fill: string): void {
+    this.activeFill = fill;
+    this.updateSelectedAnnotation({ fill }, ['rect', 'ellipse', 'diamond']);
+  }
+
+  onToolbarFillOpacityChange(fillOpacity: number): void {
+    this.activeFillOpacity = fillOpacity;
+    this.updateSelectedAnnotation({ fillOpacity }, ['rect', 'ellipse', 'diamond']);
   }
 
   // ── Drawing surface events ─────────────────────────────────────────────────
   onDrawMouseDown(e: MouseEvent): void {
     e.preventDefault();
     const pt = this.svgPoint(e);
-
-    if (this.activeTool === 'text' || this.activeTool === 'sticky') {
-      const ann = this.newAnnotation('text', pt.x, pt.y);
-      if (this.activeTool === 'sticky') ann.type = 'sticky';
-      this.store.addAnnotation(ann);
-      this.startEditAnnotation(ann);
-      return;
-    }
-
-    this.isDrawing = true;
-    if (this.activeTool === 'draw') {
-      this.drawPoints = [[pt.x, pt.y]];
-      this.previewPath = `M ${pt.x} ${pt.y}`;
-    } else {
-      this.shapeStart = pt;
+    const result = onDrawStart(this.currentDrawingRuntime(), this.currentDrawingStyle(), pt);
+    this.applyDrawingRuntime(result.next);
+    if (result.createdAnnotation) {
+      this.store.addAnnotation(result.createdAnnotation);
+      if (result.shouldStartEdit) this.startEditAnnotation(result.createdAnnotation);
     }
   }
 
   onDrawMouseMove(e: MouseEvent): void {
-    if (!this.isDrawing) return;
     const pt = this.svgPoint(e);
-
-    if (this.activeTool === 'draw') {
-      this.drawPoints.push([pt.x, pt.y]);
-      this.previewPath = this.buildSmoothPath(this.drawPoints);
-    } else if (this.shapeStart) {
-      const s = this.shapeStart;
-      if (this.activeTool === 'arrow') {
-        this.previewArrow = { x1: s.x, y1: s.y, x2: pt.x, y2: pt.y };
-      } else if (this.activeTool === 'line') {
-        this.previewLine = { x1: s.x, y1: s.y, x2: pt.x, y2: pt.y };
-      } else if (this.activeTool === 'rect') {
-        const r = this.normalizeRect(s.x, s.y, pt.x, pt.y);
-        this.previewRect = r;
-      } else if (this.activeTool === 'diamond') {
-        const r = this.normalizeRect(s.x, s.y, pt.x, pt.y);
-        this.previewDiamond = r;
-      } else if (this.activeTool === 'ellipse') {
-        const r = this.normalizeRect(s.x, s.y, pt.x, pt.y);
-        this.previewEllipse = { cx: r.x + r.w / 2, cy: r.y + r.h / 2, rx: r.w / 2, ry: r.h / 2 };
-      }
-    }
+    this.applyDrawingRuntime(onDrawMove(this.currentDrawingRuntime(), this.currentDrawingStyle(), pt));
   }
 
   onDrawMouseUp(e: MouseEvent): void {
-    if (!this.isDrawing) return;
-    this.isDrawing = false;
     const pt = this.svgPoint(e);
-
-    if (this.activeTool === 'draw' && this.drawPoints.length > 1) {
-      this.store.addAnnotation({ ...this.newAnnotation('draw', 0, 0), pathData: this.buildSmoothPath(this.drawPoints) });
-    } else if (this.shapeStart) {
-      const s = this.shapeStart;
-      if (this.activeTool === 'arrow') {
-        const dx = pt.x - s.x; const dy = pt.y - s.y;
-        if (Math.hypot(dx, dy) > 5) {
-          this.store.addAnnotation({ ...this.newAnnotation('arrow', s.x, s.y), x2: pt.x, y2: pt.y });
-        }
-      } else if (this.activeTool === 'line') {
-        const dx = pt.x - s.x; const dy = pt.y - s.y;
-        if (Math.hypot(dx, dy) > 5) {
-          this.store.addAnnotation({ ...this.newAnnotation('line', s.x, s.y), x2: pt.x, y2: pt.y });
-        }
-      } else if (this.activeTool === 'rect') {
-        const r = this.normalizeRect(s.x, s.y, pt.x, pt.y);
-        if (r.w > 4 && r.h > 4) {
-          this.store.addAnnotation({ ...this.newAnnotation('rect', r.x, r.y), width: r.w, height: r.h, fill: this.activeFill });
-        }
-      } else if (this.activeTool === 'diamond') {
-        const r = this.normalizeRect(s.x, s.y, pt.x, pt.y);
-        if (r.w > 4 && r.h > 4) {
-          this.store.addAnnotation({ ...this.newAnnotation('diamond', r.x, r.y), width: r.w, height: r.h, fill: this.activeFill });
-        }
-      } else if (this.activeTool === 'ellipse') {
-        const r = this.normalizeRect(s.x, s.y, pt.x, pt.y);
-        if (r.w > 4 && r.h > 4) {
-          this.store.addAnnotation({ ...this.newAnnotation('ellipse', r.x, r.y), width: r.w, height: r.h, fill: this.activeFill });
-        }
-      }
-    }
-
-    this.drawPoints = [];
-    this.shapeStart = null;
-    this.clearPreviews();
+    const result = onDrawEnd(this.currentDrawingRuntime(), this.currentDrawingStyle(), pt);
+    this.applyDrawingRuntime(result.next);
+    if (result.createdAnnotation) this.store.addAnnotation(result.createdAnnotation);
   }
 
   // ── Annotation interaction ─────────────────────────────────────────────────
@@ -381,6 +317,7 @@ export class CanvasComponent {
     e.stopPropagation();
     this.selectedEdgeId = null;
     this.selectedAnnotationId = ann.id;
+    this.syncToolbarFromAnnotation(ann);
     const pt = this.svgPoint(e);
     this.annDragId = ann.id;
     this.annDragMouse = { x: pt.x, y: pt.y };
@@ -431,36 +368,22 @@ export class CanvasComponent {
     if (!this.selectedAnnotationId) return;
     const source = this.annotationById(this.selectedAnnotationId);
     if (!source) return;
-    const duplicated: Annotation = {
-      ...source,
-      id: `ann-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-      x: source.x + 20,
-      y: source.y + 20,
-      x2: source.x2 !== undefined ? source.x2 + 20 : undefined,
-      y2: source.y2 !== undefined ? source.y2 + 20 : undefined,
-    };
+    const duplicated = this.annotationSvc.duplicate(source);
     this.store.addAnnotation(duplicated);
     this.selectedAnnotationId = duplicated.id;
+    this.syncToolbarFromAnnotation(duplicated);
   }
 
   bringSelectedAnnotationToFront(): void {
     if (!this.selectedAnnotationId) return;
-    this.store.annotations.update(list => {
-      const idx = list.findIndex(a => a.id === this.selectedAnnotationId);
-      if (idx < 0 || idx === list.length - 1) return list;
-      const picked = list[idx];
-      return [...list.slice(0, idx), ...list.slice(idx + 1), picked];
-    });
+    const selectedId = this.selectedAnnotationId;
+    this.store.annotations.update(list => this.annotationSvc.bringToFront(list, selectedId));
   }
 
   sendSelectedAnnotationToBack(): void {
     if (!this.selectedAnnotationId) return;
-    this.store.annotations.update(list => {
-      const idx = list.findIndex(a => a.id === this.selectedAnnotationId);
-      if (idx <= 0) return list;
-      const picked = list[idx];
-      return [picked, ...list.slice(0, idx), ...list.slice(idx + 1)];
-    });
+    const selectedId = this.selectedAnnotationId;
+    this.store.annotations.update(list => this.annotationSvc.sendToBack(list, selectedId));
   }
 
   clearAllAnnotations(): void {
@@ -479,13 +402,11 @@ export class CanvasComponent {
   }
 
   annDeleteBtnX(ann: Annotation): number {
-    if (ann.type === 'arrow' || ann.type === 'line') return Math.max(ann.x, ann.x2 ?? ann.x) + 8;
-    return ann.x + (ann.width ?? 120) + 4;
+    return this.annotationSvc.deleteButtonX(ann);
   }
 
   annDeleteBtnY(ann: Annotation): number {
-    if (ann.type === 'arrow' || ann.type === 'line') return Math.min(ann.y, ann.y2 ?? ann.y) - 10;
-    return ann.y - 10;
+    return this.annotationSvc.deleteButtonY(ann);
   }
 
   diamondPoints(ann: Annotation): string {
@@ -516,357 +437,138 @@ export class CanvasComponent {
   }
 
   markerStart(ann: Annotation): string | null {
-    const mode = ann.edgeMode ?? (ann.type === 'arrow' ? 'end' : 'none');
-    return mode === 'start' || mode === 'both' ? 'url(#ann-arrow)' : null;
+    return this.annotationSvc.markerStart(ann);
   }
 
   markerEnd(ann: Annotation): string | null {
-    const mode = ann.edgeMode ?? (ann.type === 'arrow' ? 'end' : 'none');
-    return mode === 'end' || mode === 'both' ? 'url(#ann-arrow)' : null;
+    return this.annotationSvc.markerEnd(ann);
   }
 
   previewMarkerStart(): string | null {
-    return this.activeEdgeMode === 'start' || this.activeEdgeMode === 'both' ? 'url(#ann-arrow)' : null;
+    return this.annotationSvc.previewMarkerStart(this.activeEdgeMode);
   }
 
   previewMarkerEnd(): string | null {
-    return this.activeEdgeMode === 'end' || this.activeEdgeMode === 'both' ? 'url(#ann-arrow)' : null;
+    return this.annotationSvc.previewMarkerEnd(this.activeEdgeMode);
   }
 
   arrowHead(x1: number, y1: number, x2: number, y2: number): string {
-    const L = 12; const W = 5;
-    const angle = Math.atan2(y2 - y1, x2 - x1);
-    const p1x = x2 - L * Math.cos(angle) + W * Math.sin(angle);
-    const p1y = y2 - L * Math.sin(angle) - W * Math.cos(angle);
-    const p2x = x2 - L * Math.cos(angle) - W * Math.sin(angle);
-    const p2y = y2 - L * Math.sin(angle) + W * Math.cos(angle);
-    return `M ${x2} ${y2} L ${p1x} ${p1y} L ${p2x} ${p2y} Z`;
+    return this.annotationSvc.arrowHead(x1, y1, x2, y2);
   }
 
   // ── Canvas size ────────────────────────────────────────────────────────────
   get canvasWidth(): number {
     const nodes = this.store.nodes();
     const anns = this.store.annotations();
-    return Math.max(1200,
-      ...nodes.map(n => n.position.x + n.size.width + 80),
-      ...anns.map(a => Math.max(a.x + (a.width ?? 200) + 80, (a.x2 ?? 0) + 80)),
-    );
+    let maxX = 1200;
+
+    for (const n of nodes) {
+      maxX = Math.max(maxX, n.position.x + n.size.width + 80);
+    }
+    for (const ann of anns) {
+      maxX = Math.max(maxX, this.annotationMaxX(ann) + 80);
+    }
+    maxX = Math.max(maxX, this.previewMaxX() + 80);
+
+    return maxX;
   }
 
   get canvasHeight(): number {
     const nodes = this.store.nodes();
     const anns = this.store.annotations();
-    return Math.max(800,
-      ...nodes.map(n => n.position.y + n.size.height + 80),
-      ...anns.map(a => Math.max(a.y + (a.height ?? 80) + 80, (a.y2 ?? 0) + 80)),
-    );
-  }
+    let maxY = 800;
 
-  // ── RG boxes ───────────────────────────────────────────────────────────────
-  private computeRgBounds(nodes: DiagramNode[]): RgBound[] {
-    const PAD = 28; const LABEL_H = 28;
-    const map = new Map<string, { subscriptionId: string; name: string; nodes: DiagramNode[] }>();
     for (const n of nodes) {
-      const rg = n.metadata?.resourceGroup || n.groupId || '';
-      const subscriptionId = n.metadata?.subscriptionId || '';
-      if (!rg) continue;
-      const id = `${subscriptionId}::${rg}`;
-      if (!map.has(id)) map.set(id, { subscriptionId, name: rg, nodes: [] });
-      map.get(id)!.nodes.push(n);
+      maxY = Math.max(maxY, n.position.y + n.size.height + 80);
     }
-    return Array.from(map.entries()).map(([id, entry]) => {
-      const { subscriptionId, nodes: rgNodes } = entry;
-      const name = this.customContainerNames.get(`rg::${id}`) ?? entry.name;
-      const xMin = Math.min(...rgNodes.map(n => n.position.x));
-      const yMin = Math.min(...rgNodes.map(n => n.position.y));
-      const xMax = Math.max(...rgNodes.map(n => n.position.x + n.size.width));
-      const yMax = Math.max(...rgNodes.map(n => n.position.y + n.size.height));
-      const collapsed = this.collapsedResourceGroups.has(id);
-
-      return {
-        id,
-        subscriptionId,
-        name,
-        collapsed,
-        x: xMin - PAD,
-        y: yMin - PAD - LABEL_H,
-        width: collapsed ? Math.max(220, Math.ceil(name.length * 7.5) + 72) : xMax + PAD - (xMin - PAD),
-        height: collapsed ? LABEL_H + 8 : yMax + PAD - (yMin - PAD - LABEL_H),
-      };
-    });
-  }
-
-  private computeSubscriptionBounds(rgBounds: RgBound[], nodes: DiagramNode[]): SubscriptionBound[] {
-    const activeSubCount = this.store.activeSubscriptions().length;
-    const nodeSubCount = new Set(nodes.map(n => n.metadata?.subscriptionId).filter(Boolean)).size;
-    if (activeSubCount <= 1 && nodeSubCount <= 1) return [];
-
-    const PAD = 24;
-    const LABEL_H = 32;
-    const nameBySubscriptionId = new Map(
-      this.store.activeSubscriptions().map(s => [s.subscriptionId, s.name]),
-    );
-    const map = new Map<string, RgBound[]>();
-    for (const bound of rgBounds) {
-      if (!map.has(bound.subscriptionId)) map.set(bound.subscriptionId, []);
-      map.get(bound.subscriptionId)!.push(bound);
+    for (const ann of anns) {
+      maxY = Math.max(maxY, this.annotationMaxY(ann) + 80);
     }
+    maxY = Math.max(maxY, this.previewMaxY() + 80);
 
-    return Array.from(map.entries()).map(([subscriptionId, groups]) => {
-      const xMin = Math.min(...groups.map(g => g.x));
-      const yMin = Math.min(...groups.map(g => g.y));
-      const xMax = Math.max(...groups.map(g => g.x + g.width));
-      const yMax = Math.max(...groups.map(g => g.y + g.height));
-      const collapsed = this.collapsedSubscriptions.has(subscriptionId);
-
-      const defaultSubName = nameBySubscriptionId.get(subscriptionId) || subscriptionId || 'Unknown subscription';
-      return {
-        id: subscriptionId || '__unknown-subscription__',
-        subscriptionId,
-        name: this.customContainerNames.get(`sub::${subscriptionId}`) ?? defaultSubName,
-        x: xMin - PAD,
-        y: yMin - PAD - LABEL_H,
-        collapsed,
-        width: collapsed ? Math.max(320, Math.ceil(defaultSubName.length * 7.5) + 96) : xMax - xMin + PAD * 2,
-        height: collapsed ? LABEL_H + 12 : yMax - yMin + PAD * 2 + LABEL_H,
-      };
-    });
-  }
-
-  private computeVmBounds(nodes: DiagramNode[]): VmBound[] {
-    const PAD = 14;
-    const LABEL_H = 20;
-    const nodeById = new Map(nodes.map(n => [n.id, n]));
-    const bounds: VmBound[] = [];
-
-    for (const vm of nodes) {
-      if (vm.resourceType !== 'microsoft.compute/virtualmachines') continue;
-      if (!vm.children?.length) continue;
-
-      const members: DiagramNode[] = [vm];
-      for (const childId of vm.children) {
-        const child = nodeById.get(childId);
-        if (child) members.push(child);
-      }
-
-      if (members.length < 2) continue;
-
-      const xMin = Math.min(...members.map(n => n.position.x));
-      const yMin = Math.min(...members.map(n => n.position.y));
-      const xMax = Math.max(...members.map(n => n.position.x + n.size.width));
-      const yMax = Math.max(...members.map(n => n.position.y + n.size.height));
-      const collapsed = this.collapsedVmGroups.has(vm.id);
-      const vmName = this.customContainerNames.get(`vm::${vm.id}`) ?? vm.label;
-
-      bounds.push({
-        id: vm.id,
-        name: vmName,
-        collapsed,
-        x: xMin - PAD,
-        y: yMin - PAD - LABEL_H,
-        width: collapsed ? Math.max(220, Math.ceil(vm.label.length * 7.5) + 88) : xMax + PAD - (xMin - PAD),
-        height: collapsed ? LABEL_H + 10 : yMax + PAD - (yMin - PAD - LABEL_H),
-      });
-    }
-
-    return bounds;
-  }
-
-  private computeRouteTableBounds(nodes: DiagramNode[]): RouteTableBound[] {
-    const PAD = 12;
-    const LABEL_H = 20;
-    const GAP_BELOW_PARENT = 6;
-    const nodeById = new Map(nodes.map(n => [n.id, n]));
-    const bounds: RouteTableBound[] = [];
-
-    for (const routeTable of nodes) {
-      if (routeTable.resourceType !== 'microsoft.network/routetables') continue;
-
-      const routeNodes = (routeTable.children ?? [])
-        .map(id => nodeById.get(id))
-        .filter((n): n is DiagramNode => !!n && n.resourceType === 'microsoft.network/routetables/routes');
-      if (routeNodes.length === 0) continue;
-
-      const collapsed = this.collapsedRouteTableGroups.has(routeTable.id);
-      const rtName = this.customContainerNames.get(`rt::${routeTable.id}`) ?? routeTable.label;
-      const tableBottom = routeTable.position.y + routeTable.size.height;
-      const yStart = tableBottom + GAP_BELOW_PARENT;
-      const childBottom = Math.max(yStart, ...routeNodes.map(n => n.position.y + n.size.height));
-
-      const xMin = Math.min(routeTable.position.x, ...routeNodes.map(n => n.position.x));
-      const xMax = Math.max(routeTable.position.x + routeTable.size.width, ...routeNodes.map(n => n.position.x + n.size.width));
-
-      bounds.push({
-        id: routeTable.id,
-        name: rtName,
-        collapsed,
-        x: xMin - PAD,
-        y: yStart,
-        width: collapsed ? Math.max(220, Math.ceil(routeTable.label.length * 7.5) + 88) : xMax - xMin + PAD * 2,
-        height: collapsed ? LABEL_H + 10 : Math.max(LABEL_H + 10, childBottom - yStart + PAD),
-      });
-    }
-
-    return bounds;
+    return maxY;
   }
 
   toggleSubscriptionCollapsed(subscriptionId: string): void {
-    if (this.collapsedSubscriptions.has(subscriptionId)) {
-      this.collapsedSubscriptions.delete(subscriptionId);
-    } else {
-      this.collapsedSubscriptions.add(subscriptionId);
-      const selectedNode = this.store.selectedNode();
-      if (selectedNode && (selectedNode.metadata?.subscriptionId || '') === subscriptionId) {
-        this.store.selectNode(null);
-      }
-    }
-
+    const result = this.collapseSvc.toggleSubscription(
+      this.collapsedSubscriptions,
+      subscriptionId,
+      this.store.selectedNode(),
+    );
+    this.collapsedSubscriptions = result.next;
+    if (result.clearSelection) this.store.selectNode(null);
     this.refreshVisibility(this.store.nodes(), this.store.edges());
   }
 
   toggleRgCollapsed(rgId: string): void {
-    if (this.collapsedResourceGroups.has(rgId)) {
-      this.collapsedResourceGroups.delete(rgId);
-    } else {
-      this.collapsedResourceGroups.add(rgId);
-      const selectedNode = this.store.selectedNode();
-      const selectedRgId = `${selectedNode?.metadata?.subscriptionId || ''}::${selectedNode?.metadata?.resourceGroup || selectedNode?.groupId || ''}`;
-      if (selectedNode && selectedRgId === rgId) {
-        this.store.selectNode(null);
-      }
-    }
-
+    const result = this.collapseSvc.toggleResourceGroup(
+      this.collapsedResourceGroups,
+      rgId,
+      this.store.selectedNode(),
+    );
+    this.collapsedResourceGroups = result.next;
+    if (result.clearSelection) this.store.selectNode(null);
     this.refreshVisibility(this.store.nodes(), this.store.edges());
   }
 
   toggleVmCollapsed(vmId: string): void {
-    if (this.collapsedVmGroups.has(vmId)) {
-      this.collapsedVmGroups.delete(vmId);
-    } else {
-      this.collapsedVmGroups.add(vmId);
-      const selectedNode = this.store.selectedNode();
-      const vmNode = this.store.nodes().find(n => n.id === vmId);
-      const selectedInVm = !!selectedNode && !!vmNode && (selectedNode.id === vmId || (vmNode.children ?? []).includes(selectedNode.id));
-      if (selectedInVm) {
-        this.store.selectNode(null);
-      }
-    }
-
+    const result = this.collapseSvc.toggleVm(
+      this.collapsedVmGroups,
+      vmId,
+      this.store.nodes(),
+      this.store.selectedNode(),
+    );
+    this.collapsedVmGroups = result.next;
+    if (result.clearSelection) this.store.selectNode(null);
     this.refreshVisibility(this.store.nodes(), this.store.edges());
   }
 
   toggleRouteTableCollapsed(routeTableId: string): void {
-    if (this.collapsedRouteTableGroups.has(routeTableId)) {
-      this.collapsedRouteTableGroups.delete(routeTableId);
-    } else {
-      this.collapsedRouteTableGroups.add(routeTableId);
-      const selectedNode = this.store.selectedNode();
-      const rtNode = this.store.nodes().find(n => n.id === routeTableId);
-      const selectedInRt = !!selectedNode && !!rtNode
-        && (selectedNode.id === routeTableId || (rtNode.children ?? []).includes(selectedNode.id));
-      if (selectedInRt) {
-        this.store.selectNode(null);
-      }
-    }
-
+    const result = this.collapseSvc.toggleRouteTable(
+      this.collapsedRouteTableGroups,
+      routeTableId,
+      this.store.nodes(),
+      this.store.selectedNode(),
+    );
+    this.collapsedRouteTableGroups = result.next;
+    if (result.clearSelection) this.store.selectNode(null);
     this.refreshVisibility(this.store.nodes(), this.store.edges());
   }
 
   private refreshVisibility(nodes: DiagramNode[], edges: ReturnType<DiagramStore['edges']>): void {
-    const isVisibleBySubscription = (n: DiagramNode) => {
-      const subscriptionId = n.metadata?.subscriptionId || '';
-      return !this.collapsedSubscriptions.has(subscriptionId);
-    };
-
-    const baseVisibleNodes = nodes.filter(n => {
-      if (!isVisibleBySubscription(n)) return false;
-      const rg = n.metadata?.resourceGroup || n.groupId || '';
-      const subscriptionId = n.metadata?.subscriptionId || '';
-      return !this.collapsedResourceGroups.has(`${subscriptionId}::${rg}`);
+    const visibility = this.visibilitySvc.derive({
+      nodes,
+      edges,
+      activeSubscriptions: this.store.activeSubscriptions(),
+      collapsedSubscriptions: this.collapsedSubscriptions,
+      collapsedResourceGroups: this.collapsedResourceGroups,
+      collapsedVmGroups: this.collapsedVmGroups,
+      collapsedRouteTableGroups: this.collapsedRouteTableGroups,
+      customContainerNames: this.customContainerNames,
+      selectedEdgeId: this.selectedEdgeId,
     });
-
-    const hiddenByVmCollapse = new Set<string>();
-    const baseById = new Map(baseVisibleNodes.map(n => [n.id, n]));
-    for (const vmId of this.collapsedVmGroups) {
-      const vm = baseById.get(vmId);
-      if (!vm) continue;
-      for (const childId of vm.children ?? []) hiddenByVmCollapse.add(childId);
-    }
-
-    const hiddenByRouteTableCollapse = new Set<string>();
-    for (const routeTableId of this.collapsedRouteTableGroups) {
-      const routeTable = baseById.get(routeTableId);
-      if (!routeTable) continue;
-      for (const childId of routeTable.children ?? []) {
-        const child = baseById.get(childId);
-        if (child?.resourceType === 'microsoft.network/routetables/routes') {
-          hiddenByRouteTableCollapse.add(childId);
-        }
-      }
-    }
-
-    this.visibleNodes = baseVisibleNodes.filter(n =>
-      !hiddenByVmCollapse.has(n.id) && !hiddenByRouteTableCollapse.has(n.id),
-    );
-
-    const visibleIds = new Set(this.visibleNodes.map(n => n.id));
-    this.visibleEdges = edges.filter(e => visibleIds.has(e.sourceId) && visibleIds.has(e.targetId));
-    if (this.selectedEdgeId && !this.visibleEdges.some(e => e.id === this.selectedEdgeId)) {
+    this.visibleNodes = visibility.visibleNodes;
+    this.visibleEdges = visibility.visibleEdges;
+    this.rgBounds = visibility.rgBounds;
+    this.subscriptionBounds = visibility.subscriptionBounds;
+    this.vmBounds = visibility.vmBounds;
+    this.routeTableBounds = visibility.routeTableBounds;
+    if (this.selectedEdgeId && !visibility.selectedEdgeVisible) {
       this.selectedEdgeId = null;
     }
-    this.rgBounds = this.computeRgBounds(nodes.filter(isVisibleBySubscription));
-    this.subscriptionBounds = this.computeSubscriptionBounds(this.rgBounds, nodes);
-    this.vmBounds = this.computeVmBounds(baseVisibleNodes);
-    this.routeTableBounds = this.computeRouteTableBounds(baseVisibleNodes);
     this.resolveSubscriptionContainerOverlaps(this.subscriptionBounds);
   }
 
   private resolveSubscriptionContainerOverlaps(bounds: SubscriptionBound[]): void {
-    if (this.isResolvingSubscriptionOverlaps) return;
-    if (bounds.length < 2) return;
-
-    const GAP = 24;
-    const MAX_ITERS = 10;
-    this.isResolvingSubscriptionOverlaps = true;
-    try {
-      for (let iter = 0; iter < MAX_ITERS; iter++) {
-        let moved = false;
-        const current = this.computeSubscriptionBounds(
-          this.computeRgBounds(this.store.nodes().filter(n => !this.collapsedSubscriptions.has(n.metadata?.subscriptionId || ''))),
-          this.store.nodes(),
-        );
-
-        outer:
-        for (let i = 0; i < current.length; i++) {
-          for (let j = i + 1; j < current.length; j++) {
-            const a = current[i];
-            const b = current[j];
-            if (!a.subscriptionId || !b.subscriptionId) continue;
-
-            const overlapX = Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x);
-            const overlapY = Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y);
-            if (overlapX <= 0 || overlapY <= 0) continue;
-
-            const moveX = overlapX + GAP;
-            const moveY = overlapY + GAP;
-
-            // Push the latter container along the axis that requires less movement.
-            if (moveX <= moveY) {
-              this.store.moveSubscriptionGroup(b.subscriptionId, { dx: moveX, dy: 0 });
-            } else {
-              this.store.moveSubscriptionGroup(b.subscriptionId, { dx: 0, dy: moveY });
-            }
-
-            moved = true;
-            break outer;
-          }
-        }
-
-        if (!moved) break;
-      }
-    } finally {
-      this.isResolvingSubscriptionOverlaps = false;
-    }
+    this.overlapSvc.resolveSubscriptionContainerOverlaps({
+      bounds,
+      nodes: this.store.nodes(),
+      activeSubscriptions: this.store.activeSubscriptions(),
+      collapsedSubscriptions: this.collapsedSubscriptions,
+      collapsedResourceGroups: this.collapsedResourceGroups,
+      customContainerNames: this.customContainerNames,
+      moveSubscriptionGroup: (subscriptionId, delta) => this.store.moveSubscriptionGroup(subscriptionId, delta),
+    });
   }
 
   // ── Toolbar drag ───────────────────────────────────────────────────────────
@@ -1144,74 +846,35 @@ export class CanvasComponent {
   }
 
   async toggleFinOps(): Promise<void> {
-    const active = !this.store.finOpsLayerActive();
-    this.store.finOpsLayerActive.set(active);
-    if (!active) return;
-
-    const subIds = [...new Set(this.store.activeSubscriptions().map(s => s.subscriptionId))];
-    if (subIds.length === 0) {
-      this.finOpsLoadedSubscriptions = 0;
-      this.finOpsError = 'No active subscriptions selected. Re-scan and select at least one subscription.';
-      return;
-    }
-
-    this.finOpsLoading = true;
-    this.finOpsError = null;
-
-    try {
-      const { nodes: nextNodes, loadedSubscriptions } = await this.finops.loadCostsForSubscriptions(this.store.nodes(), subIds);
-      this.finOpsLoadedSubscriptions = loadedSubscriptions;
-      this.store.setNodes(nextNodes);
-
-      if (!nextNodes.some(n => n.costData)) {
-        this.finOpsError = 'Cost query succeeded but no scanned resources matched cost rows for this period.';
-      }
-    } catch {
-      this.finOpsLoadedSubscriptions = 0;
-      this.finOpsError = 'Failed to load cost data. Ensure the proxy is running and you have Cost Management Reader access.';
-    } finally {
-      this.finOpsLoading = false;
-    }
+    await this.actions.toggleFinOps();
   }
 
   get finOpsCostedNodeCount(): number {
-    return this.store.nodes().filter(n => (n.costData?.monthlyCostUsd ?? 0) > 0).length;
+    return this.actions.finOpsCostedNodeCount;
   }
 
   get finOpsTopNodes(): Array<{ id: string; label: string; cost: number }> {
-    return this.store.nodes()
-      .filter(n => (n.costData?.monthlyCostUsd ?? 0) > 0)
-      .sort((a, b) => (b.costData?.monthlyCostUsd ?? 0) - (a.costData?.monthlyCostUsd ?? 0))
-      .slice(0, 5)
-      .map(n => ({ id: n.id, label: n.label, cost: n.costData!.monthlyCostUsd }));
+    return this.actions.finOpsTopNodes;
   }
 
   formatUsd(value: number): string {
-    return `$${value.toFixed(2)}`;
+    return this.actions.formatUsd(value);
   }
 
   toggleDrift(): void {
-    if (!this.store.comparisonMode()) {
-      this.store.setNodes(this.driftSvc.computeDrift(this.store.baselineNodes(), this.store.nodes()));
-      this.store.comparisonMode.set(true);
-    } else {
-      this.store.comparisonMode.set(false);
-      this.store.setNodes(this.store.nodes().map(n => ({ ...n, driftStatus: undefined })));
-    }
+    this.actions.toggleDrift();
   }
 
-  exportSvg(): void { if (this.canvasHostRef) this.exportSvc.exportSVG(this.canvasHostRef); }
-  async exportPng(): Promise<void> { if (this.canvasHostRef) await this.exportSvc.exportPNG(this.canvasHostRef); }
-  exportJson(): void { this.exportSvc.exportJSON(this.store.nodes(), this.store.edges(), this.store.activeSubscriptions()); }
+  get finOpsLoading(): boolean { return this.actions.finOpsLoading; }
+  get finOpsError(): string | null { return this.actions.finOpsError; }
+  get finOpsLoadedSubscriptions(): number { return this.actions.finOpsLoadedSubscriptions; }
 
-  async onImportJson(file: File): Promise<void> {
-    try {
-      const state = await this.exportSvc.importJSON(file);
-      this.store.loadBaseline(state.nodes);
-    } catch { console.error('Failed to import ZureMap JSON'); }
-  }
+  exportSvg(): void { this.actions.exportSvg(this.canvasHostRef); }
+  async exportPng(): Promise<void> { await this.actions.exportPng(this.canvasHostRef); }
+  exportJson(): void { this.actions.exportJson(); }
+  async onImportJson(file: File): Promise<void> { await this.actions.onImportJson(file); }
 
-  rescan(): void { this.store.clearDiagram(); this.router.navigate(['/scan']); }
+  rescan(): void { this.actions.rescan(); }
 
   // ── Private helpers ────────────────────────────────────────────────────────
   private svgPoint(e: MouseEvent): { x: number; y: number } {
@@ -1247,41 +910,117 @@ export class CanvasComponent {
     host.scrollTop = Math.max(0, worldY * zoom - localY);
   }
 
-  private newAnnotation(type: Annotation['type'], x: number, y: number): Annotation {
+  private updateSelectedAnnotation(
+    changes: Partial<Annotation>,
+    allowedTypes?: Annotation['type'][],
+  ): void {
+    if (!this.selectedAnnotationId) return;
+    const ann = this.annotationById(this.selectedAnnotationId);
+    if (!ann) return;
+    if (allowedTypes && !allowedTypes.includes(ann.type)) return;
+    this.store.updateAnnotation(ann.id, changes);
+  }
+
+  private syncToolbarFromAnnotation(ann: Annotation): void {
+    this.activeColor = ann.color;
+    this.activeStrokeWidth = ann.strokeWidth;
+    this.activeStrokeStyle = ann.strokeStyle ?? 'solid';
+    this.activeSloppiness = ann.sloppiness ?? 0;
+    this.activeEdgeRouting = ann.edgeRouting ?? 'straight';
+    this.activeEdgeMode = ann.edgeMode ?? (ann.type === 'arrow' ? 'end' : 'none');
+    this.activeFill = ann.fill ?? 'none';
+    this.activeFillOpacity = ann.fillOpacity ?? 0.2;
+  }
+
+  private annotationMaxX(ann: Annotation): number {
+    if (ann.type === 'arrow' || ann.type === 'line') return Math.max(ann.x, ann.x2 ?? ann.x);
+    if (ann.type === 'rect' || ann.type === 'diamond' || ann.type === 'ellipse') return ann.x + (ann.width ?? 0);
+    if (ann.type === 'draw' && ann.pathData) return this.pathMax(ann.pathData).x;
+    return ann.x + (ann.width ?? 200);
+  }
+
+  private annotationMaxY(ann: Annotation): number {
+    if (ann.type === 'arrow' || ann.type === 'line') return Math.max(ann.y, ann.y2 ?? ann.y);
+    if (ann.type === 'rect' || ann.type === 'diamond' || ann.type === 'ellipse') return ann.y + (ann.height ?? 0);
+    if (ann.type === 'draw' && ann.pathData) return this.pathMax(ann.pathData).y;
+    return ann.y + (ann.height ?? 80);
+  }
+
+  private previewMaxX(): number {
+    let maxX = 0;
+    if (this.previewArrow) maxX = Math.max(maxX, this.previewArrow.x1, this.previewArrow.x2);
+    if (this.previewLine) maxX = Math.max(maxX, this.previewLine.x1, this.previewLine.x2);
+    if (this.previewRect) maxX = Math.max(maxX, this.previewRect.x + this.previewRect.w);
+    if (this.previewDiamond) maxX = Math.max(maxX, this.previewDiamond.x + this.previewDiamond.w);
+    if (this.previewEllipse) maxX = Math.max(maxX, this.previewEllipse.cx + this.previewEllipse.rx);
+    for (const [x] of this.drawPoints) maxX = Math.max(maxX, x);
+    return maxX;
+  }
+
+  private previewMaxY(): number {
+    let maxY = 0;
+    if (this.previewArrow) maxY = Math.max(maxY, this.previewArrow.y1, this.previewArrow.y2);
+    if (this.previewLine) maxY = Math.max(maxY, this.previewLine.y1, this.previewLine.y2);
+    if (this.previewRect) maxY = Math.max(maxY, this.previewRect.y + this.previewRect.h);
+    if (this.previewDiamond) maxY = Math.max(maxY, this.previewDiamond.y + this.previewDiamond.h);
+    if (this.previewEllipse) maxY = Math.max(maxY, this.previewEllipse.cy + this.previewEllipse.ry);
+    for (const [, y] of this.drawPoints) maxY = Math.max(maxY, y);
+    return maxY;
+  }
+
+  private pathMax(pathData: string): { x: number; y: number } {
+    const nums = pathData.match(/-?\d+(?:\.\d+)?/g);
+    if (!nums || nums.length < 2) return { x: 0, y: 0 };
+    let maxX = Number.NEGATIVE_INFINITY;
+    let maxY = Number.NEGATIVE_INFINITY;
+    for (let i = 0; i < nums.length - 1; i += 2) {
+      const x = Number(nums[i]);
+      const y = Number(nums[i + 1]);
+      if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+      maxX = Math.max(maxX, x);
+      maxY = Math.max(maxY, y);
+    }
+    if (!Number.isFinite(maxX) || !Number.isFinite(maxY)) return { x: 0, y: 0 };
+    return { x: maxX, y: maxY };
+  }
+
+  private currentDrawingRuntime(): DrawingRuntimeState {
     return {
-      id: `ann-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-      type, color: this.activeColor, strokeWidth: this.activeStrokeWidth,
-      strokeStyle: this.activeStrokeStyle,
-      sloppiness: this.activeSloppiness,
-      edgeRouting: this.activeEdgeRouting,
-      edgeMode: type === 'arrow' ? (this.activeEdgeMode === 'none' ? 'end' : this.activeEdgeMode) : this.activeEdgeMode,
-      fillOpacity: this.activeFillOpacity,
-      fill: this.activeFill, x, y, fontSize: 14,
+      isDrawing: this.isDrawing,
+      drawPoints: this.drawPoints,
+      shapeStart: this.shapeStart,
+      previewPath: this.previewPath,
+      previewArrow: this.previewArrow,
+      previewLine: this.previewLine,
+      previewRect: this.previewRect,
+      previewDiamond: this.previewDiamond,
+      previewEllipse: this.previewEllipse,
     };
   }
 
-  private buildSmoothPath(pts: Array<[number, number]>): string {
-    if (pts.length < 2) return pts.length === 1 ? `M ${pts[0][0]} ${pts[0][1]}` : '';
-    let d = `M ${pts[0][0]} ${pts[0][1]}`;
-    for (let i = 1; i < pts.length - 1; i++) {
-      const mx = (pts[i][0] + pts[i + 1][0]) / 2;
-      const my = (pts[i][1] + pts[i + 1][1]) / 2;
-      d += ` Q ${pts[i][0]} ${pts[i][1]} ${mx} ${my}`;
-    }
-    d += ` L ${pts.at(-1)![0]} ${pts.at(-1)![1]}`;
-    return d;
+  private currentDrawingStyle(): DrawingStyleState {
+    return {
+      activeTool: this.activeTool,
+      activeColor: this.activeColor,
+      activeStrokeWidth: this.activeStrokeWidth,
+      activeStrokeStyle: this.activeStrokeStyle,
+      activeSloppiness: this.activeSloppiness,
+      activeEdgeRouting: this.activeEdgeRouting,
+      activeEdgeMode: this.activeEdgeMode,
+      activeFill: this.activeFill,
+      activeFillOpacity: this.activeFillOpacity,
+    };
   }
 
-  private normalizeRect(x1: number, y1: number, x2: number, y2: number) {
-    return { x: Math.min(x1, x2), y: Math.min(y1, y2), w: Math.abs(x2 - x1), h: Math.abs(y2 - y1) };
-  }
-
-  private clearPreviews(): void {
-    this.previewPath = '';
-    this.previewArrow = null;
-    this.previewLine = null;
-    this.previewRect = null;
-    this.previewDiamond = null;
-    this.previewEllipse = null;
+  private applyDrawingRuntime(next: DrawingRuntimeState): void {
+    this.isDrawing = next.isDrawing;
+    this.drawPoints = next.drawPoints;
+    this.shapeStart = next.shapeStart;
+    this.previewPath = next.previewPath;
+    this.previewArrow = next.previewArrow;
+    this.previewLine = next.previewLine;
+    this.previewRect = next.previewRect;
+    this.previewDiamond = next.previewDiamond;
+    this.previewEllipse = next.previewEllipse;
   }
 }

@@ -48,3 +48,33 @@ export interface ResourceEditorDraft {
   description: string;
   internalItems: Array<{ id: string; text: string; x: number; y: number }>;
 }
+
+export interface ToolbarDragState {
+  lastX: number;
+  lastY: number;
+}
+
+export interface NodeDragState {
+  id: string;
+  lastX: number;
+  lastY: number;
+  hasMoved: boolean;
+}
+
+export interface SubscriptionDragState {
+  subscriptionId: string;
+  lastX: number;
+  lastY: number;
+}
+
+export interface VmDragState {
+  vmId: string;
+  lastX: number;
+  lastY: number;
+}
+
+export interface RgDragState {
+  id: string;
+  lastX: number;
+  lastY: number;
+}

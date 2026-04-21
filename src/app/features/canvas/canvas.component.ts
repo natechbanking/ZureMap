@@ -7,12 +7,13 @@ import { ExportService } from '../../core/services/export.service';
 import { CostService } from '../../core/services/cost.service';
 import { DriftService } from '../../core/services/drift.service';
 import { IconRegistryService } from '../../core/services/icon-registry.service';
-import { DiagramNodeComponent } from './diagram-node/diagram-node.component';
+import { DiagramNodeComponent, ContextMenuRequest } from './diagram-node/diagram-node.component';
 import { SidebarComponent } from '../sidebar/sidebar.component';
 import { ToolbarComponent } from '../toolbar/toolbar.component';
 import { DrawingToolbarComponent } from './drawing-toolbar/drawing-toolbar.component';
 import { DiagramNode } from '../../core/models/diagram-node.model';
 import { Annotation, DrawingTool } from '../../core/models/annotation.model';
+import { forkJoin, firstValueFrom } from 'rxjs';
 
 @Component({
   selector: 'app-canvas',
@@ -228,7 +229,7 @@ import { Annotation, DrawingTool } from '../../core/models/annotation.model';
                   [node]="node"
                   [finOpsActive]="store.finOpsLayerActive()"
                   (clicked)="store.selectNode($event)"
-                  (pinToggled)="togglePin($event)"
+                  (contextMenuRequested)="onContextMenuRequested($event)"
                 />
               </div>
             }
@@ -471,12 +472,143 @@ import { Annotation, DrawingTool } from '../../core/models/annotation.model';
           >+</button>
         </div>
 
+        @if (store.finOpsLayerActive()) {
+          <aside
+            class="absolute top-16 z-[130] w-[320px] rounded-xl border border-amber-200 bg-white/95 backdrop-blur shadow-lg p-3"
+            [style.right.px]="store.sidebarOpen() ? 336 : 16"
+          >
+            <div class="flex items-center justify-between mb-2">
+              <h3 class="text-sm font-semibold text-gray-900">FinOps Insights</h3>
+              @if (finOpsLoading) {
+                <span class="text-[11px] text-amber-700">Loading...</span>
+              }
+            </div>
+
+            @if (finOpsError) {
+              <p class="text-xs text-red-600 leading-relaxed">{{ finOpsError }}</p>
+            } @else {
+              <div class="grid grid-cols-3 gap-2 mb-3">
+                <div class="rounded-lg bg-amber-50 border border-amber-100 p-2">
+                  <p class="text-[10px] text-amber-700">Total</p>
+                  <p class="text-xs font-semibold text-amber-900">{{ formatUsd(store.totalMonthlyCost()) }}</p>
+                </div>
+                <div class="rounded-lg bg-blue-50 border border-blue-100 p-2">
+                  <p class="text-[10px] text-blue-700">Costed</p>
+                  <p class="text-xs font-semibold text-blue-900">{{ finOpsCostedNodeCount }}</p>
+                </div>
+                <div class="rounded-lg bg-emerald-50 border border-emerald-100 p-2">
+                  <p class="text-[10px] text-emerald-700">Subs</p>
+                  <p class="text-xs font-semibold text-emerald-900">{{ finOpsLoadedSubscriptions }}</p>
+                </div>
+              </div>
+
+              <div>
+                <p class="text-[11px] font-semibold text-gray-700 mb-1">Top Resources</p>
+                @if (finOpsTopNodes.length === 0) {
+                  <p class="text-xs text-gray-500">No matched cost data yet.</p>
+                } @else {
+                  <ul class="space-y-1">
+                    @for (n of finOpsTopNodes; track n.id) {
+                      <li class="flex items-start justify-between gap-2 text-xs">
+                        <span class="text-gray-700 truncate" [title]="n.label">{{ n.label }}</span>
+                        <span class="text-gray-900 font-medium whitespace-nowrap">{{ formatUsd(n.cost) }}</span>
+                      </li>
+                    }
+                  </ul>
+                }
+              </div>
+            }
+          </aside>
+        }
+
         @if (store.sidebarOpen()) {
           <app-sidebar />
         }
       </div>
+
+      <!-- Context menu (fixed, outside canvas zoom transform) -->
+      @if (contextMenu) {
+        <div class="fixed inset-0 z-[190]" (click)="closeContextMenu()" (contextmenu)="$event.preventDefault(); closeContextMenu()"></div>
+        <div
+          class="fixed z-[191] w-52 rounded-lg bg-white border border-gray-200 shadow-xl py-1 select-none"
+          [style.left.px]="contextMenu.x"
+          [style.top.px]="contextMenu.y"
+          (click)="$event.stopPropagation()"
+        >
+          <!-- Resource label -->
+          <div class="px-3 py-1.5 border-b border-gray-100">
+            <p class="text-[11px] font-semibold text-gray-800 truncate" [title]="contextMenu.node.label">{{ contextMenu.node.label }}</p>
+            <p class="text-[10px] text-gray-400 truncate">{{ contextMenu.node.resourceType.split('/').pop() }}</p>
+          </div>
+
+          <!-- Actions -->
+          <div class="py-0.5">
+            <button type="button" class="ctx-item" (click)="ctxFocus()">
+              <svg class="ctx-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+                <circle cx="8" cy="8" r="6"/>
+                <circle cx="8" cy="8" r="2" fill="currentColor" stroke="none"/>
+              </svg>
+              Focus in sidebar
+            </button>
+            <button type="button" class="ctx-item" (click)="ctxTogglePin()">
+              <svg class="ctx-icon" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M9.5 1.5a1 1 0 0 1 1 1v.5h.5a1 1 0 0 1 .707 1.707L10.5 5.914V9.5a.5.5 0 0 1-.146.354L9 11.207V14.5a.5.5 0 0 1-.854.354L5.5 12.207V11.5l-1.354-.646A.5.5 0 0 1 3.5 10.5V9.914l-1.207-1.207A1 1 0 0 1 3 7h.5V2.5a1 1 0 0 1 1-1h5Z"/>
+              </svg>
+              {{ contextMenu.node.isPinned ? 'Unpin' : 'Pin' }}
+            </button>
+            <button type="button" class="ctx-item" (click)="ctxCopyName()">
+              <svg class="ctx-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+                <rect x="5" y="5" width="9" height="9" rx="1.5"/>
+                <path d="M3 11H2a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v1"/>
+              </svg>
+              Copy name
+            </button>
+            <button type="button" class="ctx-item" (click)="ctxCopyResourceId()">
+              <svg class="ctx-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M6 4H4a2 2 0 0 0-2 2v4a2 2 0 0 0 2 2h2"/>
+                <path d="M10 4h2a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2"/>
+                <line x1="5" y1="8" x2="11" y2="8"/>
+              </svg>
+              Copy resource ID
+            </button>
+          </div>
+
+          <!-- Destructive -->
+          <div class="border-t border-gray-100 py-0.5">
+            <button type="button" class="ctx-item text-red-600 hover:bg-red-50" (click)="ctxDelete()">
+              <svg class="ctx-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M2 4h12M5 4V3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1M6 7v5M10 7v5M3 4l1 9a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1l1-9"/>
+              </svg>
+              Delete from diagram
+            </button>
+          </div>
+        </div>
+      }
     </div>
   `,
+  styles: [`
+    .ctx-item {
+      display: flex;
+      width: 100%;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.375rem 0.75rem;
+      font-size: 0.75rem;
+      line-height: 1rem;
+      color: #374151;
+      text-align: left;
+      transition: background-color 150ms ease, color 150ms ease;
+    }
+    .ctx-item:hover {
+      background-color: #f9fafb;
+    }
+    .ctx-icon {
+      width: 0.875rem;
+      height: 0.875rem;
+      flex-shrink: 0;
+      color: #6b7280;
+    }
+  `],
 })
 export class CanvasComponent {
   @ViewChild('canvasHost', { read: ElementRef }) canvasHostRef!: ElementRef;
@@ -554,12 +686,18 @@ export class CanvasComponent {
   // Individual node mouse drag
   nodeDragState: { id: string; lastX: number; lastY: number; hasMoved: boolean } | null = null;
 
+  // Context menu
+  contextMenu: (ContextMenuRequest & { node: DiagramNode }) | null = null;
+
   // Floating toolbar drag
   toolbarPos = { x: 12, y: 12 };
   toolbarDragState: { lastX: number; lastY: number } | null = null;
 
   // Node HTML5 drag
   private dragOffset = { x: 0, y: 0 };
+  finOpsLoading = false;
+  finOpsError: string | null = null;
+  finOpsLoadedSubscriptions = 0;
 
   // ── Keyboard shortcuts ─────────────────────────────────────────────────────
   @HostListener('document:keydown', ['$event'])
@@ -569,6 +707,7 @@ export class CanvasComponent {
       this.deleteSelectedAnnotation();
     }
     if (e.key === 'Escape') {
+      this.closeContextMenu();
       this.selectedAnnotationId = null;
       if (this.editingAnnotation) this.cancelEdit();
     }
@@ -1243,6 +1382,47 @@ export class CanvasComponent {
   getEdgeX2 = this.getEdgeX1.bind(this);
   getEdgeY2 = this.getEdgeY1.bind(this);
 
+  // ── Context menu ──────────────────────────────────────────────────────────
+  onContextMenuRequested(req: ContextMenuRequest): void {
+    const node = this.store.nodes().find(n => n.id === req.nodeId);
+    if (!node) return;
+    this.contextMenu = { ...req, node };
+  }
+
+  closeContextMenu(): void {
+    this.contextMenu = null;
+  }
+
+  ctxDelete(): void {
+    if (!this.contextMenu) return;
+    this.store.deleteNode(this.contextMenu.nodeId);
+    this.closeContextMenu();
+  }
+
+  ctxTogglePin(): void {
+    if (!this.contextMenu) return;
+    this.togglePin(this.contextMenu.nodeId);
+    this.closeContextMenu();
+  }
+
+  ctxCopyName(): void {
+    if (!this.contextMenu) return;
+    navigator.clipboard.writeText(this.contextMenu.node.label);
+    this.closeContextMenu();
+  }
+
+  ctxCopyResourceId(): void {
+    if (!this.contextMenu) return;
+    navigator.clipboard.writeText(this.contextMenu.node.metadata?.id ?? '');
+    this.closeContextMenu();
+  }
+
+  ctxFocus(): void {
+    if (!this.contextMenu) return;
+    this.store.selectNode(this.contextMenu.nodeId);
+    this.closeContextMenu();
+  }
+
   // ── Misc ───────────────────────────────────────────────────────────────────
   togglePin(nodeId: string): void {
     const node = this.store.nodes().find(n => n.id === nodeId);
@@ -1253,12 +1433,56 @@ export class CanvasComponent {
   async toggleFinOps(): Promise<void> {
     const active = !this.store.finOpsLayerActive();
     this.store.finOpsLayerActive.set(active);
-    if (active && !this.store.nodes().some(n => n.costData)) {
-      const subIds = this.store.activeSubscriptions().map(s => s.subscriptionId);
-      if (subIds.length === 0) return;
-      const costs = await this.costSvc.getSubscriptionCosts(subIds[0]).toPromise();
-      if (costs) this.store.setNodes(this.costSvc.enrichNodesWithCosts(this.store.nodes(), costs));
+    if (!active) return;
+
+    const subIds = [...new Set(this.store.activeSubscriptions().map(s => s.subscriptionId))];
+    if (subIds.length === 0) {
+      this.finOpsLoadedSubscriptions = 0;
+      this.finOpsError = 'No active subscriptions selected. Re-scan and select at least one subscription.';
+      return;
     }
+
+    this.finOpsLoading = true;
+    this.finOpsError = null;
+
+    try {
+      const responses = await firstValueFrom(
+        forkJoin(subIds.map(subscriptionId => this.costSvc.getSubscriptionCosts(subscriptionId)))
+      );
+      const summaries = responses.filter((r): r is NonNullable<typeof r> => r !== null);
+      this.finOpsLoadedSubscriptions = summaries.length;
+
+      let nextNodes: DiagramNode[] = this.store.nodes().map(n => ({ ...n, costData: undefined }));
+      for (const summary of summaries) {
+        nextNodes = this.costSvc.enrichNodesWithCosts(nextNodes, summary);
+      }
+      this.store.setNodes(nextNodes);
+
+      if (!nextNodes.some(n => n.costData)) {
+        this.finOpsError = 'Cost query succeeded but no scanned resources matched cost rows for this period.';
+      }
+    } catch {
+      this.finOpsLoadedSubscriptions = 0;
+      this.finOpsError = 'Failed to load cost data. Ensure the proxy is running and you have Cost Management Reader access.';
+    } finally {
+      this.finOpsLoading = false;
+    }
+  }
+
+  get finOpsCostedNodeCount(): number {
+    return this.store.nodes().filter(n => (n.costData?.monthlyCostUsd ?? 0) > 0).length;
+  }
+
+  get finOpsTopNodes(): Array<{ id: string; label: string; cost: number }> {
+    return this.store.nodes()
+      .filter(n => (n.costData?.monthlyCostUsd ?? 0) > 0)
+      .sort((a, b) => (b.costData?.monthlyCostUsd ?? 0) - (a.costData?.monthlyCostUsd ?? 0))
+      .slice(0, 5)
+      .map(n => ({ id: n.id, label: n.label, cost: n.costData!.monthlyCostUsd }));
+  }
+
+  formatUsd(value: number): string {
+    return `$${value.toFixed(2)}`;
   }
 
   toggleDrift(): void {

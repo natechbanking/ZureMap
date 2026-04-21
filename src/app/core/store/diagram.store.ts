@@ -148,6 +148,21 @@ export class DiagramStore {
     );
   }
 
+  deleteNode(nodeId: string): void {
+    if (this.selectedNodeId() === nodeId) this.selectNode(null);
+    this.nodes.update(current =>
+      current
+        .filter(n => n.id !== nodeId)
+        .map(n => n.children?.includes(nodeId)
+          ? { ...n, children: n.children.filter(c => c !== nodeId) }
+          : n
+        )
+    );
+    this.edges.update(current =>
+      current.filter(e => e.sourceId !== nodeId && e.targetId !== nodeId)
+    );
+  }
+
   selectNode(nodeId: string | null): void {
     this.selectedNodeId.set(nodeId);
     this.sidebarOpen.set(nodeId !== null);

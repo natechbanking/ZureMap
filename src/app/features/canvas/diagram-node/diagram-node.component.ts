@@ -6,6 +6,12 @@ import { CostBadgeComponent } from '../../../shared/components/cost-badge/cost-b
 import { CostService } from '../../../core/services/cost.service';
 import { DiagramStore } from '../../../core/store/diagram.store';
 
+export interface ContextMenuRequest {
+  nodeId: string;
+  x: number;
+  y: number;
+}
+
 @Component({
   selector: 'app-diagram-node',
   standalone: true,
@@ -59,9 +65,10 @@ export class DiagramNodeComponent {
   @Input({ required: true }) node!: DiagramNode;
   @Input() finOpsActive = false;
   @Output() clicked = new EventEmitter<string>();
-  @Output() pinToggled = new EventEmitter<string>();
+  @Output() contextMenuRequested = new EventEmitter<ContextMenuRequest>();
 
   private costSvc = inject(CostService);
+  private store = inject(DiagramStore);
 
   get typeLabel(): string {
     const parts = this.node.resourceType.split('/');
@@ -81,13 +88,13 @@ export class DiagramNodeComponent {
 
   get boxShadow(): string {
     if (!this.finOpsActive || !this.node.costData) return '';
-    const store = inject(DiagramStore);
-    const maxCost = store.totalMonthlyCost();
+    const maxCost = this.store.totalMonthlyCost();
     return this.costSvc.getCostHeatmapGlow(this.node.costData.monthlyCostUsd, maxCost);
   }
 
   onContextMenu(event: MouseEvent): void {
     event.preventDefault();
-    this.pinToggled.emit(this.node.id);
+    event.stopPropagation();
+    this.contextMenuRequested.emit({ nodeId: this.node.id, x: event.clientX, y: event.clientY });
   }
 }

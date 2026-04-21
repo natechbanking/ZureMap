@@ -31,11 +31,22 @@ export interface RouteTableExpansionRequest {
   routeCount: number;
 }
 
+export interface VirtualNetworkExpansionRequest {
+  nodeId: string;
+  expanded: boolean;
+  subnetCount: number;
+}
+
 interface RouteEntryView {
   name: string;
   addressPrefix: string;
   nextHopType: string;
   nextHopIpAddress: string | null;
+}
+
+interface SubnetEntryView {
+  name: string;
+  addressPrefix: string;
 }
 
 @Component({
@@ -80,6 +91,18 @@ interface RouteEntryView {
           (click)="toggleRoutesPanel($event)"
         >
           {{ routesExpanded ? 'Hide routes' : 'Show routes' }} ({{ routeEntries.length }})
+        </button>
+      }
+
+      @if (isVirtualNetwork) {
+        <button
+          type="button"
+          class="mt-0.5 px-2 py-0.5 rounded border border-indigo-200 bg-indigo-50 text-[10px] leading-tight text-indigo-700 hover:bg-indigo-100"
+          [title]="subnetsExpanded ? 'Hide subnets' : 'Show subnets'"
+          (mousedown)="stopEvent($event)"
+          (click)="toggleSubnetsPanel($event)"
+        >
+          {{ subnetsExpanded ? 'Hide subnets' : 'Show subnets' }} ({{ subnetEntries.length }})
         </button>
       }
 
@@ -148,6 +171,27 @@ interface RouteEntryView {
           }
         </div>
       }
+
+      @if (isVirtualNetwork && subnetsExpanded) {
+        <div
+          class="w-full mt-1 rounded border border-indigo-200 bg-white shadow-sm p-1.5"
+          (mousedown)="stopEvent($event)"
+          (click)="stopEvent($event)"
+        >
+          @if (subnetEntries.length === 0) {
+            <p class="text-[10px] text-gray-500 px-1 py-0.5">No subnets found on this virtual network.</p>
+          } @else {
+            <div class="space-y-1">
+              @for (subnet of subnetEntries; track subnet.name + subnet.addressPrefix) {
+                <div class="rounded border border-indigo-100 bg-indigo-50/40 px-1.5 py-1">
+                  <p class="text-[10px] font-semibold text-gray-800 truncate" [title]="subnet.name">{{ subnet.name }}</p>
+                  <p class="text-[10px] text-gray-600 truncate" [title]="subnet.addressPrefix">{{ subnet.addressPrefix }}</p>
+                </div>
+              }
+            </div>
+          }
+        </div>
+      }
     </div>
   `,
 })
@@ -161,12 +205,14 @@ export class DiagramNodeComponent {
   @Output() internalItemMoved = new EventEmitter<InternalItemMoveRequest>();
   @Output() nodeResized = new EventEmitter<NodeResizeRequest>();
   @Output() routeTableExpansionChanged = new EventEmitter<RouteTableExpansionRequest>();
+  @Output() virtualNetworkExpansionChanged = new EventEmitter<VirtualNetworkExpansionRequest>();
 
   private costSvc = inject(CostService);
   private store = inject(DiagramStore);
   private internalDrag: { itemId: string; startMouseX: number; startMouseY: number; startX: number; startY: number } | null = null;
   private resizeDrag: { startMouseX: number; startMouseY: number; startW: number; startH: number } | null = null;
   routesExpanded = false;
+  subnetsExpanded = false;
 
   get typeLabel(): string {
     const parts = this.node.resourceType.split('/');
@@ -194,6 +240,10 @@ export class DiagramNodeComponent {
     return this.node.resourceType.toLowerCase() === 'microsoft.network/routetables';
   }
 
+  get isVirtualNetwork(): boolean {
+    return this.node.resourceType.toLowerCase() === 'microsoft.network/virtualnetworks';
+  }
+
   get routeEntries(): RouteEntryView[] {
     const routes = (this.node.metadata?.properties?.['routes'] as unknown[] | undefined) ?? [];
     const entries: RouteEntryView[] = [];
@@ -207,6 +257,22 @@ export class DiagramNodeComponent {
         addressPrefix: route.properties?.addressPrefix ?? 'N/A',
         nextHopType: route.properties?.nextHopType ?? 'Unknown',
         nextHopIpAddress: route.properties?.nextHopIpAddress ?? null,
+      });
+    }
+    return entries;
+  }
+
+  get subnetEntries(): SubnetEntryView[] {
+    const subnets = (this.node.metadata?.properties?.['subnets'] as unknown[] | undefined) ?? [];
+    const entries: SubnetEntryView[] = [];
+    for (const raw of subnets) {
+      const subnet = raw as {
+        name?: string;
+        properties?: { addressPrefix?: string };
+      };
+      entries.push({
+        name: subnet.name ?? 'Unnamed subnet',
+        addressPrefix: subnet.properties?.addressPrefix ?? 'N/A',
       });
     }
     return entries;
@@ -233,6 +299,18 @@ export class DiagramNodeComponent {
       nodeId: this.node.id,
       expanded: this.routesExpanded,
       routeCount: this.routeEntries.length,
+    });
+  }
+
+  toggleSubnetsPanel(event: MouseEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.clicked.emit(this.node.id);
+    this.subnetsExpanded = !this.subnetsExpanded;
+    this.virtualNetworkExpansionChanged.emit({
+      nodeId: this.node.id,
+      expanded: this.subnetsExpanded,
+      subnetCount: this.subnetEntries.length,
     });
   }
 

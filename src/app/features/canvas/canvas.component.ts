@@ -9,6 +9,7 @@ import {
   InternalItemMoveRequest,
   NodeResizeRequest,
   RouteTableExpansionRequest,
+  VirtualNetworkExpansionRequest,
 } from './diagram-node/diagram-node.component';
 import { SidebarComponent } from '../sidebar/sidebar.component';
 import { ToolbarComponent } from '../toolbar/toolbar.component';
@@ -86,6 +87,7 @@ export class CanvasComponent {
   private collapsedSubscriptions = new Set<string>();
   private collapsedVmGroups = new Set<string>();
   private collapsedRouteTableGroups = new Set<string>();
+  private isResolvingRgOverlaps = false;
 
   constructor() {
     effect(() => {
@@ -155,6 +157,7 @@ export class CanvasComponent {
   // Node HTML5 drag
   private dragOffset = { x: 0, y: 0 };
   private routeTableCollapsedHeights = new Map<string, number>();
+  private virtualNetworkCollapsedHeights = new Map<string, number>();
   selectedEdgeId: string | null = null;
   resourceEditorOpen = false;
   resourceEditorNodeId: string | null = null;
@@ -573,6 +576,7 @@ export class CanvasComponent {
       this.selectedEdgeId = null;
     }
     this.resolveSubscriptionContainerOverlaps(this.subscriptionBounds);
+    this.resolveRgContainerOverlaps(this.rgBounds);
   }
 
   private resolveSubscriptionContainerOverlaps(bounds: SubscriptionBound[]): void {
@@ -585,6 +589,45 @@ export class CanvasComponent {
       customContainerNames: this.customContainerNames,
       moveSubscriptionGroup: (subscriptionId, delta) => this.store.moveSubscriptionGroup(subscriptionId, delta),
     });
+  }
+
+  private resolveRgContainerOverlaps(bounds: RgBound[]): void {
+    if (this.isResolvingRgOverlaps || bounds.length < 2) return;
+    const gap = 18;
+    const maxIters = 12;
+    this.isResolvingRgOverlaps = true;
+    try {
+      for (let iter = 0; iter < maxIters; iter++) {
+        let moved = false;
+        const nodes = this.store.nodes();
+        const current = this.visibilitySvc.computeRgBounds(
+          nodes.filter(n => !this.collapsedSubscriptions.has(n.metadata?.subscriptionId || '')),
+          this.collapsedResourceGroups,
+          this.customContainerNames,
+        );
+
+        outer:
+        for (let i = 0; i < current.length; i++) {
+          for (let j = i + 1; j < current.length; j++) {
+            const a = current[i];
+            const b = current[j];
+            if (!a.subscriptionId || !b.subscriptionId || a.subscriptionId !== b.subscriptionId) continue;
+
+            const overlapX = Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x);
+            const overlapY = Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y);
+            if (overlapX <= 0 || overlapY <= 0) continue;
+
+            const lower = a.y <= b.y ? b : a;
+            this.store.moveNodeGroup(lower.id, { dx: 0, dy: overlapY + gap });
+            moved = true;
+            break outer;
+          }
+        }
+        if (!moved) break;
+      }
+    } finally {
+      this.isResolvingRgOverlaps = false;
+    }
   }
 
   // ── Toolbar drag ───────────────────────────────────────────────────────────
@@ -924,6 +967,43 @@ export class CanvasComponent {
 
     this.store.setNodes(nodes.map(n => {
       if (n.id === routeTable.id) {
+        return { ...n, size: { ...n.size, height: targetHeight } };
+      }
+      const sameSub = (n.metadata?.subscriptionId || '') === subId;
+      const sameRg = (n.metadata?.resourceGroup || n.groupId || '') === rg;
+      if (!sameSub || !sameRg || n.position.y < cutoffY) return n;
+      return { ...n, position: { ...n.position, y: Math.max(0, n.position.y + delta) } };
+    }));
+  }
+
+  onVirtualNetworkExpansionChanged(req: VirtualNetworkExpansionRequest): void {
+    const nodes = this.store.nodes();
+    const virtualNetwork = nodes.find(n => n.id === req.nodeId);
+    if (!virtualNetwork) return;
+
+    const currentHeight = virtualNetwork.size.height;
+    const collapsedHeight = this.virtualNetworkCollapsedHeights.get(req.nodeId) ?? currentHeight;
+    if (req.expanded && !this.virtualNetworkCollapsedHeights.has(req.nodeId)) {
+      this.virtualNetworkCollapsedHeights.set(req.nodeId, currentHeight);
+    }
+    if (!req.expanded) {
+      this.virtualNetworkCollapsedHeights.delete(req.nodeId);
+    }
+
+    // Subnet cards are compact and include 2 text rows + spacing + panel chrome.
+    const panelHeight = req.subnetCount === 0 ? 40 : req.subnetCount * 40 + 24;
+    const targetHeight = req.expanded
+      ? Math.max(currentHeight, collapsedHeight + panelHeight)
+      : collapsedHeight;
+    const delta = targetHeight - currentHeight;
+    if (delta === 0) return;
+
+    const subId = virtualNetwork.metadata?.subscriptionId || '';
+    const rg = virtualNetwork.metadata?.resourceGroup || virtualNetwork.groupId || '';
+    const cutoffY = virtualNetwork.position.y + currentHeight - 2;
+
+    this.store.setNodes(nodes.map(n => {
+      if (n.id === virtualNetwork.id) {
         return { ...n, size: { ...n.size, height: targetHeight } };
       }
       const sameSub = (n.metadata?.subscriptionId || '') === subId;

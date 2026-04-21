@@ -135,6 +135,7 @@ export class CanvasComponent {
 
   // Context menu
   contextMenu: (ContextMenuRequest & { node: DiagramNode }) | null = null;
+  annotationContextMenu: { x: number; y: number; annotationId: string } | null = null;
 
   // Container rename
   customContainerNames = new Map<string, string>();
@@ -315,6 +316,8 @@ export class CanvasComponent {
   onAnnotationMouseDown(e: MouseEvent, ann: Annotation): void {
     if (this.activeTool !== 'pointer') return;
     e.stopPropagation();
+    this.annotationContextMenu = null;
+    this.contextMenu = null;
     this.selectedEdgeId = null;
     this.selectedAnnotationId = ann.id;
     this.syncToolbarFromAnnotation(ann);
@@ -732,11 +735,25 @@ export class CanvasComponent {
   onContextMenuRequested(req: ContextMenuRequest): void {
     const node = this.store.nodes().find(n => n.id === req.nodeId);
     if (!node) return;
+    this.annotationContextMenu = null;
     this.contextMenu = { ...req, node };
+  }
+
+  onAnnotationContextMenu(event: MouseEvent, ann: Annotation): void {
+    if (this.activeTool !== 'pointer') return;
+    event.preventDefault();
+    event.stopPropagation();
+    this.contextMenu = null;
+    this.selectedEdgeId = null;
+    this.store.selectNode(null);
+    this.selectedAnnotationId = ann.id;
+    this.syncToolbarFromAnnotation(ann);
+    this.annotationContextMenu = { x: event.clientX, y: event.clientY, annotationId: ann.id };
   }
 
   closeContextMenu(): void {
     this.contextMenu = null;
+    this.annotationContextMenu = null;
   }
 
   ctxDelete(): void {
@@ -766,6 +783,50 @@ export class CanvasComponent {
   ctxFocus(): void {
     if (!this.contextMenu) return;
     this.store.selectNode(this.contextMenu.nodeId);
+    this.closeContextMenu();
+  }
+
+  ctxAnnDuplicate(): void {
+    if (!this.annotationContextMenu) return;
+    this.selectedAnnotationId = this.annotationContextMenu.annotationId;
+    this.duplicateSelectedAnnotation();
+    this.closeContextMenu();
+  }
+
+  ctxAnnBringFront(): void {
+    if (!this.annotationContextMenu) return;
+    this.selectedAnnotationId = this.annotationContextMenu.annotationId;
+    this.bringSelectedAnnotationToFront();
+    this.closeContextMenu();
+  }
+
+  ctxAnnSendBack(): void {
+    if (!this.annotationContextMenu) return;
+    this.selectedAnnotationId = this.annotationContextMenu.annotationId;
+    this.sendSelectedAnnotationToBack();
+    this.closeContextMenu();
+  }
+
+  ctxAnnCopyText(): void {
+    if (!this.annotationContextMenu) return;
+    const ann = this.annotationById(this.annotationContextMenu.annotationId);
+    if (!ann?.text) return;
+    navigator.clipboard.writeText(ann.text);
+    this.closeContextMenu();
+  }
+
+  ctxAnnEditText(): void {
+    if (!this.annotationContextMenu) return;
+    const ann = this.annotationById(this.annotationContextMenu.annotationId);
+    if (!ann || (ann.type !== 'text' && ann.type !== 'sticky')) return;
+    this.startEditAnnotation(ann);
+    this.closeContextMenu();
+  }
+
+  ctxAnnDelete(): void {
+    if (!this.annotationContextMenu) return;
+    this.store.deleteAnnotation(this.annotationContextMenu.annotationId);
+    if (this.selectedAnnotationId === this.annotationContextMenu.annotationId) this.selectedAnnotationId = null;
     this.closeContextMenu();
   }
 

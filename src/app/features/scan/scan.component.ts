@@ -113,6 +113,54 @@ interface ConnectionType {
                 }
               </div>
 
+              <div class="border border-gray-200 rounded-lg p-4 mb-5">
+                <div class="flex items-start justify-between gap-4">
+                  <div>
+                    <h3 class="text-sm font-semibold text-gray-800">Include App Service Slots</h3>
+                    <p class="text-xs text-gray-500 mt-0.5 max-w-xs">
+                      Show deployment slots for App Service and Function apps.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    (click)="optionsIncludeAppSlots = !optionsIncludeAppSlots"
+                    class="relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors focus:outline-none"
+                    [class.bg-azure-blue]="optionsIncludeAppSlots"
+                    [class.bg-gray-300]="!optionsIncludeAppSlots"
+                  >
+                    <span
+                      class="inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform duration-200"
+                      [class.translate-x-6]="optionsIncludeAppSlots"
+                      [class.translate-x-1]="!optionsIncludeAppSlots"
+                    ></span>
+                  </button>
+                </div>
+              </div>
+
+              <div class="border border-gray-200 rounded-lg p-4 mb-5">
+                <div class="flex items-start justify-between gap-4">
+                  <div>
+                    <h3 class="text-sm font-semibold text-gray-800">Include Network Interfaces</h3>
+                    <p class="text-xs text-gray-500 mt-0.5 max-w-xs">
+                      Show NIC resources on the diagram (typically grouped under their VM).
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    (click)="optionsIncludeNetworkInterfaces = !optionsIncludeNetworkInterfaces"
+                    class="relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors focus:outline-none"
+                    [class.bg-azure-blue]="optionsIncludeNetworkInterfaces"
+                    [class.bg-gray-300]="!optionsIncludeNetworkInterfaces"
+                  >
+                    <span
+                      class="inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform duration-200"
+                      [class.translate-x-6]="optionsIncludeNetworkInterfaces"
+                      [class.translate-x-1]="!optionsIncludeNetworkInterfaces"
+                    ></span>
+                  </button>
+                </div>
+              </div>
+
               <button
                 type="button"
                 (click)="confirmOptions()"
@@ -290,6 +338,8 @@ export class ScanComponent implements OnInit {
 
   needsLogin = false;
   optionsGenerateConnections = true;
+  optionsIncludeAppSlots = false;
+  optionsIncludeNetworkInterfaces = false;
   progressLog = signal<string[]>([]);
   scanSteps = signal<Array<{ name: string; status: 'pending' | 'active' | 'done' }>>([]);
 
@@ -304,21 +354,7 @@ export class ScanComponent implements OnInit {
       name: 'VNet Peering',
       description: 'Cross-VNet peering connections for network traffic routing',
     },
-    {
-      color: '#605e5c',
-      name: 'VNet / Subnets',
-      description: 'Virtual Networks linked to their subnet children',
-    },
-    {
-      color: '#ca5010',
-      name: 'NSG Associations',
-      description: 'Network Security Groups attached to network interfaces and subnets',
-    },
-    {
-      color: '#a19f9d',
-      name: 'SQL Hierarchy',
-      description: 'SQL Databases linked to their parent SQL Server resources',
-    },
+
   ];
 
   get progressPercent(): number {
@@ -333,6 +369,8 @@ export class ScanComponent implements OnInit {
   startScan(): void {
     this.needsLogin = false;
     this.optionsGenerateConnections = true;
+    this.optionsIncludeAppSlots = false;
+    this.optionsIncludeNetworkInterfaces = false;
     this.progressLog.set([]);
     this.scanSteps.set([]);
     this.store.scanPhase.set('idle');
@@ -438,7 +476,12 @@ export class ScanComponent implements OnInit {
       const peResources = await this.resourceGraph.queryPrivateEndpoints(subscriptionIds).toPromise() ?? [];
       addLog(`Resolved ${peResources.length} private endpoint${peResources.length !== 1 ? 's' : ''}`);
 
-      const merged = this.mergeDedup([...allResources, ...vnetResources, ...peResources]);
+      const EXCLUDED_TYPES: string[] = [];
+      if (!this.optionsIncludeAppSlots) EXCLUDED_TYPES.push('microsoft.web/sites/slots');
+      if (!this.optionsIncludeNetworkInterfaces) EXCLUDED_TYPES.push('microsoft.network/networkinterfaces');
+
+      const merged = this.mergeDedup([...allResources, ...vnetResources, ...peResources])
+        .filter(r => !EXCLUDED_TYPES.includes(r.type.toLowerCase()));
 
       setProgress(4, totalSteps, `Mapping ${merged.length} resources to diagram nodes...`);
       const nodes = this.mapper.mapResources(merged);

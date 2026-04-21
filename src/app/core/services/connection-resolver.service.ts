@@ -9,10 +9,7 @@ export class ConnectionResolverService {
   resolveAll(resources: AzureResource[], nodes: DiagramNode[]): DiagramEdge[] {
     return [
       ...this.resolvePrivateLinkConnections(resources, nodes),
-      ...this.resolveVNetSubnetEdges(resources, nodes),
       ...this.resolveVNetPeering(resources, nodes),
-      ...this.resolveNsgAssociations(resources, nodes),
-      ...this.resolveSqlDatabaseEdges(resources, nodes),
       ...this.resolveManagedIdentityEdges(resources, nodes),
     ];
   }

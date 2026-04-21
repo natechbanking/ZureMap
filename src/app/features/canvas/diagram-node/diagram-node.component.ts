@@ -56,6 +56,11 @@ export interface AksExpansionRequest {
   nodePoolCount: number;
 }
 
+export interface VmExpansionRequest {
+  nodeId: string;
+  expanded: boolean;
+}
+
 interface AksNodePoolView {
   name: string;
   count: number;
@@ -68,6 +73,15 @@ interface AksInfoView {
   kubernetesVersion: string;
   networkPlugin: string;
   nodePools: AksNodePoolView[];
+}
+
+interface VmInfoView {
+  vmSize: string;
+  osType: string;
+  imageOffer: string;
+  imageSku: string;
+  adminUsername: string | null;
+  computerName: string | null;
 }
 
 interface RouteEntryView {
@@ -189,6 +203,18 @@ interface NsgRuleView {
           (click)="toggleAksPanel($event)"
         >
           {{ aksExpanded ? 'Hide cluster' : 'Show cluster' }} ({{ aksInfo.nodePools.length }} pools)
+        </button>
+      }
+
+      @if (isVm) {
+        <button
+          type="button"
+          class="mt-0.5 px-2 py-0.5 rounded border border-emerald-200 bg-emerald-50 text-[10px] leading-tight text-emerald-700 hover:bg-emerald-100"
+          [title]="vmExpanded ? 'Hide VM details' : 'Show VM details'"
+          (mousedown)="stopEvent($event)"
+          (click)="toggleVmPanel($event)"
+        >
+          {{ vmExpanded ? 'Hide details' : 'Show details' }}
         </button>
       }
 
@@ -419,6 +445,42 @@ interface NsgRuleView {
           }
         </div>
       }
+      @if (isVm && vmExpanded) {
+        <div
+          class="w-full mt-1 rounded border border-emerald-200 bg-white shadow-sm overflow-hidden"
+          (mousedown)="stopEvent($event)"
+          (click)="stopEvent($event)"
+        >
+          <!-- Size + OS row -->
+          <div class="px-2 pt-1.5 pb-1 flex flex-wrap gap-1 border-b border-emerald-100">
+            <span class="text-[9px] font-semibold px-1.5 py-px rounded-full bg-emerald-100 text-emerald-700 leading-tight truncate max-w-full" [title]="vmInfo.vmSize">
+              {{ vmInfo.vmSize }}
+            </span>
+            <span
+              class="text-[9px] px-1.5 py-px rounded-full leading-tight shrink-0"
+              [ngClass]="vmInfo.osType === 'Windows' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'"
+            >{{ vmInfo.osType }}</span>
+          </div>
+          <!-- Image + credentials -->
+          <div class="px-2 py-1.5 space-y-0.5">
+            @if (vmInfo.imageOffer) {
+              <p class="text-[10px] text-gray-700 truncate" [title]="vmInfo.imageOffer + (vmInfo.imageSku ? ' · ' + vmInfo.imageSku : '')">
+                <span class="text-gray-400">Image </span>{{ vmInfo.imageOffer }}@if (vmInfo.imageSku) { <span class="text-gray-400"> · </span>{{ vmInfo.imageSku }} }
+              </p>
+            }
+            @if (vmInfo.computerName) {
+              <p class="text-[10px] text-gray-600 truncate" [title]="vmInfo.computerName">
+                <span class="text-gray-400">Host </span>{{ vmInfo.computerName }}
+              </p>
+            }
+            @if (vmInfo.adminUsername) {
+              <p class="text-[10px] text-gray-600 truncate" [title]="vmInfo.adminUsername">
+                <span class="text-gray-400">Admin </span>{{ vmInfo.adminUsername }}
+              </p>
+            }
+          </div>
+        </div>
+      }
     </div>
   `,
 })
@@ -436,6 +498,7 @@ export class DiagramNodeComponent {
   @Output() nsgExpansionChanged = new EventEmitter<NsgExpansionRequest>();
   @Output() storageAccountExpansionChanged = new EventEmitter<StorageAccountExpansionRequest>();
   @Output() aksExpansionChanged = new EventEmitter<AksExpansionRequest>();
+  @Output() vmExpansionChanged = new EventEmitter<VmExpansionRequest>();
 
   private costSvc = inject(CostService);
   private store = inject(DiagramStore);
@@ -451,6 +514,7 @@ export class DiagramNodeComponent {
   storageDetailsLoaded = false;
   storageDetailsError: string | null = null;
   aksExpanded = false;
+  vmExpanded = false;
 
   get typeLabel(): string {
     const parts = this.node.resourceType.split('/');
@@ -514,6 +578,28 @@ export class DiagramNodeComponent {
         mode: p.mode ?? 'User',
         osType: p.osType ?? 'Linux',
       })),
+    };
+  }
+
+  get isVm(): boolean {
+    return this.node.resourceType.toLowerCase() === 'microsoft.compute/virtualmachines';
+  }
+
+  get vmInfo(): VmInfoView {
+    const props = this.node.metadata?.properties ?? {};
+    const hw = props['hardwareProfile'] as { vmSize?: string } | undefined;
+    const storage = props['storageProfile'] as {
+      osDisk?: { osType?: string };
+      imageReference?: { offer?: string; sku?: string; publisher?: string };
+    } | undefined;
+    const os = props['osProfile'] as { computerName?: string; adminUsername?: string } | undefined;
+    return {
+      vmSize: hw?.vmSize ?? 'Unknown',
+      osType: storage?.osDisk?.osType ?? 'Unknown',
+      imageOffer: storage?.imageReference?.offer ?? '',
+      imageSku: storage?.imageReference?.sku ?? '',
+      adminUsername: os?.adminUsername ?? null,
+      computerName: os?.computerName ?? null,
     };
   }
 
@@ -687,6 +773,14 @@ export class DiagramNodeComponent {
         itemCount: this.storageItemCount,
       });
     }
+  }
+
+  toggleVmPanel(event: MouseEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.clicked.emit(this.node.id);
+    this.vmExpanded = !this.vmExpanded;
+    this.vmExpansionChanged.emit({ nodeId: this.node.id, expanded: this.vmExpanded });
   }
 
   toggleAksPanel(event: MouseEvent): void {

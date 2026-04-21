@@ -13,6 +13,7 @@ import {
   NsgExpansionRequest,
   StorageAccountExpansionRequest,
   AksExpansionRequest,
+  VmExpansionRequest,
 } from './diagram-node/diagram-node.component';
 import { SidebarComponent } from '../sidebar/sidebar.component';
 import { ToolbarComponent } from '../toolbar/toolbar.component';
@@ -163,6 +164,7 @@ export class CanvasComponent {
   private nsgCollapsedHeights = new Map<string, number>();
   private storageAccountCollapsedHeights = new Map<string, number>();
   private aksCollapsedHeights = new Map<string, number>();
+  private vmDetailCollapsedHeights = new Map<string, number>();
   selectedEdgeId: string | null = null;
   relayoutBusy = false;
   resourceEditorOpen = false;
@@ -1128,6 +1130,45 @@ export class CanvasComponent {
 
     this.store.setNodes(nodes.map(n => {
       if (n.id === sa.id) {
+        return { ...n, size: { ...n.size, height: targetHeight } };
+      }
+      const sameSub = (n.metadata?.subscriptionId || '') === subId;
+      const sameRg = (n.metadata?.resourceGroup || n.groupId || '') === rg;
+      if (!sameSub || !sameRg || n.position.y < cutoffY) return n;
+      return { ...n, position: { ...n.position, y: Math.max(0, n.position.y + delta) } };
+    }));
+  }
+
+  onVmExpansionChanged(req: VmExpansionRequest): void {
+    const nodes = this.store.nodes();
+    const vm = nodes.find(n => n.id === req.nodeId);
+    if (!vm) return;
+
+    this.store.pushUndo();
+
+    const currentHeight = vm.size.height;
+    const collapsedHeight = this.vmDetailCollapsedHeights.get(req.nodeId) ?? currentHeight;
+    if (req.expanded && !this.vmDetailCollapsedHeights.has(req.nodeId)) {
+      this.vmDetailCollapsedHeights.set(req.nodeId, currentHeight);
+    }
+    if (!req.expanded) {
+      this.vmDetailCollapsedHeights.delete(req.nodeId);
+    }
+
+    // Header badges row ~28px + up to 3 detail rows ~18px each + panel chrome 20px.
+    const panelHeight = 28 + 3 * 18 + 20;
+    const targetHeight = req.expanded
+      ? Math.max(currentHeight, collapsedHeight + panelHeight)
+      : collapsedHeight;
+    const delta = targetHeight - currentHeight;
+    if (delta === 0) return;
+
+    const subId = vm.metadata?.subscriptionId || '';
+    const rg = vm.metadata?.resourceGroup || vm.groupId || '';
+    const cutoffY = vm.position.y + currentHeight - 2;
+
+    this.store.setNodes(nodes.map(n => {
+      if (n.id === vm.id) {
         return { ...n, size: { ...n.size, height: targetHeight } };
       }
       const sameSub = (n.metadata?.subscriptionId || '') === subId;

@@ -142,6 +142,36 @@ interface ConnectionType {
                 <span class="text-sm text-gray-700">{{ store.scanProgress().label }}</span>
               </div>
 
+              @if (scanSteps().length > 0) {
+                <div class="mb-4 rounded-lg border border-gray-200 bg-white p-3">
+                  <p class="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-2">Scan Plan</p>
+                  <div class="space-y-1.5">
+                    @for (step of scanSteps(); track $index) {
+                      <div class="flex items-center gap-2 text-xs">
+                        <span
+                          class="inline-flex w-4 h-4 items-center justify-center rounded-full text-[10px] font-bold"
+                          [class.bg-green-100]="step.status === 'done'"
+                          [class.text-green-700]="step.status === 'done'"
+                          [class.bg-blue-100]="step.status === 'active'"
+                          [class.text-blue-700]="step.status === 'active'"
+                          [class.bg-gray-100]="step.status === 'pending'"
+                          [class.text-gray-500]="step.status === 'pending'"
+                        >
+                          @if (step.status === 'done') { &#10003; } @else { {{ $index + 1 }} }
+                        </span>
+                        <span
+                          [class.text-gray-800]="step.status !== 'pending'"
+                          [class.font-medium]="step.status === 'active'"
+                          [class.text-gray-500]="step.status === 'pending'"
+                        >
+                          {{ step.name }}
+                        </span>
+                      </div>
+                    }
+                  </div>
+                </div>
+              }
+
               @if (progressLog().length > 0) {
                 <div class="space-y-2">
                   @for (entry of progressLog(); track $index) {
@@ -170,6 +200,36 @@ interface ConnectionType {
                 <div class="w-4 h-4 border-2 border-azure-blue border-t-transparent rounded-full animate-spin flex-shrink-0"></div>
                 <span class="text-sm text-gray-700">{{ store.scanProgress().label }}</span>
               </div>
+
+              @if (scanSteps().length > 0) {
+                <div class="mb-4 rounded-lg border border-gray-200 bg-white p-3">
+                  <p class="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-2">Scan Plan</p>
+                  <div class="space-y-1.5">
+                    @for (step of scanSteps(); track $index) {
+                      <div class="flex items-center gap-2 text-xs">
+                        <span
+                          class="inline-flex w-4 h-4 items-center justify-center rounded-full text-[10px] font-bold"
+                          [class.bg-green-100]="step.status === 'done'"
+                          [class.text-green-700]="step.status === 'done'"
+                          [class.bg-blue-100]="step.status === 'active'"
+                          [class.text-blue-700]="step.status === 'active'"
+                          [class.bg-gray-100]="step.status === 'pending'"
+                          [class.text-gray-500]="step.status === 'pending'"
+                        >
+                          @if (step.status === 'done') { &#10003; } @else { {{ $index + 1 }} }
+                        </span>
+                        <span
+                          [class.text-gray-800]="step.status !== 'pending'"
+                          [class.font-medium]="step.status === 'active'"
+                          [class.text-gray-500]="step.status === 'pending'"
+                        >
+                          {{ step.name }}
+                        </span>
+                      </div>
+                    }
+                  </div>
+                </div>
+              }
 
               @if (progressLog().length > 0) {
                 <div class="space-y-2">
@@ -231,6 +291,7 @@ export class ScanComponent implements OnInit {
   needsLogin = false;
   optionsGenerateConnections = true;
   progressLog = signal<string[]>([]);
+  scanSteps = signal<Array<{ name: string; status: 'pending' | 'active' | 'done' }>>([]);
 
   readonly connectionTypes: ConnectionType[] = [
     {
@@ -273,6 +334,7 @@ export class ScanComponent implements OnInit {
     this.needsLogin = false;
     this.optionsGenerateConnections = true;
     this.progressLog.set([]);
+    this.scanSteps.set([]);
     this.store.scanPhase.set('idle');
     this.store.errorMessage.set(null);
 
@@ -325,20 +387,43 @@ export class ScanComponent implements OnInit {
   }
 
   private async runScan(subscriptionIds: string[]): Promise<void> {
-    const addLog = (msg: string) =>
-      this.zone.run(() => this.progressLog.update(log => [...log, msg]));
-    const setProgress = (current: number, total: number, label: string) =>
-      this.zone.run(() => this.store.scanProgress.set({ current, total, label }));
+    const addLog = (msg: string) => {
+      const stamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      this.zone.run(() => this.progressLog.update(log => [...log, `[${stamp}] ${msg}`]));
+    };
+    const setProgress = (current: number, total: number, label: string) => {
+      this.zone.run(() => {
+        this.store.scanProgress.set({ current, total, label });
+        this.scanSteps.update(steps =>
+          steps.map((s, i) => ({
+            ...s,
+            status: i + 1 < current ? 'done' : i + 1 === current ? 'active' : 'pending',
+          }))
+        );
+      });
+    };
 
     this.zone.run(() => {
-      this.store.scanPhase.set('scanning');
       this.store.clearDiagram();
+      this.store.scanPhase.set('scanning');
       this.progressLog.set([]);
     });
 
     try {
       const subLabel = subscriptionIds.length === 1 ? '1 subscription' : `${subscriptionIds.length} subscriptions`;
       const totalSteps = this.optionsGenerateConnections ? 6 : 5;
+      this.zone.run(() => {
+        this.scanSteps.set([
+          { name: `Query resources across ${subLabel}`, status: 'pending' },
+          { name: 'Fetch virtual network topology', status: 'pending' },
+          { name: 'Resolve private endpoints', status: 'pending' },
+          { name: 'Map resources to diagram nodes', status: 'pending' },
+          ...(this.optionsGenerateConnections ? [{ name: 'Build resource connections', status: 'pending' as const }] : []),
+          { name: 'Compute automatic layout (ELK)', status: 'pending' },
+        ]);
+      });
+      addLog(`Starting scan for ${subLabel}`);
+      addLog(`Connection generation: ${this.optionsGenerateConnections ? 'enabled' : 'disabled'}`);
 
       setProgress(1, totalSteps, `Querying all resources across ${subLabel}...`);
       const allResources = await this.resourceGraph.queryAllResources(subscriptionIds).toPromise() ?? [];
@@ -385,6 +470,7 @@ export class ScanComponent implements OnInit {
       this.zone.run(() => this.store.setNodes(positioned));
 
       this.zone.run(() => {
+        this.scanSteps.update(steps => steps.map(s => ({ ...s, status: 'done' })));
         this.store.scanPhase.set('ready');
         this.router.navigate(['/canvas']);
       });

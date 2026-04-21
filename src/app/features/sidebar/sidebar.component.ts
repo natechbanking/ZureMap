@@ -39,7 +39,9 @@ import { IconRegistryService } from '../../core/services/icon-registry.service';
               </div>
               <div class="flex gap-2">
                 <dt class="text-gray-500 w-24 flex-shrink-0">Subscription</dt>
-                <dd class="text-gray-900 font-mono text-xs truncate">{{ node.metadata.subscriptionId }}</dd>
+                <dd class="text-gray-900 text-xs truncate" [title]="subscriptionDisplayName(node.metadata.subscriptionId)">
+                  {{ subscriptionDisplayName(node.metadata.subscriptionId) }}
+                </dd>
               </div>
               <div class="flex gap-2">
                 <dt class="text-gray-500 w-24 flex-shrink-0">Status</dt>
@@ -132,5 +134,12 @@ export class SidebarComponent {
 
   portalUrl(armId: string): string {
     return `https://portal.azure.com/#resource${armId}/overview`;
+  }
+
+  subscriptionDisplayName(subscriptionId: string): string {
+    const active = this.store.activeSubscriptions().find(s => s.subscriptionId === subscriptionId)?.name;
+    if (active) return active;
+    const available = this.store.availableSubscriptions().find(s => s.subscriptionId === subscriptionId)?.name;
+    return available ?? subscriptionId;
   }
 }

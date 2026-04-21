@@ -13,8 +13,8 @@ export interface ELKLayoutOptions {
 const DEFAULT_OPTIONS: ELKLayoutOptions = {
   algorithm: 'layered',
   direction: 'DOWN',
-  nodeSpacing: 40,
-  componentSpacing: 84,
+  nodeSpacing: 30,
+  componentSpacing: 48,
   groupPadding: 44,
 };
 

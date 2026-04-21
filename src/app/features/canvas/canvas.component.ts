@@ -13,6 +13,7 @@ import { ToolbarComponent } from '../toolbar/toolbar.component';
 import { DrawingToolbarComponent } from './drawing-toolbar/drawing-toolbar.component';
 import { DiagramNode } from '../../core/models/diagram-node.model';
 import { Annotation, DrawingTool, StrokeStyle, EdgeRouting, EdgeMode } from '../../core/models/annotation.model';
+import { DiagramEdge, EdgeStyle, EDGE_STYLES } from '../../core/models/diagram-edge.model';
 import { forkJoin, firstValueFrom } from 'rxjs';
 
 @Component({
@@ -120,7 +121,25 @@ import { forkJoin, firstValueFrom } from 'rxjs';
                   (mousedown)="onSubscriptionMouseDown($event, bound.subscriptionId)"
                 >
                   <img [src]="subscriptionIconUrl" alt="" class="w-4 h-4 object-contain flex-shrink-0 opacity-90" (error)="$any($event.target).style.display='none'" />
-                  <span class="text-xs font-semibold text-amber-700 tracking-wide truncate">{{ bound.name }}</span>
+                  @if (renamingContainer?.type === 'sub' && renamingContainer?.id === bound.subscriptionId) {
+                    <input
+                      #renameInput
+                      class="text-xs font-semibold text-amber-700 bg-transparent border-b border-amber-400 outline-none min-w-0 flex-1"
+                      [value]="renamingValue"
+                      (input)="renamingValue = $any($event.target).value"
+                      (blur)="commitRename()"
+                      (keydown.enter)="commitRename()"
+                      (keydown.escape)="$event.stopPropagation(); cancelRename()"
+                      (mousedown)="$event.stopPropagation()"
+                      (click)="$event.stopPropagation()"
+                    />
+                  } @else {
+                    <span
+                      class="text-xs font-semibold text-amber-700 tracking-wide truncate flex-1"
+                      title="Double-click to rename"
+                      (dblclick)="$event.stopPropagation(); startRename('sub', bound.subscriptionId, bound.name)"
+                    >{{ bound.name }}</span>
+                  }
                   <button
                     type="button"
                     class="ml-auto w-5 h-5 rounded text-amber-700 hover:bg-amber-200/70 transition-colors"
@@ -152,7 +171,25 @@ import { forkJoin, firstValueFrom } from 'rxjs';
                   (mousedown)="onRgMouseDown($event, bound.id)"
                 >
                   <img [src]="rgIconUrl" alt="" class="w-4 h-4 object-contain flex-shrink-0" (error)="$any($event.target).style.display='none'" />
-                  <span class="text-xs font-semibold text-blue-500 tracking-wide truncate">{{ bound.name }}</span>
+                  @if (renamingContainer?.type === 'rg' && renamingContainer?.id === bound.id) {
+                    <input
+                      #renameInput
+                      class="text-xs font-semibold text-blue-500 bg-transparent border-b border-blue-400 outline-none min-w-0 flex-1"
+                      [value]="renamingValue"
+                      (input)="renamingValue = $any($event.target).value"
+                      (blur)="commitRename()"
+                      (keydown.enter)="commitRename()"
+                      (keydown.escape)="$event.stopPropagation(); cancelRename()"
+                      (mousedown)="$event.stopPropagation()"
+                      (click)="$event.stopPropagation()"
+                    />
+                  } @else {
+                    <span
+                      class="text-xs font-semibold text-blue-500 tracking-wide truncate flex-1"
+                      title="Double-click to rename"
+                      (dblclick)="$event.stopPropagation(); startRename('rg', bound.id, bound.name)"
+                    >{{ bound.name }}</span>
+                  }
                   <button
                     type="button"
                     class="ml-auto w-5 h-5 rounded text-blue-600 hover:bg-blue-200/70 transition-colors"
@@ -183,7 +220,25 @@ import { forkJoin, firstValueFrom } from 'rxjs';
                   style="z-index: 25; height: 24px"
                   (mousedown)="onVmMouseDown($event, bound.id)"
                 >
-                  <span class="truncate">VM Group: {{ bound.name }}</span>
+                  @if (renamingContainer?.type === 'vm' && renamingContainer?.id === bound.id) {
+                    <input
+                      #renameInput
+                      class="text-[10px] font-semibold text-slate-500 bg-transparent border-b border-slate-400 outline-none min-w-0 flex-1"
+                      [value]="renamingValue"
+                      (input)="renamingValue = $any($event.target).value"
+                      (blur)="commitRename()"
+                      (keydown.enter)="commitRename()"
+                      (keydown.escape)="$event.stopPropagation(); cancelRename()"
+                      (mousedown)="$event.stopPropagation()"
+                      (click)="$event.stopPropagation()"
+                    />
+                  } @else {
+                    <span
+                      class="truncate flex-1"
+                      title="Double-click to rename"
+                      (dblclick)="$event.stopPropagation(); startRename('vm', bound.id, bound.name)"
+                    >VM Group: {{ bound.name }}</span>
+                  }
                   <button
                     type="button"
                     class="ml-auto w-4 h-4 rounded text-slate-600 hover:bg-slate-200/70 transition-colors"
@@ -211,7 +266,25 @@ import { forkJoin, firstValueFrom } from 'rxjs';
                   [class.cursor-crosshair]="activeTool !== 'pointer'"
                   style="z-index: 25; height: 24px"
                 >
-                  <span class="truncate">Routes: {{ bound.name }}</span>
+                  @if (renamingContainer?.type === 'rt' && renamingContainer?.id === bound.id) {
+                    <input
+                      #renameInput
+                      class="text-[10px] font-semibold text-cyan-700 bg-transparent border-b border-cyan-400 outline-none min-w-0 flex-1"
+                      [value]="renamingValue"
+                      (input)="renamingValue = $any($event.target).value"
+                      (blur)="commitRename()"
+                      (keydown.enter)="commitRename()"
+                      (keydown.escape)="$event.stopPropagation(); cancelRename()"
+                      (mousedown)="$event.stopPropagation()"
+                      (click)="$event.stopPropagation()"
+                    />
+                  } @else {
+                    <span
+                      class="truncate flex-1"
+                      title="Double-click to rename"
+                      (dblclick)="$event.stopPropagation(); startRename('rt', bound.id, bound.name)"
+                    >Routes: {{ bound.name }}</span>
+                  }
                   <button
                     type="button"
                     class="ml-auto w-4 h-4 rounded text-cyan-700 hover:bg-cyan-200/70 transition-colors"
@@ -253,7 +326,7 @@ import { forkJoin, firstValueFrom } from 'rxjs';
             >
               <defs>
                 <marker id="edge-arrow" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
-                  <path d="M0,0 L0,6 L6,3 z" fill="#605e5c" />
+                  <path d="M0,0 L0,6 L6,3 z" fill="context-stroke" />
                 </marker>
                 <marker id="ann-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto-start-reverse">
                   <path d="M0,0 L0,8 L8,4 z" fill="currentColor" />
@@ -274,18 +347,35 @@ import { forkJoin, firstValueFrom } from 'rxjs';
 
               <!-- Edges (pass-through) -->
               @for (edge of visibleEdges; track edge.id) {
-                <line
-                  pointer-events="none"
-                  [attr.x1]="getEdgeX1(edge.sourceId)"
-                  [attr.y1]="getEdgeY1(edge.sourceId)"
-                  [attr.x2]="getEdgeX2(edge.targetId)"
-                  [attr.y2]="getEdgeY2(edge.targetId)"
-                  [attr.stroke]="edge.style.strokeColor"
-                  [attr.stroke-width]="edge.style.strokeWidth"
-                  [attr.stroke-dasharray]="edge.style.dashArray ?? null"
-                  [attr.marker-end]="edge.style.markerEnd === 'arrow' ? 'url(#edge-arrow)' : null"
-                  [class.animate-pulse]="edge.animated"
-                />
+                <g>
+                  @if (selectedEdgeId === edge.id) {
+                    <line
+                      pointer-events="none"
+                      [attr.x1]="getEdgeX1(edge.sourceId, edge.targetId)"
+                      [attr.y1]="getEdgeY1(edge.sourceId, edge.targetId)"
+                      [attr.x2]="getEdgeX2(edge.sourceId, edge.targetId)"
+                      [attr.y2]="getEdgeY2(edge.sourceId, edge.targetId)"
+                      stroke="#2563eb"
+                      [attr.stroke-width]="edge.style.strokeWidth + 4"
+                      stroke-linecap="round"
+                      opacity="0.25"
+                    />
+                  }
+                  <line
+                    [attr.pointer-events]="activeTool === 'pointer' ? 'stroke' : 'none'"
+                    [attr.x1]="getEdgeX1(edge.sourceId, edge.targetId)"
+                    [attr.y1]="getEdgeY1(edge.sourceId, edge.targetId)"
+                    [attr.x2]="getEdgeX2(edge.sourceId, edge.targetId)"
+                    [attr.y2]="getEdgeY2(edge.sourceId, edge.targetId)"
+                    [attr.stroke]="edge.style.strokeColor"
+                    [attr.stroke-width]="edge.style.strokeWidth"
+                    [attr.stroke-dasharray]="edge.style.dashArray ?? null"
+                    [attr.marker-end]="edge.style.markerEnd === 'arrow' ? 'url(#edge-arrow)' : null"
+                    [class.animate-pulse]="edge.animated"
+                    style="cursor: pointer"
+                    (click)="onEdgeClick($event, edge)"
+                  />
+                </g>
               }
 
               <!-- Saved annotations -->
@@ -607,6 +697,84 @@ import { forkJoin, firstValueFrom } from 'rxjs';
           </aside>
         }
 
+        @if (selectedEdge) {
+          <aside
+            class="absolute top-[220px] z-[130] w-[320px] rounded-xl border border-blue-200 bg-white/95 backdrop-blur shadow-lg p-3"
+            [style.right.px]="store.sidebarOpen() ? 336 : 16"
+          >
+            <div class="flex items-center justify-between mb-2">
+              <h3 class="text-sm font-semibold text-gray-900">Connection Style</h3>
+              <button class="text-xs text-gray-500 hover:text-gray-700" (click)="selectedEdgeId = null">Close</button>
+            </div>
+            <p class="text-[11px] text-gray-500 mb-3">Type: <span class="font-medium text-gray-700">{{ selectedEdge.edgeType }}</span></p>
+
+            <div class="grid grid-cols-2 gap-2 mb-2">
+              <label class="text-[11px] text-gray-600">
+                Color
+                <input
+                  type="color"
+                  class="mt-1 w-full h-8 rounded border border-gray-200"
+                  [value]="selectedEdge.style.strokeColor"
+                  (input)="updateSelectedEdgeStyle({ strokeColor: colorValue($event) })"
+                />
+              </label>
+              <label class="text-[11px] text-gray-600">
+                Width
+                <select
+                  class="mt-1 w-full h-8 rounded border border-gray-200 px-1 text-xs"
+                  [value]="selectedEdge.style.strokeWidth"
+                  (change)="updateSelectedEdgeStyle({ strokeWidth: numberValue($event) })"
+                >
+                  <option [value]="1">1 px</option>
+                  <option [value]="1.5">1.5 px</option>
+                  <option [value]="2">2 px</option>
+                  <option [value]="3">3 px</option>
+                  <option [value]="4">4 px</option>
+                </select>
+              </label>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2 mb-2">
+              <label class="text-[11px] text-gray-600">
+                Line Style
+                <select
+                  class="mt-1 w-full h-8 rounded border border-gray-200 px-1 text-xs"
+                  [value]="dashStyleValue(selectedEdge.style)"
+                  (change)="setSelectedEdgeDashStyle(selectValue($event))"
+                >
+                  <option value="solid">Solid</option>
+                  <option value="dashed">Dashed</option>
+                  <option value="dotted">Dotted</option>
+                </select>
+              </label>
+              <label class="text-[11px] text-gray-600">
+                Arrowhead
+                <select
+                  class="mt-1 w-full h-8 rounded border border-gray-200 px-1 text-xs"
+                  [value]="selectedEdge.style.markerEnd"
+                  (change)="setSelectedEdgeMarker(selectValue($event))"
+                >
+                  <option value="arrow">Arrow</option>
+                  <option value="none">None</option>
+                </select>
+              </label>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2">
+              <label class="flex items-center gap-2 text-xs text-gray-700">
+                <input type="checkbox" [checked]="selectedEdge.animated" (change)="setSelectedEdgeAnimated(checkedValue($event))" />
+                Animated
+              </label>
+              <button
+                class="h-8 rounded border border-gray-200 text-xs text-gray-700 hover:bg-gray-50"
+                (click)="resetSelectedEdgeStyle()"
+              >
+                Reset To Default
+              </button>
+            </div>
+          </aside>
+        }
+
         @if (store.sidebarOpen()) {
           <app-sidebar />
         }
@@ -692,13 +860,17 @@ import { forkJoin, firstValueFrom } from 'rxjs';
       width: 0.875rem;
       height: 0.875rem;
       flex-shrink: 0;
-      color: #6b7280;
+      color: #9ca3af;
+    }
+    .ctx-item.text-red-600 .ctx-icon {
+      color: #dc2626;
     }
   `],
 })
 export class CanvasComponent {
   @ViewChild('canvasHost', { read: ElementRef }) canvasHostRef!: ElementRef;
   @ViewChild('editTextarea') editTextareaRef?: ElementRef;
+  @ViewChild('renameInput') renameInputRef?: ElementRef;
 
   store = inject(DiagramStore);
   private elkLayout = inject(ELKLayoutService);
@@ -781,12 +953,18 @@ export class CanvasComponent {
   // Context menu
   contextMenu: (ContextMenuRequest & { node: DiagramNode }) | null = null;
 
+  // Container rename
+  customContainerNames = new Map<string, string>();
+  renamingContainer: { type: 'rg' | 'sub' | 'vm' | 'rt'; id: string } | null = null;
+  renamingValue = '';
+
   // Floating toolbar drag
   toolbarPos = { x: 12, y: 12 };
   toolbarDragState: { lastX: number; lastY: number } | null = null;
 
   // Node HTML5 drag
   private dragOffset = { x: 0, y: 0 };
+  selectedEdgeId: string | null = null;
   finOpsLoading = false;
   finOpsError: string | null = null;
   finOpsLoadedSubscriptions = 0;
@@ -815,6 +993,7 @@ export class CanvasComponent {
     }
     if (e.key === 'Escape') {
       this.closeContextMenu();
+      this.cancelRename();
       this.selectedAnnotationId = null;
       if (this.editingAnnotation) this.cancelEdit();
     }
@@ -927,6 +1106,7 @@ export class CanvasComponent {
   setTool(tool: DrawingTool): void {
     this.activeTool = tool;
     this.selectedAnnotationId = null;
+    this.selectedEdgeId = null;
     this.clearPreviews();
     this.isDrawing = false;
     this.drawPoints = [];
@@ -1027,6 +1207,7 @@ export class CanvasComponent {
   onAnnotationMouseDown(e: MouseEvent, ann: Annotation): void {
     if (this.activeTool !== 'pointer') return;
     e.stopPropagation();
+    this.selectedEdgeId = null;
     this.selectedAnnotationId = ann.id;
     const pt = this.svgPoint(e);
     this.annDragId = ann.id;
@@ -1241,7 +1422,8 @@ export class CanvasComponent {
       map.get(id)!.nodes.push(n);
     }
     return Array.from(map.entries()).map(([id, entry]) => {
-      const { subscriptionId, name, nodes: rgNodes } = entry;
+      const { subscriptionId, nodes: rgNodes } = entry;
+      const name = this.customContainerNames.get(`rg::${id}`) ?? entry.name;
       const xMin = Math.min(...rgNodes.map(n => n.position.x));
       const yMin = Math.min(...rgNodes.map(n => n.position.y));
       const xMax = Math.max(...rgNodes.map(n => n.position.x + n.size.width));
@@ -1284,14 +1466,15 @@ export class CanvasComponent {
       const yMax = Math.max(...groups.map(g => g.y + g.height));
       const collapsed = this.collapsedSubscriptions.has(subscriptionId);
 
+      const defaultSubName = nameBySubscriptionId.get(subscriptionId) || subscriptionId || 'Unknown subscription';
       return {
         id: subscriptionId || '__unknown-subscription__',
         subscriptionId,
-        name: nameBySubscriptionId.get(subscriptionId) || subscriptionId || 'Unknown subscription',
+        name: this.customContainerNames.get(`sub::${subscriptionId}`) ?? defaultSubName,
         x: xMin - PAD,
         y: yMin - PAD - LABEL_H,
         collapsed,
-        width: collapsed ? Math.max(320, Math.ceil((nameBySubscriptionId.get(subscriptionId) || subscriptionId || 'Unknown subscription').length * 7.5) + 96) : xMax - xMin + PAD * 2,
+        width: collapsed ? Math.max(320, Math.ceil(defaultSubName.length * 7.5) + 96) : xMax - xMin + PAD * 2,
         height: collapsed ? LABEL_H + 12 : yMax - yMin + PAD * 2 + LABEL_H,
       };
     });
@@ -1320,10 +1503,11 @@ export class CanvasComponent {
       const xMax = Math.max(...members.map(n => n.position.x + n.size.width));
       const yMax = Math.max(...members.map(n => n.position.y + n.size.height));
       const collapsed = this.collapsedVmGroups.has(vm.id);
+      const vmName = this.customContainerNames.get(`vm::${vm.id}`) ?? vm.label;
 
       bounds.push({
         id: vm.id,
-        name: vm.label,
+        name: vmName,
         collapsed,
         x: xMin - PAD,
         y: yMin - PAD - LABEL_H,
@@ -1351,6 +1535,7 @@ export class CanvasComponent {
       if (routeNodes.length === 0) continue;
 
       const collapsed = this.collapsedRouteTableGroups.has(routeTable.id);
+      const rtName = this.customContainerNames.get(`rt::${routeTable.id}`) ?? routeTable.label;
       const tableBottom = routeTable.position.y + routeTable.size.height;
       const yStart = tableBottom + GAP_BELOW_PARENT;
       const childBottom = Math.max(yStart, ...routeNodes.map(n => n.position.y + n.size.height));
@@ -1360,7 +1545,7 @@ export class CanvasComponent {
 
       bounds.push({
         id: routeTable.id,
-        name: routeTable.label,
+        name: rtName,
         collapsed,
         x: xMin - PAD,
         y: yStart,
@@ -1473,6 +1658,9 @@ export class CanvasComponent {
 
     const visibleIds = new Set(this.visibleNodes.map(n => n.id));
     this.visibleEdges = edges.filter(e => visibleIds.has(e.sourceId) && visibleIds.has(e.targetId));
+    if (this.selectedEdgeId && !this.visibleEdges.some(e => e.id === this.selectedEdgeId)) {
+      this.selectedEdgeId = null;
+    }
     this.rgBounds = this.computeRgBounds(nodes.filter(isVisibleBySubscription));
     this.subscriptionBounds = this.computeSubscriptionBounds(this.rgBounds, nodes);
     this.vmBounds = this.computeVmBounds(baseVisibleNodes);
@@ -1561,6 +1749,7 @@ export class CanvasComponent {
     if (this.activeTool !== 'pointer') return;
     event.preventDefault();
     event.stopPropagation();
+    this.selectedEdgeId = null;
     this.nodeDragState = { id: node.id, lastX: event.clientX, lastY: event.clientY, hasMoved: false };
   }
 
@@ -1600,10 +1789,125 @@ export class CanvasComponent {
   }
 
   // ── Edge helpers ───────────────────────────────────────────────────────────
-  getEdgeX1(nodeId: string): number { const n = this.store.nodes().find(n => n.id === nodeId); return n ? n.position.x + n.size.width / 2 : 0; }
-  getEdgeY1(nodeId: string): number { const n = this.store.nodes().find(n => n.id === nodeId); return n ? n.position.y + n.size.height / 2 : 0; }
-  getEdgeX2 = this.getEdgeX1.bind(this);
-  getEdgeY2 = this.getEdgeY1.bind(this);
+  getEdgeX1(sourceId: string, targetId: string): number {
+    return this.edgeAnchor(sourceId, targetId).x;
+  }
+
+  getEdgeY1(sourceId: string, targetId: string): number {
+    return this.edgeAnchor(sourceId, targetId).y;
+  }
+
+  getEdgeX2(sourceId: string, targetId: string): number {
+    return this.edgeAnchor(targetId, sourceId).x;
+  }
+
+  getEdgeY2(sourceId: string, targetId: string): number {
+    return this.edgeAnchor(targetId, sourceId).y;
+  }
+
+  private edgeAnchor(fromId: string, toId: string): { x: number; y: number } {
+    const nodes = this.store.nodes();
+    const from = nodes.find(n => n.id === fromId);
+    const to = nodes.find(n => n.id === toId);
+    if (!from || !to) return { x: 0, y: 0 };
+
+    const fromCx = from.position.x + from.size.width / 2;
+    const fromCy = from.position.y + from.size.height / 2;
+    const toCx = to.position.x + to.size.width / 2;
+    const toCy = to.position.y + to.size.height / 2;
+
+    const dx = toCx - fromCx;
+    const dy = toCy - fromCy;
+    if (dx === 0 && dy === 0) return { x: fromCx, y: fromCy };
+
+    const halfW = from.size.width / 2;
+    const halfH = from.size.height / 2;
+    const tx = dx === 0 ? Number.POSITIVE_INFINITY : halfW / Math.abs(dx);
+    const ty = dy === 0 ? Number.POSITIVE_INFINITY : halfH / Math.abs(dy);
+    const t = Math.min(tx, ty);
+
+    return {
+      x: fromCx + dx * t,
+      y: fromCy + dy * t,
+    };
+  }
+
+  get selectedEdge(): DiagramEdge | null {
+    if (!this.selectedEdgeId) return null;
+    return this.store.edges().find(e => e.id === this.selectedEdgeId) ?? null;
+  }
+
+  onEdgeClick(event: MouseEvent, edge: DiagramEdge): void {
+    if (this.activeTool !== 'pointer') return;
+    event.stopPropagation();
+    this.selectedAnnotationId = null;
+    this.store.selectNode(null);
+    this.selectedEdgeId = edge.id;
+  }
+
+  updateSelectedEdgeStyle(changes: Partial<EdgeStyle>): void {
+    if (!this.selectedEdgeId) return;
+    this.store.setEdges(
+      this.store.edges().map(e =>
+        e.id === this.selectedEdgeId
+          ? { ...e, style: { ...e.style, ...changes } }
+          : e
+      )
+    );
+  }
+
+  setSelectedEdgeDashStyle(style: string): void {
+    if (style === 'dashed') this.updateSelectedEdgeStyle({ dashArray: '6 3' });
+    else if (style === 'dotted') this.updateSelectedEdgeStyle({ dashArray: '2 3' });
+    else this.updateSelectedEdgeStyle({ dashArray: undefined });
+  }
+
+  setSelectedEdgeMarker(value: string): void {
+    this.updateSelectedEdgeStyle({ markerEnd: value === 'none' ? 'none' : 'arrow' });
+  }
+
+  setSelectedEdgeAnimated(animated: boolean): void {
+    if (!this.selectedEdgeId) return;
+    this.store.setEdges(
+      this.store.edges().map(e =>
+        e.id === this.selectedEdgeId ? { ...e, animated } : e
+      )
+    );
+  }
+
+  resetSelectedEdgeStyle(): void {
+    const edge = this.selectedEdge;
+    if (!edge) return;
+    this.store.setEdges(
+      this.store.edges().map(e =>
+        e.id === edge.id
+          ? { ...e, style: { ...EDGE_STYLES[e.edgeType] }, animated: e.edgeType === 'privateLink' }
+          : e
+      )
+    );
+  }
+
+  dashStyleValue(style: EdgeStyle): string {
+    if (!style.dashArray) return 'solid';
+    if (style.dashArray === '6 3' || style.dashArray === '8 4') return 'dashed';
+    return 'dotted';
+  }
+
+  colorValue(event: Event): string {
+    return (event.target as HTMLInputElement).value || '#605e5c';
+  }
+
+  numberValue(event: Event): number {
+    return Number((event.target as HTMLInputElement | HTMLSelectElement).value || 1);
+  }
+
+  selectValue(event: Event): string {
+    return (event.target as HTMLSelectElement).value;
+  }
+
+  checkedValue(event: Event): boolean {
+    return !!(event.target as HTMLInputElement).checked;
+  }
 
   // ── Context menu ──────────────────────────────────────────────────────────
   onContextMenuRequested(req: ContextMenuRequest): void {
@@ -1644,6 +1948,35 @@ export class CanvasComponent {
     if (!this.contextMenu) return;
     this.store.selectNode(this.contextMenu.nodeId);
     this.closeContextMenu();
+  }
+
+  // ── Container rename ──────────────────────────────────────────────────────
+  startRename(type: 'rg' | 'sub' | 'vm' | 'rt', id: string, currentName: string): void {
+    this.renamingContainer = { type, id };
+    this.renamingValue = currentName;
+    setTimeout(() => {
+      const el = this.renameInputRef?.nativeElement as HTMLInputElement | undefined;
+      if (el) { el.focus(); el.select(); }
+    }, 0);
+  }
+
+  commitRename(): void {
+    if (!this.renamingContainer) return;
+    const { type, id } = this.renamingContainer;
+    const trimmed = this.renamingValue.trim();
+    if (trimmed) {
+      this.customContainerNames.set(`${type}::${id}`, trimmed);
+    } else {
+      this.customContainerNames.delete(`${type}::${id}`);
+    }
+    this.renamingContainer = null;
+    this.renamingValue = '';
+    this.refreshVisibility(this.store.nodes(), this.store.edges());
+  }
+
+  cancelRename(): void {
+    this.renamingContainer = null;
+    this.renamingValue = '';
   }
 
   // ── Misc ───────────────────────────────────────────────────────────────────

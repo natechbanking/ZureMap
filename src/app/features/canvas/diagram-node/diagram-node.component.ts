@@ -19,6 +19,12 @@ export interface InternalItemMoveRequest {
   y: number;
 }
 
+export interface NodeResizeRequest {
+  nodeId: string;
+  width: number;
+  height: number;
+}
+
 @Component({
   selector: 'app-diagram-node',
   standalone: true,
@@ -70,6 +76,19 @@ export interface InternalItemMoveRequest {
         </div>
       }
 
+      <button
+        type="button"
+        class="absolute -right-1 -bottom-1 w-3.5 h-3.5 rounded-sm border border-gray-300 bg-white shadow-sm cursor-se-resize hover:border-blue-400 hover:bg-blue-50 flex items-center justify-center"
+        title="Resize resource"
+        (mousedown)="onResizeMouseDown($event)"
+      >
+        <svg viewBox="0 0 16 16" class="w-2.5 h-2.5 text-gray-500" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round">
+          <path d="M6 10 L10 6" />
+          <path d="M8 12 L12 8" />
+          <path d="M10 14 L14 10" />
+        </svg>
+      </button>
+
       @if (finOpsActive && node.costData) {
         <app-cost-badge [costData]="node.costData" />
       }
@@ -86,14 +105,17 @@ export interface InternalItemMoveRequest {
 export class DiagramNodeComponent {
   @Input({ required: true }) node!: DiagramNode;
   @Input() finOpsActive = false;
+  @Input() zoomLevel = 1;
   @Output() clicked = new EventEmitter<string>();
   @Output() contextMenuRequested = new EventEmitter<ContextMenuRequest>();
   @Output() editRequested = new EventEmitter<string>();
   @Output() internalItemMoved = new EventEmitter<InternalItemMoveRequest>();
+  @Output() nodeResized = new EventEmitter<NodeResizeRequest>();
 
   private costSvc = inject(CostService);
   private store = inject(DiagramStore);
   private internalDrag: { itemId: string; startMouseX: number; startMouseY: number; startX: number; startY: number } | null = null;
+  private resizeDrag: { startMouseX: number; startMouseY: number; startW: number; startH: number } | null = null;
 
   get typeLabel(): string {
     const parts = this.node.resourceType.split('/');
@@ -141,11 +163,32 @@ export class DiagramNodeComponent {
     };
   }
 
+  onResizeMouseDown(event: MouseEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.resizeDrag = {
+      startMouseX: event.clientX,
+      startMouseY: event.clientY,
+      startW: this.node.size.width,
+      startH: this.node.size.height,
+    };
+  }
+
   @HostListener('document:mousemove', ['$event'])
   onDocMouseMove(event: MouseEvent): void {
+    if (this.resizeDrag) {
+      const scale = Math.max(0.1, this.zoomLevel || 1);
+      const dx = (event.clientX - this.resizeDrag.startMouseX) / scale;
+      const dy = (event.clientY - this.resizeDrag.startMouseY) / scale;
+      const width = Math.max(100, Math.min(1200, Math.round(this.resizeDrag.startW + dx)));
+      const height = Math.max(70, Math.min(1200, Math.round(this.resizeDrag.startH + dy)));
+      this.nodeResized.emit({ nodeId: this.node.id, width, height });
+      return;
+    }
     if (!this.internalDrag) return;
-    const dx = event.clientX - this.internalDrag.startMouseX;
-    const dy = event.clientY - this.internalDrag.startMouseY;
+    const scale = Math.max(0.1, this.zoomLevel || 1);
+    const dx = (event.clientX - this.internalDrag.startMouseX) / scale;
+    const dy = (event.clientY - this.internalDrag.startMouseY) / scale;
     const x = Math.max(2, Math.min(this.node.size.width - 24, this.internalDrag.startX + dx));
     const y = Math.max(2, Math.min(this.node.size.height - 20, this.internalDrag.startY + dy));
     this.internalItemMoved.emit({ nodeId: this.node.id, itemId: this.internalDrag.itemId, x, y });
@@ -154,5 +197,6 @@ export class DiagramNodeComponent {
   @HostListener('document:mouseup')
   onDocMouseUp(): void {
     this.internalDrag = null;
+    this.resizeDrag = null;
   }
 }

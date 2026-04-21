@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { DiagramStore } from '../../core/store/diagram.store';
 import { ELKLayoutService } from '../../core/services/elk-layout.service';
 import { IconRegistryService } from '../../core/services/icon-registry.service';
-import { DiagramNodeComponent, ContextMenuRequest, InternalItemMoveRequest } from './diagram-node/diagram-node.component';
+import { DiagramNodeComponent, ContextMenuRequest, InternalItemMoveRequest, NodeResizeRequest } from './diagram-node/diagram-node.component';
 import { SidebarComponent } from '../sidebar/sidebar.component';
 import { ToolbarComponent } from '../toolbar/toolbar.component';
 import { DrawingToolbarComponent } from './drawing-toolbar/drawing-toolbar.component';
@@ -173,7 +173,14 @@ export class CanvasComponent {
       return;
     }
     if ((e.key === 'Delete' || e.key === 'Backspace') && this.selectedAnnotationId) {
+      e.preventDefault();
       this.deleteSelectedAnnotation();
+      return;
+    }
+    if ((e.key === 'Delete' || e.key === 'Backspace') && this.store.selectedNodeId()) {
+      e.preventDefault();
+      this.deleteSelectedNode();
+      return;
     }
     if (e.key === 'Escape') {
       this.closeContextMenu();
@@ -863,6 +870,24 @@ export class CanvasComponent {
     this.store.setNodes(this.resourceEditor.applyInternalItemMove(this.store.nodes(), req));
   }
 
+  onNodeResized(req: NodeResizeRequest): void {
+    this.store.setNodes(this.store.nodes().map(n => {
+      if (n.id !== req.nodeId) return n;
+      const width = Math.max(100, req.width);
+      const height = Math.max(70, req.height);
+      const items = (n.custom?.internalItems ?? []).map(item => ({
+        ...item,
+        x: Math.max(2, Math.min(width - 24, item.x)),
+        y: Math.max(2, Math.min(height - 20, item.y)),
+      }));
+      return {
+        ...n,
+        size: { width, height },
+        custom: n.custom ? { ...n.custom, internalItems: items } : n.custom,
+      };
+    }));
+  }
+
   // ── Container rename ──────────────────────────────────────────────────────
   startRename(type: 'rg' | 'sub' | 'vm' | 'rt', id: string, currentName: string): void {
     this.renamingContainer = { type, id };
@@ -893,6 +918,12 @@ export class CanvasComponent {
   }
 
   // ── Misc ───────────────────────────────────────────────────────────────────
+  deleteSelectedNode(): void {
+    const selectedNodeId = this.store.selectedNodeId();
+    if (!selectedNodeId) return;
+    this.store.deleteNode(selectedNodeId);
+  }
+
   async toggleFinOps(): Promise<void> {
     await this.actions.toggleFinOps();
   }

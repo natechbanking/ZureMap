@@ -290,9 +290,11 @@
                 <app-diagram-node
                   [node]="node"
                   [finOpsActive]="store.finOpsLayerActive()"
+                  [zoomLevel]="zoomLevel"
                   (clicked)="store.selectNode($event)"
                   (editRequested)="openResourceEditor($event)"
                   (internalItemMoved)="onInternalItemMoved($event)"
+                  (nodeResized)="onNodeResized($event)"
                   (contextMenuRequested)="onContextMenuRequested($event)"
                 />
               </div>

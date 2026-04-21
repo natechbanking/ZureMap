@@ -1,0 +1,70 @@
+import { Injectable } from '@angular/core';
+import { DiagramNode } from '../../core/models/diagram-node.model';
+import { InternalItemMoveRequest } from './diagram-node/diagram-node.component';
+import { ResourceEditorDraft } from './canvas.types';
+
+@Injectable({ providedIn: 'root' })
+export class CanvasResourceEditorService {
+  toDraft(node: DiagramNode): ResourceEditorDraft {
+    return {
+      label: node.label,
+      location: node.metadata.location ?? '',
+      resourceGroup: node.metadata.resourceGroup ?? '',
+      status: node.status,
+      description: node.custom?.description ?? '',
+      internalItems: (node.custom?.internalItems ?? []).map(i => ({ ...i })),
+    };
+  }
+
+  applyDraft(nodes: DiagramNode[], nodeId: string, draft: ResourceEditorDraft): DiagramNode[] {
+    return nodes.map(n => {
+      if (n.id !== nodeId) return n;
+      return {
+        ...n,
+        label: draft.label,
+        status: draft.status,
+        metadata: {
+          ...n.metadata,
+          location: draft.location,
+          resourceGroup: draft.resourceGroup,
+        },
+        custom: {
+          description: draft.description,
+          internalItems: draft.internalItems,
+        },
+      };
+    });
+  }
+
+  addInternalItem(draft: ResourceEditorDraft): ResourceEditorDraft {
+    const item = {
+      id: `ni-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      text: 'New item',
+      x: 8,
+      y: 56 + draft.internalItems.length * 16,
+    };
+    return { ...draft, internalItems: [...draft.internalItems, item] };
+  }
+
+  removeInternalItem(draft: ResourceEditorDraft, itemId: string): ResourceEditorDraft {
+    return { ...draft, internalItems: draft.internalItems.filter(i => i.id !== itemId) };
+  }
+
+  updateInternalItemText(draft: ResourceEditorDraft, itemId: string, text: string): ResourceEditorDraft {
+    return {
+      ...draft,
+      internalItems: draft.internalItems.map(i => (i.id === itemId ? { ...i, text } : i)),
+    };
+  }
+
+  applyInternalItemMove(nodes: DiagramNode[], req: InternalItemMoveRequest): DiagramNode[] {
+    return nodes.map(n => {
+      if (n.id !== req.nodeId) return n;
+      const custom = n.custom ?? {};
+      const items = (custom.internalItems ?? []).map(i =>
+        i.id === req.itemId ? { ...i, x: req.x, y: req.y } : i
+      );
+      return { ...n, custom: { ...custom, internalItems: items } };
+    });
+  }
+}

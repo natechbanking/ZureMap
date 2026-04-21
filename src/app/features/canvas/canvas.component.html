@@ -1,0 +1,884 @@
+    <div class="h-screen flex flex-col bg-gray-50 overflow-hidden">
+
+      <app-toolbar
+        [nodeCount]="store.nodeCount()"
+        [edgeCount]="store.edgeCount()"
+        [totalCost]="store.totalMonthlyCost()"
+        [finOpsActive]="store.finOpsLayerActive()"
+        [comparisonMode]="store.comparisonMode()"
+        [driftSummary]="store.driftSummary()"
+        (exportSvg)="exportSvg()"
+        (exportPng)="exportPng()"
+        (exportJson)="exportJson()"
+        (toggleFinOps)="toggleFinOps()"
+        (rescan)="rescan()"
+        (unpinAll)="store.unpinAll()"
+        (importJson)="onImportJson($event)"
+        (toggleDrift)="toggleDrift()"
+      />
+
+      <div class="flex flex-1 overflow-hidden relative">
+
+        <!-- Floating drawing toolbar (draggable) -->
+        <div
+          class="absolute z-[120] pointer-events-auto select-none"
+          [style.left.px]="toolbarPos.x"
+          [style.top.px]="toolbarPos.y"
+        >
+          <!-- Drag handle -->
+          <div
+            class="flex justify-center pb-0.5 pt-0.5"
+            [class.cursor-grab]="toolbarDragState === null"
+            [class.cursor-grabbing]="toolbarDragState !== null"
+            (mousedown)="onToolbarDragMouseDown($event)"
+          >
+            <div class="w-8 h-1 bg-gray-400 rounded-full opacity-50 hover:opacity-80 transition-opacity"></div>
+          </div>
+          <app-drawing-toolbar
+            [activeTool]="activeTool"
+            [activeColor]="activeColor"
+            [activeStrokeWidth]="activeStrokeWidth"
+            [activeStrokeStyle]="activeStrokeStyle"
+            [activeSloppiness]="activeSloppiness"
+            [activeEdgeRouting]="activeEdgeRouting"
+            [activeEdgeMode]="activeEdgeMode"
+            [activeFill]="activeFill"
+            [activeFillOpacity]="activeFillOpacity"
+            [hasSelection]="selectedAnnotationId !== null"
+            [annotationCount]="store.annotations().length"
+            (toolChange)="setTool($event)"
+            (colorChange)="activeColor = $event"
+            (strokeWidthChange)="activeStrokeWidth = $event"
+            (strokeStyleChange)="activeStrokeStyle = $event"
+            (sloppinessChange)="activeSloppiness = $event"
+            (edgeRoutingChange)="activeEdgeRouting = $event"
+            (edgeModeChange)="activeEdgeMode = $event"
+            (fillChange)="activeFill = $event"
+            (fillOpacityChange)="activeFillOpacity = $event"
+            (undo)="store.undoLastAnnotation()"
+            (clearAll)="clearAllAnnotations()"
+            (deleteSelected)="deleteSelectedAnnotation()"
+            (duplicateSelected)="duplicateSelectedAnnotation()"
+            (bringToFront)="bringSelectedAnnotationToFront()"
+            (sendToBack)="sendSelectedAnnotationToBack()"
+          />
+        </div>
+
+        <div
+          #canvasHost
+          class="flex-1 relative overflow-auto bg-[#faf9f8]"
+          style="background-image: radial-gradient(circle, #d2d0ce 1px, transparent 1px); background-size: 24px 24px;"
+          (wheel)="onCanvasWheel($event)"
+        >
+          <div
+            class="relative"
+            [style.width.px]="canvasWidth * zoomLevel"
+            [style.height.px]="canvasHeight * zoomLevel"
+          >
+            <div
+              class="absolute top-0 left-0 origin-top-left"
+            [style.width.px]="canvasWidth"
+            [style.height.px]="canvasHeight"
+              [style.transform]="'scale(' + zoomLevel + ')'"
+          >
+
+            <!-- Subscription boxes (shown for multi-subscription views) -->
+            @for (bound of subscriptionBounds; track bound.id) {
+              <div
+                class="absolute rounded-2xl border-2 border-dashed border-amber-300 bg-amber-50/30 pointer-events-none"
+                [style.left.px]="bound.x"
+                [style.top.px]="bound.y"
+                [style.width.px]="bound.width"
+                [style.height.px]="bound.height"
+              >
+                <div
+                  class="absolute top-0 left-0 right-0 flex items-center gap-2 px-3 py-2 rounded-t-2xl select-none pointer-events-auto hover:bg-amber-100/60 transition-colors"
+                  [class.cursor-grab]="activeTool === 'pointer' && !isSubscriptionDragging"
+                  [class.cursor-grabbing]="isSubscriptionDragging && subscriptionDragState?.subscriptionId === bound.subscriptionId"
+                  [class.cursor-crosshair]="activeTool !== 'pointer'"
+                  style="z-index: 10; height: 36px"
+                  (mousedown)="onSubscriptionMouseDown($event, bound.subscriptionId)"
+                >
+                  <img [src]="subscriptionIconUrl" alt="" class="w-4 h-4 object-contain flex-shrink-0 opacity-90" (error)="$any($event.target).style.display='none'" />
+                  @if (renamingContainer?.type === 'sub' && renamingContainer?.id === bound.subscriptionId) {
+                    <input
+                      #renameInput
+                      class="text-xs font-semibold text-amber-700 bg-transparent border-b border-amber-400 outline-none min-w-0 flex-1"
+                      [value]="renamingValue"
+                      (input)="renamingValue = $any($event.target).value"
+                      (blur)="commitRename()"
+                      (keydown.enter)="commitRename()"
+                      (keydown.escape)="$event.stopPropagation(); cancelRename()"
+                      (mousedown)="$event.stopPropagation()"
+                      (click)="$event.stopPropagation()"
+                    />
+                  } @else {
+                    <span
+                      class="text-xs font-semibold text-amber-700 tracking-wide truncate flex-1"
+                      title="Double-click to rename"
+                      (dblclick)="$event.stopPropagation(); startRename('sub', bound.subscriptionId, bound.name)"
+                    >{{ bound.name }}</span>
+                  }
+                  <button
+                    type="button"
+                    class="ml-auto w-5 h-5 rounded text-amber-700 hover:bg-amber-200/70 transition-colors"
+                    [title]="bound.collapsed ? 'Expand subscription' : 'Collapse subscription'"
+                    (mousedown)="$event.stopPropagation()"
+                    (click)="toggleSubscriptionCollapsed(bound.subscriptionId); $event.stopPropagation()"
+                  >
+                    {{ bound.collapsed ? '+' : '-' }}
+                  </button>
+                </div>
+              </div>
+            }
+
+            <!-- Resource group boxes -->
+            @for (bound of rgBounds; track bound.id) {
+              <div
+                class="absolute rounded-xl border border-dashed border-blue-300 bg-blue-50/25 pointer-events-none"
+                [style.left.px]="bound.x"
+                [style.top.px]="bound.y"
+                [style.width.px]="bound.width"
+                [style.height.px]="bound.height"
+              >
+                <div
+                  class="absolute top-0 left-0 right-0 flex items-center gap-2 px-3 py-1.5 rounded-t-xl select-none pointer-events-auto hover:bg-blue-100/50 transition-colors"
+                  [class.cursor-grab]="activeTool === 'pointer' && !isRgDragging"
+                  [class.cursor-grabbing]="isRgDragging && rgDragState?.id === bound.id"
+                  [class.cursor-crosshair]="activeTool !== 'pointer'"
+                  style="z-index: 20; height: 32px"
+                  (mousedown)="onRgMouseDown($event, bound.id)"
+                >
+                  <img [src]="rgIconUrl" alt="" class="w-4 h-4 object-contain flex-shrink-0" (error)="$any($event.target).style.display='none'" />
+                  @if (renamingContainer?.type === 'rg' && renamingContainer?.id === bound.id) {
+                    <input
+                      #renameInput
+                      class="text-xs font-semibold text-blue-500 bg-transparent border-b border-blue-400 outline-none min-w-0 flex-1"
+                      [value]="renamingValue"
+                      (input)="renamingValue = $any($event.target).value"
+                      (blur)="commitRename()"
+                      (keydown.enter)="commitRename()"
+                      (keydown.escape)="$event.stopPropagation(); cancelRename()"
+                      (mousedown)="$event.stopPropagation()"
+                      (click)="$event.stopPropagation()"
+                    />
+                  } @else {
+                    <span
+                      class="text-xs font-semibold text-blue-500 tracking-wide truncate flex-1"
+                      title="Double-click to rename"
+                      (dblclick)="$event.stopPropagation(); startRename('rg', bound.id, bound.name)"
+                    >{{ bound.name }}</span>
+                  }
+                  <button
+                    type="button"
+                    class="ml-auto w-5 h-5 rounded text-blue-600 hover:bg-blue-200/70 transition-colors"
+                    [title]="bound.collapsed ? 'Expand resource group' : 'Collapse resource group'"
+                    (mousedown)="$event.stopPropagation()"
+                    (click)="toggleRgCollapsed(bound.id); $event.stopPropagation()"
+                  >
+                    {{ bound.collapsed ? '+' : '-' }}
+                  </button>
+                </div>
+              </div>
+            }
+
+            <!-- VM sub-containers (VM + related resources) -->
+            @for (bound of vmBounds; track bound.id) {
+              <div
+                class="absolute rounded-lg border border-dashed border-slate-300 bg-slate-50/40 pointer-events-none"
+                [style.left.px]="bound.x"
+                [style.top.px]="bound.y"
+                [style.width.px]="bound.width"
+                [style.height.px]="bound.height"
+              >
+                <div
+                  class="absolute top-0 left-0 right-0 flex items-center gap-2 px-2 py-1 text-[10px] font-semibold text-slate-500 bg-slate-100/70 rounded-t-lg select-none pointer-events-auto"
+                  [class.cursor-grab]="activeTool === 'pointer' && !isVmDragging"
+                  [class.cursor-grabbing]="isVmDragging && vmDragState?.vmId === bound.id"
+                  [class.cursor-crosshair]="activeTool !== 'pointer'"
+                  style="z-index: 25; height: 24px"
+                  (mousedown)="onVmMouseDown($event, bound.id)"
+                >
+                  @if (renamingContainer?.type === 'vm' && renamingContainer?.id === bound.id) {
+                    <input
+                      #renameInput
+                      class="text-[10px] font-semibold text-slate-500 bg-transparent border-b border-slate-400 outline-none min-w-0 flex-1"
+                      [value]="renamingValue"
+                      (input)="renamingValue = $any($event.target).value"
+                      (blur)="commitRename()"
+                      (keydown.enter)="commitRename()"
+                      (keydown.escape)="$event.stopPropagation(); cancelRename()"
+                      (mousedown)="$event.stopPropagation()"
+                      (click)="$event.stopPropagation()"
+                    />
+                  } @else {
+                    <span
+                      class="truncate flex-1"
+                      title="Double-click to rename"
+                      (dblclick)="$event.stopPropagation(); startRename('vm', bound.id, bound.name)"
+                    >VM Group: {{ bound.name }}</span>
+                  }
+                  <button
+                    type="button"
+                    class="ml-auto w-4 h-4 rounded text-slate-600 hover:bg-slate-200/70 transition-colors"
+                    [title]="bound.collapsed ? 'Expand VM group' : 'Collapse VM group'"
+                    (mousedown)="$event.stopPropagation()"
+                    (click)="toggleVmCollapsed(bound.id); $event.stopPropagation()"
+                  >
+                    {{ bound.collapsed ? '+' : '-' }}
+                  </button>
+                </div>
+              </div>
+            }
+
+            <!-- Route table route sub-containers -->
+            @for (bound of routeTableBounds; track bound.id) {
+              <div
+                class="absolute rounded-lg border border-dashed border-cyan-300 bg-cyan-50/35 pointer-events-none"
+                [style.left.px]="bound.x"
+                [style.top.px]="bound.y"
+                [style.width.px]="bound.width"
+                [style.height.px]="bound.height"
+              >
+                <div
+                  class="absolute top-0 left-0 right-0 flex items-center gap-2 px-2 py-1 text-[10px] font-semibold text-cyan-700 bg-cyan-100/70 rounded-t-lg select-none pointer-events-auto"
+                  [class.cursor-crosshair]="activeTool !== 'pointer'"
+                  style="z-index: 25; height: 24px"
+                >
+                  @if (renamingContainer?.type === 'rt' && renamingContainer?.id === bound.id) {
+                    <input
+                      #renameInput
+                      class="text-[10px] font-semibold text-cyan-700 bg-transparent border-b border-cyan-400 outline-none min-w-0 flex-1"
+                      [value]="renamingValue"
+                      (input)="renamingValue = $any($event.target).value"
+                      (blur)="commitRename()"
+                      (keydown.enter)="commitRename()"
+                      (keydown.escape)="$event.stopPropagation(); cancelRename()"
+                      (mousedown)="$event.stopPropagation()"
+                      (click)="$event.stopPropagation()"
+                    />
+                  } @else {
+                    <span
+                      class="truncate flex-1"
+                      title="Double-click to rename"
+                      (dblclick)="$event.stopPropagation(); startRename('rt', bound.id, bound.name)"
+                    >Routes: {{ bound.name }}</span>
+                  }
+                  <button
+                    type="button"
+                    class="ml-auto w-4 h-4 rounded text-cyan-700 hover:bg-cyan-200/70 transition-colors"
+                    [title]="bound.collapsed ? 'Expand routes' : 'Collapse routes'"
+                    (mousedown)="$event.stopPropagation()"
+                    (click)="toggleRouteTableCollapsed(bound.id); $event.stopPropagation()"
+                  >
+                    {{ bound.collapsed ? '+' : '-' }}
+                  </button>
+                </div>
+              </div>
+            }
+
+            <!-- Azure resource nodes -->
+            @for (node of visibleNodes; track node.id) {
+              <div
+                class="absolute"
+                [style.left.px]="node.position.x"
+                [style.top.px]="node.position.y"
+                [style.pointer-events]="activeTool === 'pointer' ? 'auto' : 'none'"
+                [class.cursor-grab]="activeTool === 'pointer' && nodeDragState?.id !== node.id"
+                [class.cursor-grabbing]="nodeDragState?.id === node.id"
+                (mousedown)="onNodeMouseDown($event, node)"
+              >
+                <app-diagram-node
+                  [node]="node"
+                  [finOpsActive]="store.finOpsLayerActive()"
+                  (clicked)="store.selectNode($event)"
+                  (editRequested)="openResourceEditor($event)"
+                  (internalItemMoved)="onInternalItemMoved($event)"
+                  (contextMenuRequested)="onContextMenuRequested($event)"
+                />
+              </div>
+            }
+
+            <!-- SVG: edges + annotations + drawing layer (pointer-events-none so HTML elements below receive events; SVG children with explicit pointer-events still work) -->
+            <svg
+              class="absolute top-0 left-0 pointer-events-none"
+              [attr.width]="canvasWidth"
+              [attr.height]="canvasHeight"
+            >
+              <defs>
+                <marker id="edge-arrow" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+                  <path d="M0,0 L0,6 L6,3 z" fill="context-stroke" />
+                </marker>
+                <marker id="ann-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto-start-reverse">
+                  <path d="M0,0 L0,8 L8,4 z" fill="currentColor" />
+                </marker>
+                <filter id="sloppy-1">
+                  <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="1" seed="7" result="noise" />
+                  <feDisplacementMap in="SourceGraphic" in2="noise" scale="0.45" xChannelSelector="R" yChannelSelector="G" />
+                </filter>
+                <filter id="sloppy-2">
+                  <feTurbulence type="fractalNoise" baseFrequency="0.8" numOctaves="1" seed="11" result="noise" />
+                  <feDisplacementMap in="SourceGraphic" in2="noise" scale="0.9" xChannelSelector="R" yChannelSelector="G" />
+                </filter>
+                <filter id="sloppy-3">
+                  <feTurbulence type="fractalNoise" baseFrequency="0.7" numOctaves="1" seed="17" result="noise" />
+                  <feDisplacementMap in="SourceGraphic" in2="noise" scale="1.4" xChannelSelector="R" yChannelSelector="G" />
+                </filter>
+              </defs>
+
+              <!-- Edges (pass-through) -->
+              @for (edge of visibleEdges; track edge.id) {
+                <g>
+                  @if (selectedEdgeId === edge.id) {
+                    <line
+                      pointer-events="none"
+                      [attr.x1]="getEdgeX1(edge.sourceId, edge.targetId)"
+                      [attr.y1]="getEdgeY1(edge.sourceId, edge.targetId)"
+                      [attr.x2]="getEdgeX2(edge.sourceId, edge.targetId)"
+                      [attr.y2]="getEdgeY2(edge.sourceId, edge.targetId)"
+                      stroke="#2563eb"
+                      [attr.stroke-width]="edge.style.strokeWidth + 4"
+                      stroke-linecap="round"
+                      opacity="0.25"
+                    />
+                  }
+                  <line
+                    [attr.pointer-events]="activeTool === 'pointer' ? 'stroke' : 'none'"
+                    [attr.x1]="getEdgeX1(edge.sourceId, edge.targetId)"
+                    [attr.y1]="getEdgeY1(edge.sourceId, edge.targetId)"
+                    [attr.x2]="getEdgeX2(edge.sourceId, edge.targetId)"
+                    [attr.y2]="getEdgeY2(edge.sourceId, edge.targetId)"
+                    [attr.stroke]="edge.style.strokeColor"
+                    [attr.stroke-width]="edge.style.strokeWidth"
+                    [attr.stroke-dasharray]="edge.style.dashArray ?? null"
+                    [attr.marker-end]="edge.style.markerEnd === 'arrow' ? 'url(#edge-arrow)' : null"
+                    [class.animate-pulse]="edge.animated"
+                    style="cursor: pointer"
+                    (click)="onEdgeClick($event, edge)"
+                  />
+                </g>
+              }
+
+              <!-- Saved annotations -->
+              @for (ann of store.annotations(); track ann.id) {
+                @if (ann.type === 'draw' && ann.pathData) {
+                  <path
+                    [attr.d]="ann.pathData"
+                    [attr.stroke]="ann.color"
+                    [attr.stroke-width]="ann.strokeWidth"
+                    [attr.stroke-dasharray]="strokeDashArray(ann)"
+                    [attr.filter]="sloppyFilter(ann)"
+                    fill="none"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    [attr.pointer-events]="activeTool === 'pointer' ? 'stroke' : 'none'"
+                    [class.cursor-move]="activeTool === 'pointer'"
+                    (mousedown)="onAnnotationMouseDown($event, ann)"
+                  />
+                }
+                @if (ann.type === 'arrow') {
+                  <g
+                    [attr.pointer-events]="activeTool === 'pointer' ? 'all' : 'none'"
+                    [class.cursor-move]="activeTool === 'pointer'"
+                    [style.color]="ann.color"
+                    (mousedown)="onAnnotationMouseDown($event, ann)"
+                  >
+                    <polyline
+                      [attr.points]="linePoints(ann)"
+                      [attr.stroke]="ann.color" [attr.stroke-width]="ann.strokeWidth"
+                      [attr.stroke-dasharray]="strokeDashArray(ann)"
+                      [attr.filter]="sloppyFilter(ann)"
+                      [attr.marker-start]="markerStart(ann)"
+                      [attr.marker-end]="markerEnd(ann)"
+                      fill="none"
+                      stroke-linecap="round"
+                    />
+                    <!-- wider invisible hit area -->
+                    <polyline
+                      [attr.points]="linePoints(ann)"
+                      stroke="transparent" stroke-width="12"
+                    />
+                  </g>
+                }
+                @if (ann.type === 'line') {
+                  <g
+                    [attr.pointer-events]="activeTool === 'pointer' ? 'all' : 'none'"
+                    [class.cursor-move]="activeTool === 'pointer'"
+                    [style.color]="ann.color"
+                    (mousedown)="onAnnotationMouseDown($event, ann)"
+                  >
+                    <polyline
+                      [attr.points]="linePoints(ann)"
+                      [attr.stroke]="ann.color" [attr.stroke-width]="ann.strokeWidth"
+                      [attr.stroke-dasharray]="strokeDashArray(ann)"
+                      [attr.filter]="sloppyFilter(ann)"
+                      [attr.marker-start]="markerStart(ann)"
+                      [attr.marker-end]="markerEnd(ann)"
+                      fill="none"
+                      stroke-linecap="round"
+                    />
+                    <polyline
+                      [attr.points]="linePoints(ann)"
+                      stroke="transparent" stroke-width="12"
+                    />
+                  </g>
+                }
+                @if (ann.type === 'rect' && ann.width && ann.height) {
+                  <rect
+                    [attr.x]="ann.x" [attr.y]="ann.y"
+                    [attr.width]="ann.width" [attr.height]="ann.height"
+                    [attr.stroke]="ann.color" [attr.stroke-width]="ann.strokeWidth"
+                    [attr.stroke-dasharray]="strokeDashArray(ann)"
+                    [attr.filter]="sloppyFilter(ann)"
+                    [attr.fill]="ann.fill" rx="3"
+                    [attr.fill-opacity]="ann.fill !== 'none' ? (ann.fillOpacity ?? 1) : null"
+                    [attr.pointer-events]="activeTool === 'pointer' ? 'all' : 'none'"
+                    [class.cursor-move]="activeTool === 'pointer'"
+                    (mousedown)="onAnnotationMouseDown($event, ann)"
+                  />
+                }
+                @if (ann.type === 'ellipse' && ann.width && ann.height) {
+                  <ellipse
+                    [attr.cx]="ann.x + ann.width / 2"
+                    [attr.cy]="ann.y + ann.height / 2"
+                    [attr.rx]="ann.width / 2"
+                    [attr.ry]="ann.height / 2"
+                    [attr.stroke]="ann.color" [attr.stroke-width]="ann.strokeWidth"
+                    [attr.stroke-dasharray]="strokeDashArray(ann)"
+                    [attr.filter]="sloppyFilter(ann)"
+                    [attr.fill]="ann.fill"
+                    [attr.fill-opacity]="ann.fill !== 'none' ? (ann.fillOpacity ?? 1) : null"
+                    [attr.pointer-events]="activeTool === 'pointer' ? 'all' : 'none'"
+                    [class.cursor-move]="activeTool === 'pointer'"
+                    (mousedown)="onAnnotationMouseDown($event, ann)"
+                  />
+                }
+                @if (ann.type === 'diamond' && ann.width && ann.height) {
+                  <polygon
+                    [attr.points]="diamondPoints(ann)"
+                    [attr.stroke]="ann.color" [attr.stroke-width]="ann.strokeWidth"
+                    [attr.stroke-dasharray]="strokeDashArray(ann)"
+                    [attr.filter]="sloppyFilter(ann)"
+                    [attr.fill]="ann.fill"
+                    [attr.fill-opacity]="ann.fill !== 'none' ? (ann.fillOpacity ?? 1) : null"
+                    [attr.pointer-events]="activeTool === 'pointer' ? 'all' : 'none'"
+                    [class.cursor-move]="activeTool === 'pointer'"
+                    (mousedown)="onAnnotationMouseDown($event, ann)"
+                  />
+                }
+                <!-- Selection highlight -->
+                @if (selectedAnnotationId === ann.id && activeTool === 'pointer') {
+                  @if (ann.type === 'rect' || ann.type === 'ellipse' || ann.type === 'diamond') {
+                    <rect
+                      [attr.x]="ann.x - 4" [attr.y]="ann.y - 4"
+                      [attr.width]="(ann.width ?? 0) + 8" [attr.height]="(ann.height ?? 0) + 8"
+                      fill="none" stroke="#3b82f6" stroke-width="1.5" stroke-dasharray="4 3" rx="5"
+                      pointer-events="none"
+                    />
+                  }
+                }
+              }
+
+              <!-- In-progress drawing previews -->
+              @if (previewPath) {
+                <path [attr.d]="previewPath"
+                  [attr.stroke]="activeColor" [attr.stroke-width]="activeStrokeWidth"
+                  fill="none" stroke-linecap="round" stroke-linejoin="round" pointer-events="none" />
+              }
+              @if (previewArrow) {
+                <g pointer-events="none" [style.color]="activeColor">
+                  <polyline [attr.points]="linePointsFromCoords(previewArrow.x1, previewArrow.y1, previewArrow.x2, previewArrow.y2, activeEdgeRouting)"
+                    [attr.stroke]="activeColor" [attr.stroke-width]="activeStrokeWidth"
+                    [attr.stroke-dasharray]="activeStrokeStyle === 'solid' ? '6 3' : strokeDashArray(undefined, activeStrokeStyle)"
+                    [attr.filter]="sloppyFilter(undefined, activeSloppiness)"
+                    [attr.marker-start]="previewMarkerStart()"
+                    [attr.marker-end]="previewMarkerEnd()"
+                    fill="none" stroke-linecap="round" />
+                </g>
+              }
+              @if (previewLine) {
+                <polyline [attr.points]="linePointsFromCoords(previewLine.x1, previewLine.y1, previewLine.x2, previewLine.y2, activeEdgeRouting)"
+                  [attr.stroke]="activeColor" [attr.stroke-width]="activeStrokeWidth"
+                  [attr.stroke-dasharray]="activeStrokeStyle === 'solid' ? '6 3' : strokeDashArray(undefined, activeStrokeStyle)"
+                  [attr.filter]="sloppyFilter(undefined, activeSloppiness)"
+                  [attr.marker-start]="previewMarkerStart()"
+                  [attr.marker-end]="previewMarkerEnd()"
+                  [style.color]="activeColor"
+                  fill="none" stroke-linecap="round" pointer-events="none" />
+              }
+              @if (previewRect) {
+                <rect [attr.x]="previewRect.x" [attr.y]="previewRect.y"
+                  [attr.width]="previewRect.w" [attr.height]="previewRect.h"
+                  [attr.stroke]="activeColor" [attr.stroke-width]="activeStrokeWidth"
+                  [attr.fill]="activeFill" [attr.fill-opacity]="activeFill !== 'none' ? activeFillOpacity : null" stroke-dasharray="6 3" rx="3" pointer-events="none" />
+              }
+              @if (previewDiamond) {
+                <polygon
+                  [attr.points]="diamondPointsFromRect(previewDiamond)"
+                  [attr.stroke]="activeColor" [attr.stroke-width]="activeStrokeWidth"
+                  [attr.fill]="activeFill"
+                  [attr.fill-opacity]="activeFill !== 'none' ? activeFillOpacity : null"
+                  stroke-dasharray="6 3" pointer-events="none"
+                />
+              }
+              @if (previewEllipse) {
+                <ellipse
+                  [attr.cx]="previewEllipse.cx" [attr.cy]="previewEllipse.cy"
+                  [attr.rx]="previewEllipse.rx" [attr.ry]="previewEllipse.ry"
+                  [attr.stroke]="activeColor" [attr.stroke-width]="activeStrokeWidth"
+                  [attr.fill]="activeFill" [attr.fill-opacity]="activeFill !== 'none' ? activeFillOpacity : null" stroke-dasharray="6 3" pointer-events="none" />
+              }
+
+            </svg>
+
+            <!-- HTML drawing overlay: captures events when a drawing tool is active -->
+            @if (activeTool !== 'pointer') {
+              <div
+                class="absolute top-0 left-0"
+                [style.width.px]="canvasWidth"
+                [style.height.px]="canvasHeight"
+                style="z-index: 60; cursor: crosshair"
+                (mousedown)="onDrawMouseDown($event)"
+                (mousemove)="onDrawMouseMove($event)"
+                (mouseup)="onDrawMouseUp($event)"
+              ></div>
+            }
+
+            <!-- HTML overlays: text + sticky annotations -->
+            @for (ann of store.annotations(); track ann.id) {
+              @if (ann.type === 'text' || ann.type === 'sticky') {
+                <div
+                  class="absolute select-none whitespace-pre-wrap break-words"
+                  [class.p-3]="ann.type === 'sticky'"
+                  [class.rounded-lg]="ann.type === 'sticky'"
+                  [class.shadow-md]="ann.type === 'sticky'"
+                  [class.border]="ann.type === 'sticky'"
+                  [class.border-yellow-300]="ann.type === 'sticky'"
+                  [class.bg-yellow-100]="ann.type === 'sticky'"
+                  [class.ring-2]="selectedAnnotationId === ann.id"
+                  [class.ring-blue-400]="selectedAnnotationId === ann.id"
+                  [style.left.px]="ann.x"
+                  [style.top.px]="ann.y"
+                  [style.min-width.px]="120"
+                  [style.min-height.px]="ann.type === 'sticky' ? 80 : 20"
+                  [style.font-size.px]="ann.fontSize ?? 14"
+                  [style.color]="ann.color"
+                  [style.pointer-events]="activeTool === 'pointer' ? 'auto' : 'none'"
+                  [style.cursor]="activeTool === 'pointer' ? 'move' : 'default'"
+                  (mousedown)="onAnnotationMouseDown($event, ann)"
+                  (dblclick)="startEditAnnotation(ann)"
+                >{{ ann.text || '…' }}</div>
+              }
+            }
+
+            <!-- Annotation delete button (selected annotation) -->
+            @if (selectedAnnotationId && activeTool === 'pointer') {
+              @let selAnn = annotationById(selectedAnnotationId);
+              @if (selAnn) {
+                <button
+                  class="absolute z-50 w-5 h-5 bg-red-500 text-white rounded-full text-xs flex items-center justify-center shadow hover:bg-red-600 transition-colors"
+                  [style.left.px]="annDeleteBtnX(selAnn)"
+                  [style.top.px]="annDeleteBtnY(selAnn)"
+                  (mousedown)="$event.stopPropagation()"
+                  (click)="deleteSelectedAnnotation()"
+                  title="Delete annotation (Del)"
+                >✕</button>
+              }
+            }
+
+            <!-- Text/sticky editing overlay -->
+            @if (editingAnnotation) {
+              <textarea
+                #editTextarea
+                class="absolute z-50 resize p-1.5 rounded border-2 border-blue-400 shadow-lg outline-none bg-white/90 text-sm"
+                [style.left.px]="editingAnnotation.x"
+                [style.top.px]="editingAnnotation.y"
+                [style.min-width.px]="160"
+                [style.min-height.px]="editingAnnotation.type === 'sticky' ? 80 : 36"
+                [style.font-size.px]="editingAnnotation.fontSize ?? 14"
+                [style.color]="editingAnnotation.color"
+                [value]="editingTextValue"
+                placeholder="Type here…"
+                (input)="editingTextValue = $any($event.target).value"
+                (blur)="finishEdit()"
+                (keydown)="onEditKeyDown($event)"
+                (mousedown)="$event.stopPropagation()"
+              ></textarea>
+            }
+
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Sticky zoom controls (outside scroll container) -->
+        <div
+          class="absolute bottom-4 z-[130] flex items-center gap-1.5 px-2 py-1.5 rounded-xl border border-gray-200 bg-white/95 backdrop-blur shadow"
+          [style.right.px]="store.sidebarOpen() ? 336 : 16"
+        >
+          <button
+            class="w-7 h-7 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50"
+            title="Zoom out"
+            (click)="zoomOut()"
+          >-</button>
+          <button
+            class="px-2 h-7 rounded-lg border border-gray-200 text-xs font-medium text-gray-700 hover:bg-gray-50"
+            title="Reset zoom"
+            (click)="resetZoom()"
+          >{{ zoomPercent }}%</button>
+          <button
+            class="w-7 h-7 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50"
+            title="Zoom in"
+            (click)="zoomIn()"
+          >+</button>
+        </div>
+
+        @if (store.finOpsLayerActive()) {
+          <aside
+            class="absolute top-16 z-[130] w-[320px] rounded-xl border border-amber-200 bg-white/95 backdrop-blur shadow-lg p-3"
+            [style.right.px]="store.sidebarOpen() ? 336 : 16"
+          >
+            <div class="flex items-center justify-between mb-2">
+              <h3 class="text-sm font-semibold text-gray-900">FinOps Insights</h3>
+              @if (finOpsLoading) {
+                <span class="text-[11px] text-amber-700">Loading...</span>
+              }
+            </div>
+
+            @if (finOpsError) {
+              <p class="text-xs text-red-600 leading-relaxed">{{ finOpsError }}</p>
+            } @else {
+              <div class="grid grid-cols-3 gap-2 mb-3">
+                <div class="rounded-lg bg-amber-50 border border-amber-100 p-2">
+                  <p class="text-[10px] text-amber-700">Total</p>
+                  <p class="text-xs font-semibold text-amber-900">{{ formatUsd(store.totalMonthlyCost()) }}</p>
+                </div>
+                <div class="rounded-lg bg-blue-50 border border-blue-100 p-2">
+                  <p class="text-[10px] text-blue-700">Costed</p>
+                  <p class="text-xs font-semibold text-blue-900">{{ finOpsCostedNodeCount }}</p>
+                </div>
+                <div class="rounded-lg bg-emerald-50 border border-emerald-100 p-2">
+                  <p class="text-[10px] text-emerald-700">Subs</p>
+                  <p class="text-xs font-semibold text-emerald-900">{{ finOpsLoadedSubscriptions }}</p>
+                </div>
+              </div>
+
+              <div>
+                <p class="text-[11px] font-semibold text-gray-700 mb-1">Top Resources</p>
+                @if (finOpsTopNodes.length === 0) {
+                  <p class="text-xs text-gray-500">No matched cost data yet.</p>
+                } @else {
+                  <ul class="space-y-1">
+                    @for (n of finOpsTopNodes; track n.id) {
+                      <li class="flex items-start justify-between gap-2 text-xs">
+                        <span class="text-gray-700 truncate" [title]="n.label">{{ n.label }}</span>
+                        <span class="text-gray-900 font-medium whitespace-nowrap">{{ formatUsd(n.cost) }}</span>
+                      </li>
+                    }
+                  </ul>
+                }
+              </div>
+            }
+          </aside>
+        }
+
+        @if (selectedEdge) {
+          <aside
+            class="absolute top-[220px] z-[130] w-[320px] rounded-xl border border-blue-200 bg-white/95 backdrop-blur shadow-lg p-3"
+            [style.right.px]="store.sidebarOpen() ? 336 : 16"
+          >
+            <div class="flex items-center justify-between mb-2">
+              <h3 class="text-sm font-semibold text-gray-900">Connection Style</h3>
+              <button class="text-xs text-gray-500 hover:text-gray-700" (click)="selectedEdgeId = null">Close</button>
+            </div>
+            <p class="text-[11px] text-gray-500 mb-3">Type: <span class="font-medium text-gray-700">{{ selectedEdge.edgeType }}</span></p>
+
+            <div class="grid grid-cols-2 gap-2 mb-2">
+              <label class="text-[11px] text-gray-600">
+                Color
+                <input
+                  type="color"
+                  class="mt-1 w-full h-8 rounded border border-gray-200"
+                  [value]="selectedEdge.style.strokeColor"
+                  (input)="updateSelectedEdgeStyle({ strokeColor: colorValue($event) })"
+                />
+              </label>
+              <label class="text-[11px] text-gray-600">
+                Width
+                <select
+                  class="mt-1 w-full h-8 rounded border border-gray-200 px-1 text-xs"
+                  [value]="selectedEdge.style.strokeWidth"
+                  (change)="updateSelectedEdgeStyle({ strokeWidth: numberValue($event) })"
+                >
+                  <option [value]="1">1 px</option>
+                  <option [value]="1.5">1.5 px</option>
+                  <option [value]="2">2 px</option>
+                  <option [value]="3">3 px</option>
+                  <option [value]="4">4 px</option>
+                </select>
+              </label>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2 mb-2">
+              <label class="text-[11px] text-gray-600">
+                Line Style
+                <select
+                  class="mt-1 w-full h-8 rounded border border-gray-200 px-1 text-xs"
+                  [value]="dashStyleValue(selectedEdge.style)"
+                  (change)="setSelectedEdgeDashStyle(selectValue($event))"
+                >
+                  <option value="solid">Solid</option>
+                  <option value="dashed">Dashed</option>
+                  <option value="dotted">Dotted</option>
+                </select>
+              </label>
+              <label class="text-[11px] text-gray-600">
+                Arrowhead
+                <select
+                  class="mt-1 w-full h-8 rounded border border-gray-200 px-1 text-xs"
+                  [value]="selectedEdge.style.markerEnd"
+                  (change)="setSelectedEdgeMarker(selectValue($event))"
+                >
+                  <option value="arrow">Arrow</option>
+                  <option value="none">None</option>
+                </select>
+              </label>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2">
+              <label class="flex items-center gap-2 text-xs text-gray-700">
+                <input type="checkbox" [checked]="selectedEdge.animated" (change)="setSelectedEdgeAnimated(checkedValue($event))" />
+                Animated
+              </label>
+              <button
+                class="h-8 rounded border border-gray-200 text-xs text-gray-700 hover:bg-gray-50"
+                (click)="resetSelectedEdgeStyle()"
+              >
+                Reset To Default
+              </button>
+            </div>
+          </aside>
+        }
+
+        @if (resourceEditorOpen && resourceEditorDraft) {
+          <div class="absolute inset-0 z-[170] bg-black/30 flex items-center justify-center p-4" (click)="closeResourceEditor()">
+            <div class="w-full max-w-2xl rounded-xl border border-gray-200 bg-white shadow-2xl" (click)="$event.stopPropagation()">
+              <div class="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+                <h3 class="text-sm font-semibold text-gray-900">Edit Resource</h3>
+                <button class="text-xs text-gray-500 hover:text-gray-700" (click)="closeResourceEditor()">Close</button>
+              </div>
+
+              <div class="p-4 grid grid-cols-2 gap-3">
+                <label class="text-xs text-gray-600">Name
+                  <input class="mt-1 w-full h-9 rounded border border-gray-200 px-2 text-sm" [value]="resourceEditorDraft.label" (input)="resourceEditorDraft.label = textValue($event)" />
+                </label>
+                <label class="text-xs text-gray-600">Status
+                  <select class="mt-1 w-full h-9 rounded border border-gray-200 px-2 text-sm" [value]="resourceEditorDraft.status" (change)="setResourceEditorStatus($event)">
+                    <option value="running">running</option>
+                    <option value="stopped">stopped</option>
+                    <option value="failed">failed</option>
+                    <option value="unknown">unknown</option>
+                  </select>
+                </label>
+                <label class="text-xs text-gray-600">Location
+                  <input class="mt-1 w-full h-9 rounded border border-gray-200 px-2 text-sm" [value]="resourceEditorDraft.location" (input)="resourceEditorDraft.location = textValue($event)" />
+                </label>
+                <label class="text-xs text-gray-600">Resource Group
+                  <input class="mt-1 w-full h-9 rounded border border-gray-200 px-2 text-sm" [value]="resourceEditorDraft.resourceGroup" (input)="resourceEditorDraft.resourceGroup = textValue($event)" />
+                </label>
+              </div>
+
+              <div class="px-4 pb-4">
+                <label class="text-xs text-gray-600 block">Description / Notes
+                  <textarea class="mt-1 w-full rounded border border-gray-200 px-2 py-2 text-sm min-h-20" [value]="resourceEditorDraft.description" (input)="resourceEditorDraft.description = textValue($event)"></textarea>
+                </label>
+              </div>
+
+              <div class="px-4 pb-4">
+                <div class="flex items-center justify-between mb-2">
+                  <p class="text-xs font-semibold text-gray-600 uppercase tracking-wide">Internal Text Items</p>
+                  <button class="h-7 px-2 rounded border border-gray-200 text-xs text-gray-700 hover:bg-gray-50" (click)="addInternalItem()">Add Text</button>
+                </div>
+                <div class="space-y-2 max-h-40 overflow-auto">
+                  @for (item of resourceEditorDraft.internalItems; track item.id) {
+                    <div class="grid grid-cols-[1fr_auto] gap-2 items-center">
+                      <input class="h-8 rounded border border-gray-200 px-2 text-xs" [value]="item.text" (input)="updateInternalItemText(item.id, textValue($event))" />
+                      <button class="h-8 px-2 rounded border border-red-200 text-xs text-red-600 hover:bg-red-50" (click)="removeInternalItem(item.id)">Remove</button>
+                    </div>
+                  }
+                </div>
+                <p class="text-[11px] text-gray-400 mt-2">Tip: after saving, drag these labels inside the resource box on the canvas.</p>
+              </div>
+
+              <div class="px-4 py-3 border-t border-gray-100 flex justify-end gap-2">
+                <button class="h-9 px-3 rounded border border-gray-200 text-xs text-gray-700 hover:bg-gray-50" (click)="closeResourceEditor()">Cancel</button>
+                <button class="h-9 px-3 rounded bg-blue-600 text-xs text-white hover:bg-blue-700" (click)="saveResourceEditor()">Save Changes</button>
+              </div>
+            </div>
+          </div>
+        }
+
+        @if (store.sidebarOpen()) {
+          <app-sidebar />
+        }
+      </div>
+
+      <!-- Context menu (fixed, outside canvas zoom transform) -->
+      @if (contextMenu) {
+        <div class="fixed inset-0 z-[190]" (click)="closeContextMenu()" (contextmenu)="$event.preventDefault(); closeContextMenu()"></div>
+        <div
+          class="fixed z-[191] w-52 rounded-lg bg-white border border-gray-200 shadow-xl py-1 select-none"
+          [style.left.px]="contextMenu.x"
+          [style.top.px]="contextMenu.y"
+          (click)="$event.stopPropagation()"
+        >
+          <!-- Resource label -->
+          <div class="px-3 py-1.5 border-b border-gray-100">
+            <p class="text-[11px] font-semibold text-gray-800 truncate" [title]="contextMenu.node.label">{{ contextMenu.node.label }}</p>
+            <p class="text-[10px] text-gray-400 truncate">{{ contextMenu.node.resourceType.split('/').pop() }}</p>
+          </div>
+
+          <!-- Actions -->
+          <div class="py-0.5">
+            <button type="button" class="ctx-item" (click)="ctxFocus()">
+              <svg class="ctx-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+                <circle cx="8" cy="8" r="6"/>
+                <circle cx="8" cy="8" r="2" fill="currentColor" stroke="none"/>
+              </svg>
+              Focus in sidebar
+            </button>
+            <button type="button" class="ctx-item" (click)="ctxTogglePin()">
+              <svg class="ctx-icon" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M9.5 1.5a1 1 0 0 1 1 1v.5h.5a1 1 0 0 1 .707 1.707L10.5 5.914V9.5a.5.5 0 0 1-.146.354L9 11.207V14.5a.5.5 0 0 1-.854.354L5.5 12.207V11.5l-1.354-.646A.5.5 0 0 1 3.5 10.5V9.914l-1.207-1.207A1 1 0 0 1 3 7h.5V2.5a1 1 0 0 1 1-1h5Z"/>
+              </svg>
+              {{ contextMenu.node.isPinned ? 'Unpin' : 'Pin' }}
+            </button>
+            <button type="button" class="ctx-item" (click)="ctxCopyName()">
+              <svg class="ctx-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+                <rect x="5" y="5" width="9" height="9" rx="1.5"/>
+                <path d="M3 11H2a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v1"/>
+              </svg>
+              Copy name
+            </button>
+            <button type="button" class="ctx-item" (click)="ctxCopyResourceId()">
+              <svg class="ctx-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M6 4H4a2 2 0 0 0-2 2v4a2 2 0 0 0 2 2h2"/>
+                <path d="M10 4h2a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2"/>
+                <line x1="5" y1="8" x2="11" y2="8"/>
+              </svg>
+              Copy resource ID
+            </button>
+          </div>
+
+          <!-- Destructive -->
+          <div class="border-t border-gray-100 py-0.5">
+            <button type="button" class="ctx-item text-red-600 hover:bg-red-50" (click)="ctxDelete()">
+              <svg class="ctx-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M2 4h12M5 4V3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1M6 7v5M10 7v5M3 4l1 9a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1l1-9"/>
+              </svg>
+              Delete from diagram
+            </button>
+          </div>
+        </div>
+      }
+    </div>

@@ -121,7 +121,7 @@ export class DiagramStore {
       return current.map(n => {
         if (!groupIds.has(n.id)) return n;
         const pos = { x: Math.max(0, n.position.x + delta.dx), y: Math.max(0, n.position.y + delta.dy) };
-        return { ...n, position: pos, ...(n.isPinned ? { manualPosition: pos } : {}) };
+        return { ...n, isPinned: true, position: pos, manualPosition: pos };
       });
     });
   }

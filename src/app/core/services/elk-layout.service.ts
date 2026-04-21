@@ -27,6 +27,7 @@ const GROUP_LABEL_H = 36;
 const GROUP_PAD = 24;
 const GROUP_GAP_X = 80;
 const GROUP_GAP_Y = 80;
+const SUB_GAP = 120;
 const CANVAS_MARGIN_X = 72;
 const CANVAS_MARGIN_Y = 96;
 
@@ -48,31 +49,62 @@ export class ELKLayoutService {
     if (nodes.length === 0) return nodes;
 
     const opts = { ...DEFAULT_OPTIONS, ...options };
+    const nodeById = new Map(nodes.map(n => [n.id, n]));
 
-    // Identify true ELK compound children (VNet -> subnet only).
+    // VNet compound children (subnets rendered inside VNet node)
     const childNodeIds = new Set<string>();
     for (const n of nodes) {
       if (!this.shouldUseElkChildren(n)) continue;
       if (n.children?.length) n.children.forEach(id => childNodeIds.add(id));
     }
 
-    // Group top-level nodes (non-child, non-subnet standalone) by resource group
-    const rgMap = new Map<string, DiagramNode[]>();
-    for (const node of nodes) {
-      if (childNodeIds.has(node.id)) continue; // handled as VNet child
-      const rg = node.metadata?.resourceGroup || node.groupId || 'default';
-      if (!rgMap.has(rg)) rgMap.set(rg, []);
-      rgMap.get(rg)!.push(node);
+    // VM groups: VMs that have visible children (NICs, disks, etc.)
+    // These become __vm__ compound containers in ELK — separate from VNet children
+    // so that ELK allocates space for the group and prevents other nodes overlapping.
+    const vmChildIds = new Set<string>();
+    const vmParentIds = new Set<string>();
+    const vmGroups = new Map<string, DiagramNode[]>(); // vmId -> [vm, ...children]
+    for (const n of nodes) {
+      if (n.resourceType !== 'microsoft.compute/virtualmachines') continue;
+      if (!n.children?.length) continue;
+      const children = n.children.map(id => nodeById.get(id)).filter((c): c is DiagramNode => !!c);
+      if (children.length === 0) continue;
+      vmParentIds.add(n.id);
+      children.forEach(c => vmChildIds.add(c.id));
+      vmGroups.set(n.id, [n, ...children]);
     }
 
-    // Prefer connected nodes first so ELK places edge-related items closer.
+    // Standalone top-level nodes: exclude VNet children, VM children, and VMs-with-children.
+    // VMs-with-children go inside __vm__ containers, not directly into the RG container.
+    const rgMap = new Map<string, DiagramNode[]>();
+    for (const node of nodes) {
+      if (childNodeIds.has(node.id)) continue;
+      if (vmChildIds.has(node.id)) continue;
+      if (vmParentIds.has(node.id)) continue;
+      const subId = node.metadata?.subscriptionId || '';
+      const rg = node.metadata?.resourceGroup || node.groupId || 'default';
+      const key = `${subId}::${rg}`;
+      if (!rgMap.has(key)) rgMap.set(key, []);
+      rgMap.get(key)!.push(node);
+    }
+
+    // Group VM groups by the same RG key used in rgMap
+    const vmGroupsByRg = new Map<string, Map<string, DiagramNode[]>>();
+    for (const [vmId, members] of vmGroups) {
+      const vm = members[0];
+      const subId = vm.metadata?.subscriptionId || '';
+      const rg = vm.metadata?.resourceGroup || vm.groupId || 'default';
+      const key = `${subId}::${rg}`;
+      if (!vmGroupsByRg.has(key)) vmGroupsByRg.set(key, new Map());
+      vmGroupsByRg.get(key)!.set(vmId, members);
+    }
+
+    // Sort standalone nodes by connectivity so ELK places edge-related items closer
     const degreeByNodeId = new Map<string, number>();
     for (const edge of edges) {
       degreeByNodeId.set(edge.sourceId, (degreeByNodeId.get(edge.sourceId) ?? 0) + 1);
       degreeByNodeId.set(edge.targetId, (degreeByNodeId.get(edge.targetId) ?? 0) + 1);
     }
-
-    // Sort each resource group's nodes by connectivity, then type.
     for (const [, rgNodes] of rgMap) {
       rgNodes.sort((a, b) => {
         const degreeDelta = (degreeByNodeId.get(b.id) ?? 0) - (degreeByNodeId.get(a.id) ?? 0);
@@ -82,7 +114,7 @@ export class ELKLayoutService {
     }
 
     try {
-      const elkGraph = this.buildElkGraph(nodes, edges, opts, rgMap, childNodeIds);
+      const elkGraph = this.buildElkGraph(nodes, edges, opts, rgMap, childNodeIds, vmGroupsByRg);
       let result: unknown;
       if (this.worker) {
         result = await this.runInWorker(elkGraph);
@@ -95,7 +127,6 @@ export class ELKLayoutService {
       const positions = new Map<string, { x: number; y: number }>();
       this.extractPositions(result as ElkNode, positions, 0, 0);
 
-      // If ELK gave us real positions for most nodes, use them
       const positioned = positions.size >= Math.max(1, nodes.length * 0.5);
       if (positioned) {
         const laidOut = nodes.map(node => {
@@ -109,30 +140,36 @@ export class ELKLayoutService {
       // fall through to manual layout
     }
 
-    return this.applyCanvasMargin(this.manualGroupLayout(nodes, rgMap, childNodeIds));
+    return this.applyCanvasMargin(this.manualGroupLayout(nodes, rgMap, childNodeIds, vmGroupsByRg));
   }
 
   private buildElkGraph(
     nodes: DiagramNode[],
     edges: DiagramEdge[],
     opts: ELKLayoutOptions,
-    rgMap: Map<string, DiagramNode[]>,
+    rgMap: Map<string, DiagramNode[]>,        // key = `${subId}::${rgName}`, standalone nodes only
     childNodeIds: Set<string>,
+    vmGroupsByRg: Map<string, Map<string, DiagramNode[]>>,
   ): object {
     const nodeById = new Map(nodes.map(n => [n.id, n]));
 
-    // Build a map from nodeId -> rgName so we can classify edges
+    // Map every node id (including VM group members) to its RG key for edge classification
     const nodeToRg = new Map<string, string>();
-    for (const [rgName, rgNodes] of rgMap) {
+    for (const [rgKey, rgNodes] of rgMap) {
       for (const node of rgNodes) {
-        nodeToRg.set(node.id, rgName);
+        nodeToRg.set(node.id, rgKey);
         if (node.children) {
-          for (const childId of node.children) nodeToRg.set(childId, rgName);
+          for (const childId of node.children) nodeToRg.set(childId, rgKey);
         }
       }
     }
+    for (const [rgKey, vmGroupsInRg] of vmGroupsByRg) {
+      for (const members of vmGroupsInRg.values()) {
+        for (const m of members) nodeToRg.set(m.id, rgKey);
+      }
+    }
 
-    // Split edges: intra-RG edges go inside the RG container, inter-RG go at root
+    // Intra-RG edges stay inside the RG container; inter-RG edges bubble up to root
     const intraRgEdges = new Map<string, DiagramEdge[]>();
     const interRgEdges: DiagramEdge[] = [];
     for (const edge of edges) {
@@ -171,37 +208,92 @@ export class ELKLayoutService {
           'elk.layered.spacing.nodeNodeBetweenLayers': String(opts.nodeSpacing),
         };
       } else {
-        // Leaf nodes keep fixed dimensions; compound nodes are auto-sized by ELK.
         base['width'] = node.size.width;
         base['height'] = node.size.height;
       }
       return base;
     };
 
-    const rgContainers = Array.from(rgMap.entries()).map(([rgName, rgNodes]) => ({
-      id: `__rg__${rgName}`,
-      layoutOptions: {
-        'elk.algorithm': 'layered',
-        'elk.direction': opts.direction,
-        'elk.spacing.nodeNode': String(opts.nodeSpacing),
-        'elk.layered.spacing.nodeNodeBetweenLayers': String(opts.nodeSpacing),
-        'elk.padding': `[top=${opts.groupPadding + GROUP_LABEL_H},left=${opts.groupPadding},bottom=${opts.groupPadding},right=${opts.groupPadding}]`,
-        'elk.layered.wrapping.strategy': 'MULTI_EDGE',
-        'elk.layered.wrapping.additionalEdgeSpacing': '10',
-        'elk.layered.nodePlacement.strategy': 'NETWORK_SIMPLEX',
-        'elk.layered.nodePlacement.favorStraightEdges': 'true',
-        'elk.layered.crossingMinimization.strategy': 'LAYER_SWEEP',
-        'elk.layered.considerModelOrder.strategy': 'NODES_AND_EDGES',
-        'elk.layered.thoroughness': '20',
-      },
-      children: rgNodes.map(buildLayoutNode),
-      // Intra-RG edges let ELK's layered algorithm place connected nodes close together
-      edges: (intraRgEdges.get(rgName) ?? []).map(e => ({
-        id: e.id,
-        sources: [e.sourceId],
-        targets: [e.targetId],
-      })),
-    }));
+    // Collect all RG keys (may have VM groups but no standalone nodes, or vice versa)
+    const allRgKeys = new Set([...rgMap.keys(), ...vmGroupsByRg.keys()]);
+
+    const rgContainersByKey = new Map(
+      Array.from(allRgKeys).map(rgKey => {
+        const standaloneNodes = rgMap.get(rgKey) ?? [];
+        const vmGroupsInRg = vmGroupsByRg.get(rgKey) ?? new Map();
+
+        // Each VM group becomes a __vm__ compound node inside the RG container.
+        // Using the box algorithm keeps the VM+children tightly packed.
+        // hierarchyHandling on the RG container ensures edges between VM members
+        // and standalone nodes are routed correctly across hierarchy boundaries.
+        const vmElkNodes = Array.from(vmGroupsInRg.entries()).map(([vmId, members]) => ({
+          id: `__vm__${vmId}`,
+          layoutOptions: {
+            'elk.algorithm': 'box',
+            'elk.spacing.nodeNode': String(Math.round(opts.nodeSpacing * 0.5)),
+            'elk.box.packingMode': 'GROUP_DEC',
+            'elk.padding': `[top=20,left=14,bottom=14,right=14]`,
+          },
+          children: members.map((n: DiagramNode) => ({
+            id: n.id,
+            width: n.size.width,
+            height: n.size.height,
+            ...(n.isPinned && n.manualPosition ? { layoutOptions: { 'org.eclipse.elk.noLayout': 'true' } } : {}),
+          })),
+        }));
+
+        return [
+          rgKey,
+          {
+            id: `__rg__${rgKey}`,
+            layoutOptions: {
+              'elk.algorithm': 'layered',
+              'elk.direction': opts.direction,
+              'elk.spacing.nodeNode': String(opts.nodeSpacing),
+              'elk.layered.spacing.nodeNodeBetweenLayers': String(opts.nodeSpacing),
+              'elk.padding': `[top=${opts.groupPadding + GROUP_LABEL_H},left=${opts.groupPadding},bottom=${opts.groupPadding},right=${opts.groupPadding}]`,
+              'elk.layered.wrapping.strategy': 'MULTI_EDGE',
+              'elk.layered.wrapping.additionalEdgeSpacing': '10',
+              'elk.layered.nodePlacement.strategy': 'NETWORK_SIMPLEX',
+              'elk.layered.nodePlacement.favorStraightEdges': 'true',
+              'elk.layered.crossingMinimization.strategy': 'LAYER_SWEEP',
+              'elk.layered.considerModelOrder.strategy': 'NODES_AND_EDGES',
+              'elk.layered.thoroughness': '20',
+              'elk.hierarchyHandling': 'INCLUDE_CHILDREN',
+            },
+            children: [...vmElkNodes, ...standaloneNodes.map(buildLayoutNode)],
+            edges: (intraRgEdges.get(rgKey) ?? []).map(e => ({
+              id: e.id,
+              sources: [e.sourceId],
+              targets: [e.targetId],
+            })),
+          },
+        ] as [string, object];
+      })
+    );
+
+    // Group RG containers by subscription for multi-subscription isolation
+    const subToRgContainers = new Map<string, object[]>();
+    for (const [rgKey, rgContainer] of rgContainersByKey) {
+      const subId = rgKey.split('::')[0];
+      if (!subToRgContainers.has(subId)) subToRgContainers.set(subId, []);
+      subToRgContainers.get(subId)!.push(rgContainer);
+    }
+
+    const multiSub = subToRgContainers.size > 1;
+
+    const topLevelChildren: object[] = multiSub
+      ? Array.from(subToRgContainers.entries()).map(([subId, subRgs]) => ({
+          id: `__sub__${subId}`,
+          layoutOptions: {
+            'elk.algorithm': 'box',
+            'elk.spacing.nodeNode': String(opts.componentSpacing),
+            'elk.box.packingMode': 'GROUP_DEC',
+            'elk.padding': `[top=48,left=32,bottom=32,right=32]`,
+          },
+          children: subRgs,
+        }))
+      : Array.from(rgContainersByKey.values());
 
     const rootEdges = interRgEdges
       .filter(e => !childNodeIds.has(e.sourceId) || !childNodeIds.has(e.targetId))
@@ -215,7 +307,7 @@ export class ELKLayoutService {
         'elk.box.packingMode': 'GROUP_DEC',
         'elk.hierarchyHandling': 'INCLUDE_CHILDREN',
       },
-      children: rgContainers,
+      children: topLevelChildren,
       edges: rootEdges,
     };
   }
@@ -229,70 +321,127 @@ export class ELKLayoutService {
     const absX = (node.x ?? 0) + offsetX;
     const absY = (node.y ?? 0) + offsetY;
 
-    const isSynthetic = node.id === 'root' || node.id.startsWith('__rg__');
+    const isSynthetic = node.id === 'root'
+      || node.id.startsWith('__rg__')
+      || node.id.startsWith('__sub__')
+      || node.id.startsWith('__vm__');
+
     if (!isSynthetic && node.x !== undefined && node.y !== undefined) {
       map.set(node.id, { x: absX, y: absY });
     }
 
     if (node.children) {
       for (const child of node.children) {
-        this.extractPositions(child, map, isSynthetic ? absX : absX, isSynthetic ? absY : absY);
+        this.extractPositions(child, map, absX, absY);
       }
     }
   }
 
-  // Manual grid layout grouped by resource group — used as fallback and guarantees visible spread
+  // Manual grid layout — fallback when ELK fails.
+  // Groups nodes by subscription, then by RG. VM groups are placed as a unit
+  // (VM + children in a row) so their members never scatter across the grid.
   private manualGroupLayout(
     nodes: DiagramNode[],
     rgMap: Map<string, DiagramNode[]>,
     childNodeIds: Set<string>,
+    vmGroupsByRg: Map<string, Map<string, DiagramNode[]>>,
   ): DiagramNode[] {
     const result = new Map<string, { x: number; y: number }>();
 
-    let groupX = GROUP_PAD;
-    let groupY = GROUP_PAD;
-    let rowMaxH = 0;
-    const canvasMaxW = (NODE_W + H_GAP) * GRID_COLS + GROUP_PAD * 2 + GROUP_GAP_X;
-
-    for (const [, rgNodes] of rgMap) {
-      let col = 0;
-      let row = 0;
-
-      for (const node of rgNodes) {
-        result.set(node.id, {
-          x: groupX + GROUP_PAD + col * (NODE_W + H_GAP),
-          y: groupY + GROUP_LABEL_H + GROUP_PAD + row * (NODE_H + V_GAP),
-        });
-
-        // Place VNet children right below their parent
-        if (this.shouldUseElkChildren(node) && node.children?.length) {
-          node.children.forEach((childId, ci) => {
-            result.set(childId, {
-              x: groupX + GROUP_PAD + ci * (NODE_W + H_GAP),
-              y: groupY + GROUP_LABEL_H + GROUP_PAD + (row + 1) * (NODE_H + V_GAP) + 24,
-            });
-          });
-        }
-
-        col++;
-        if (col >= GRID_COLS) { col = 0; row++; }
-      }
-
-      const rows = Math.ceil(rgNodes.length / GRID_COLS);
-      const groupW = Math.min(rgNodes.length, GRID_COLS) * (NODE_W + H_GAP) - H_GAP + GROUP_PAD * 2;
-      const groupH = GROUP_LABEL_H + GROUP_PAD + rows * (NODE_H + V_GAP) + GROUP_PAD;
-
-      rowMaxH = Math.max(rowMaxH, groupH);
-      groupX += groupW + GROUP_GAP_X;
-
-      if (groupX + groupW > canvasMaxW) {
-        groupX = GROUP_PAD;
-        groupY += rowMaxH + GROUP_GAP_Y;
-        rowMaxH = 0;
-      }
+    // Group RG keys by subscription
+    const subToRgKeys = new Map<string, string[]>();
+    const allRgKeys = new Set([...rgMap.keys(), ...vmGroupsByRg.keys()]);
+    for (const rgKey of allRgKeys) {
+      const subId = rgKey.split('::')[0];
+      if (!subToRgKeys.has(subId)) subToRgKeys.set(subId, []);
+      subToRgKeys.get(subId)!.push(rgKey);
     }
 
-    // Place child nodes (subnets) that weren't placed yet
+    const canvasMaxW = (NODE_W + H_GAP) * GRID_COLS + GROUP_PAD * 2 + GROUP_GAP_X;
+    let subOffsetX = GROUP_PAD;
+
+    for (const [, rgKeys] of subToRgKeys) {
+      let groupX = 0;
+      let groupY = GROUP_PAD;
+      let rowMaxH = 0;
+      let subBlockW = 0;
+
+      for (const rgKey of rgKeys) {
+        const standaloneNodes = rgMap.get(rgKey) ?? [];
+        const vmGroupsInRg = vmGroupsByRg.get(rgKey) ?? new Map();
+
+        let col = 0;
+        let row = 0;
+
+        // Place VM groups first — each group occupies a row: VM on left, children to the right
+        for (const [, members] of vmGroupsInRg) {
+          const vm = members[0];
+          const children = members.slice(1);
+
+          // VM goes in the first column of the current row
+          result.set(vm.id, {
+            x: subOffsetX + groupX + GROUP_PAD + col * (NODE_W + H_GAP),
+            y: groupY + GROUP_LABEL_H + GROUP_PAD + row * (NODE_H + V_GAP),
+          });
+
+          // Children go in subsequent columns of the same row
+          children.forEach((child: DiagramNode, ci: number) => {
+            result.set(child.id, {
+              x: subOffsetX + groupX + GROUP_PAD + (col + ci + 1) * (NODE_W + H_GAP),
+              y: groupY + GROUP_LABEL_H + GROUP_PAD + row * (NODE_H + V_GAP),
+            });
+          });
+
+          // Each VM group always starts on its own row
+          row++;
+        }
+
+        // Place standalone nodes in a 4-column grid after VM groups
+        for (const node of standaloneNodes) {
+          result.set(node.id, {
+            x: subOffsetX + groupX + GROUP_PAD + col * (NODE_W + H_GAP),
+            y: groupY + GROUP_LABEL_H + GROUP_PAD + row * (NODE_H + V_GAP),
+          });
+
+          if (this.shouldUseElkChildren(node) && node.children?.length) {
+            node.children.forEach((childId, ci) => {
+              result.set(childId, {
+                x: subOffsetX + groupX + GROUP_PAD + ci * (NODE_W + H_GAP),
+                y: groupY + GROUP_LABEL_H + GROUP_PAD + (row + 1) * (NODE_H + V_GAP) + 24,
+              });
+            });
+          }
+
+          col++;
+          if (col >= GRID_COLS) { col = 0; row++; }
+        }
+
+        const totalRows = row + (col > 0 ? 1 : 0);
+        const standaloneW = standaloneNodes.length > 0
+          ? Math.min(standaloneNodes.length, GRID_COLS) * (NODE_W + H_GAP) - H_GAP + GROUP_PAD * 2
+          : GROUP_PAD * 2 + NODE_W;
+        const vmMaxCols = vmGroupsByRg.get(rgKey)?.size
+          ? Math.max(...Array.from(vmGroupsByRg.get(rgKey)!.values()).map(m => m.length))
+          : 0;
+        const vmW = vmMaxCols > 0 ? vmMaxCols * (NODE_W + H_GAP) - H_GAP + GROUP_PAD * 2 : 0;
+        const groupW = Math.max(standaloneW, vmW);
+        const groupH = GROUP_LABEL_H + GROUP_PAD + totalRows * (NODE_H + V_GAP) + GROUP_PAD;
+
+        rowMaxH = Math.max(rowMaxH, groupH);
+        subBlockW = Math.max(subBlockW, groupX + groupW);
+        groupX += groupW + GROUP_GAP_X;
+
+        if (groupX + groupW > canvasMaxW) {
+          groupX = 0;
+          groupY += rowMaxH + GROUP_GAP_Y;
+          rowMaxH = 0;
+        }
+      }
+
+      subOffsetX += subBlockW + SUB_GAP;
+    }
+
+    // Place VNet children (subnets) that weren't placed yet
     for (const node of nodes) {
       if (childNodeIds.has(node.id) && !result.has(node.id)) {
         const parent = nodes.find(n => n.children?.includes(node.id));

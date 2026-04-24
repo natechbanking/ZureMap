@@ -68,6 +68,18 @@ export interface UaiExpansionRequest {
   assignmentCount: number;
 }
 
+export interface HostingEnvironmentExpansionRequest {
+  nodeId: string;
+  expanded: boolean;
+  statCount: number;
+}
+
+export interface ServerFarmExpansionRequest {
+  nodeId: string;
+  expanded: boolean;
+  statCount: number;
+}
+
 interface AksNodePoolView {
   name: string;
   count: number;
@@ -120,6 +132,16 @@ interface UaiRoleAssignmentView {
   scope: string;
   principalType: string;
   description: string | null;
+}
+
+interface HostingEnvironmentStatView {
+  label: string;
+  value: string;
+}
+
+interface ServerFarmStatView {
+  label: string;
+  value: string;
 }
 
 @Component({
@@ -184,6 +206,32 @@ interface UaiRoleAssignmentView {
           } @else {
             Show assignments ({{ uaiRoleAssignments.length }})
           }
+        </button>
+      }
+
+      @if (isHostingEnvironment) {
+        <button
+          type="button"
+          data-export-hide
+          class="mt-0.5 px-2 py-0.5 rounded border border-fuchsia-200 bg-fuchsia-50 text-[10px] leading-tight text-fuchsia-700 hover:bg-fuchsia-100"
+          [title]="hostingEnvironmentStatsExpanded ? 'Hide hosting environment stats' : 'Show hosting environment stats'"
+          (mousedown)="stopEvent($event)"
+          (click)="toggleHostingEnvironmentStatsPanel($event)"
+        >
+          {{ hostingEnvironmentStatsExpanded ? 'Hide stats' : 'Show stats' }} ({{ hostingEnvironmentStats.length }})
+        </button>
+      }
+
+      @if (isServerFarm) {
+        <button
+          type="button"
+          data-export-hide
+          class="mt-0.5 px-2 py-0.5 rounded border border-pink-200 bg-pink-50 text-[10px] leading-tight text-pink-700 hover:bg-pink-100"
+          [title]="serverFarmStatsExpanded ? 'Hide server farm stats' : 'Show server farm stats'"
+          (mousedown)="stopEvent($event)"
+          (click)="toggleServerFarmStatsPanel($event)"
+        >
+          {{ serverFarmStatsExpanded ? 'Hide stats' : 'Show stats' }} ({{ serverFarmStats.length }})
         </button>
       }
 
@@ -357,6 +405,48 @@ interface UaiRoleAssignmentView {
                       {{ assignment.description }}
                     </p>
                   }
+                </div>
+              }
+            </div>
+          }
+        </div>
+      }
+
+      @if (isHostingEnvironment && hostingEnvironmentStatsExpanded) {
+        <div
+          class="w-full mt-1 rounded border border-fuchsia-200 bg-white shadow-sm overflow-hidden"
+          (mousedown)="stopEvent($event)"
+          (click)="stopEvent($event)"
+        >
+          @if (hostingEnvironmentStats.length === 0) {
+            <p class="text-[10px] text-gray-500 px-2 py-1.5">No stats available for this hosting environment.</p>
+          } @else {
+            <div class="p-1.5">
+              @for (stat of hostingEnvironmentStats; track stat.label) {
+                <div class="flex items-center justify-between gap-2 px-1.5 py-1 border-b border-fuchsia-50 last:border-b-0">
+                  <span class="text-[10px] text-gray-500 truncate" [title]="stat.label">{{ stat.label }}</span>
+                  <span class="text-[10px] font-semibold text-gray-800 shrink-0" [title]="stat.value">{{ stat.value }}</span>
+                </div>
+              }
+            </div>
+          }
+        </div>
+      }
+
+      @if (isServerFarm && serverFarmStatsExpanded) {
+        <div
+          class="w-full mt-1 rounded border border-pink-200 bg-white shadow-sm overflow-hidden"
+          (mousedown)="stopEvent($event)"
+          (click)="stopEvent($event)"
+        >
+          @if (serverFarmStats.length === 0) {
+            <p class="text-[10px] text-gray-500 px-2 py-1.5">No stats available for this server farm.</p>
+          } @else {
+            <div class="p-1.5">
+              @for (stat of serverFarmStats; track stat.label) {
+                <div class="flex items-center justify-between gap-2 px-1.5 py-1 border-b border-pink-50 last:border-b-0">
+                  <span class="text-[10px] text-gray-500 truncate" [title]="stat.label">{{ stat.label }}</span>
+                  <span class="text-[10px] font-semibold text-gray-800 shrink-0" [title]="stat.value">{{ stat.value }}</span>
                 </div>
               }
             </div>
@@ -581,6 +671,8 @@ export class DiagramNodeComponent {
   @Output() aksExpansionChanged = new EventEmitter<AksExpansionRequest>();
   @Output() vmExpansionChanged = new EventEmitter<VmExpansionRequest>();
   @Output() uaiExpansionChanged = new EventEmitter<UaiExpansionRequest>();
+  @Output() hostingEnvironmentExpansionChanged = new EventEmitter<HostingEnvironmentExpansionRequest>();
+  @Output() serverFarmExpansionChanged = new EventEmitter<ServerFarmExpansionRequest>();
 
   private costSvc = inject(CostService);
   private store = inject(DiagramStore);
@@ -603,6 +695,8 @@ export class DiagramNodeComponent {
   uaiAssignmentsLoaded = false;
   uaiAssignmentsError: string | null = null;
   uaiRoleAssignments: UaiRoleAssignmentView[] = [];
+  hostingEnvironmentStatsExpanded = false;
+  serverFarmStatsExpanded = false;
 
   get typeLabel(): string {
     const parts = this.node.resourceType.split('/');
@@ -676,6 +770,64 @@ export class DiagramNodeComponent {
 
   get isUserAssignedIdentity(): boolean {
     return this.node.resourceType.toLowerCase() === 'microsoft.managedidentity/userassignedidentities';
+  }
+
+  get isHostingEnvironment(): boolean {
+    return this.node.resourceType.toLowerCase() === 'microsoft.web/hostingenvironments';
+  }
+
+  get isServerFarm(): boolean {
+    return this.node.resourceType.toLowerCase() === 'microsoft.web/serverfarms';
+  }
+
+  get hostingEnvironmentStats(): HostingEnvironmentStatView[] {
+    const props = this.node.metadata?.properties ?? {};
+    const workerPools = (props['workerPools'] as Array<{
+      workerCount?: number | string;
+      instanceCount?: number | string;
+      numberOfWorkers?: number | string;
+    }> | undefined) ?? [];
+
+    const totalWorkers = workerPools.reduce((sum, pool) => {
+      const workers = this.toNumber(pool.workerCount) ??
+        this.toNumber(pool.instanceCount) ??
+        this.toNumber(pool.numberOfWorkers) ??
+        0;
+      return sum + workers;
+    }, 0);
+
+    const stats: HostingEnvironmentStatView[] = [
+      { label: 'Worker Pools', value: workerPools.length.toString() },
+      { label: 'Worker Instances', value: totalWorkers.toString() },
+      this.toStat('Front-End Scale', this.toNumber(props['frontEndScaleFactor'])),
+      this.toStat('Dedicated Hosts', this.toNumber(props['dedicatedHostCount'])),
+      this.toStat('Cluster Settings', this.toArrayCount(props['clusterSettings'])),
+      this.toStat('Outbound IPs', this.toCsvCount(props['outboundIpAddresses'])),
+      this.toStat('IP SSL Addresses', this.toNumber(props['ipsslAddressCount'])),
+      this.toStat('Internal LB Modes', this.toCsvCount(props['internalLoadBalancingMode'])),
+    ].filter((s): s is HostingEnvironmentStatView => !!s);
+
+    return stats;
+  }
+
+  get serverFarmStats(): ServerFarmStatView[] {
+    const props = this.node.metadata?.properties ?? {};
+    const sku = this.node.metadata?.sku;
+
+    const stats: ServerFarmStatView[] = [
+      this.toTextStat('SKU', sku?.name ?? null),
+      this.toTextStat('Tier', sku?.tier ?? null),
+      this.toStat('Capacity', this.toNumber(sku?.capacity)),
+      this.toStat('Workers', this.toNumber(props['numberOfWorkers'])),
+      this.toStat('Sites', this.toNumber(props['numberOfSites'])),
+      this.toStat('Maximum Elastic Workers', this.toNumber(props['maximumElasticWorkerCount'])),
+      this.toTextStat('Zone Redundant', this.toBoolText(props['zoneRedundant'])),
+      this.toTextStat('Reserved (Linux)', this.toBoolText(props['reserved'])),
+      this.toTextStat('Hyper-V', this.toBoolText(props['hyperV'])),
+      this.toTextStat('Per-Site Scaling', this.toBoolText(props['perSiteScaling'])),
+    ].filter((s): s is ServerFarmStatView => !!s);
+
+    return stats;
   }
 
   get vmInfo(): VmInfoView {
@@ -916,6 +1068,30 @@ export class DiagramNodeComponent {
     });
   }
 
+  toggleHostingEnvironmentStatsPanel(event: MouseEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.clicked.emit(this.node.id);
+    this.hostingEnvironmentStatsExpanded = !this.hostingEnvironmentStatsExpanded;
+    this.hostingEnvironmentExpansionChanged.emit({
+      nodeId: this.node.id,
+      expanded: this.hostingEnvironmentStatsExpanded,
+      statCount: this.hostingEnvironmentStats.length,
+    });
+  }
+
+  toggleServerFarmStatsPanel(event: MouseEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.clicked.emit(this.node.id);
+    this.serverFarmStatsExpanded = !this.serverFarmStatsExpanded;
+    this.serverFarmExpansionChanged.emit({
+      nodeId: this.node.id,
+      expanded: this.serverFarmStatsExpanded,
+      statCount: this.serverFarmStats.length,
+    });
+  }
+
   toggleVmPanel(event: MouseEvent): void {
     event.preventDefault();
     event.stopPropagation();
@@ -944,6 +1120,41 @@ export class DiagramNodeComponent {
       principalType: assignment.principalType || 'Principal',
       description: assignment.description ?? null,
     };
+  }
+
+  private toStat(label: string, value: number | null): HostingEnvironmentStatView | null {
+    if (value === null) return null;
+    return { label, value: value.toString() };
+  }
+
+  private toTextStat(label: string, value: string | null): ServerFarmStatView | null {
+    if (!value) return null;
+    return { label, value };
+  }
+
+  private toNumber(value: unknown): number | null {
+    if (typeof value === 'number' && Number.isFinite(value)) return Math.max(0, Math.round(value));
+    if (typeof value === 'string') {
+      const parsed = Number(value);
+      if (Number.isFinite(parsed)) return Math.max(0, Math.round(parsed));
+    }
+    return null;
+  }
+
+  private toArrayCount(value: unknown): number | null {
+    return Array.isArray(value) ? value.length : null;
+  }
+
+  private toCsvCount(value: unknown): number | null {
+    if (typeof value !== 'string') return null;
+    const trimmed = value.trim();
+    if (!trimmed) return 0;
+    return trimmed.split(',').map(v => v.trim()).filter(Boolean).length;
+  }
+
+  private toBoolText(value: unknown): string | null {
+    if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+    return null;
   }
 
   stopEvent(event: MouseEvent): void {

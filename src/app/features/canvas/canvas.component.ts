@@ -15,6 +15,8 @@ import {
   AksExpansionRequest,
   VmExpansionRequest,
   UaiExpansionRequest,
+  HostingEnvironmentExpansionRequest,
+  ServerFarmExpansionRequest,
 } from './diagram-node/diagram-node.component';
 import { SidebarComponent } from '../sidebar/sidebar.component';
 import { ToolbarComponent } from '../toolbar/toolbar.component';
@@ -182,6 +184,8 @@ export class CanvasComponent {
   private aksCollapsedHeights = new Map<string, number>();
   private vmDetailCollapsedHeights = new Map<string, number>();
   private uaiCollapsedHeights = new Map<string, number>();
+  private hostingEnvironmentCollapsedHeights = new Map<string, number>();
+  private serverFarmCollapsedHeights = new Map<string, number>();
   selectedEdgeId: string | null = null;
   edgeWaypointDragState: EdgeWaypointDragState | null = null;
   annWaypointDragState: AnnWaypointDragState | null = null;
@@ -1502,6 +1506,83 @@ export class CanvasComponent {
     }));
   }
 
+  onHostingEnvironmentExpansionChanged(req: HostingEnvironmentExpansionRequest): void {
+    const nodes = this.store.nodes();
+    const hostingEnvironment = nodes.find(n => n.id === req.nodeId);
+    if (!hostingEnvironment) return;
+
+    this.store.pushUndo();
+
+    const currentHeight = hostingEnvironment.size.height;
+    const collapsedHeight = this.hostingEnvironmentCollapsedHeights.get(req.nodeId) ?? currentHeight;
+    if (req.expanded && !this.hostingEnvironmentCollapsedHeights.has(req.nodeId)) {
+      this.hostingEnvironmentCollapsedHeights.set(req.nodeId, currentHeight);
+    }
+    if (!req.expanded) {
+      this.hostingEnvironmentCollapsedHeights.delete(req.nodeId);
+    }
+
+    // Stats panel rows are compact key/value lines plus panel chrome.
+    const panelHeight = req.statCount === 0 ? 40 : req.statCount * 26 + 20;
+    const targetHeight = req.expanded
+      ? Math.max(currentHeight, collapsedHeight + panelHeight)
+      : collapsedHeight;
+    const delta = targetHeight - currentHeight;
+    if (delta === 0) return;
+
+    const subId = hostingEnvironment.metadata?.subscriptionId || '';
+    const rg = hostingEnvironment.metadata?.resourceGroup || hostingEnvironment.groupId || '';
+    const cutoffY = hostingEnvironment.position.y + currentHeight - 2;
+
+    this.store.setNodes(nodes.map(n => {
+      if (n.id === hostingEnvironment.id) {
+        return { ...n, size: { ...n.size, height: targetHeight } };
+      }
+      const sameSub = (n.metadata?.subscriptionId || '') === subId;
+      const sameRg = (n.metadata?.resourceGroup || n.groupId || '') === rg;
+      if (!sameSub || !sameRg || n.position.y < cutoffY) return n;
+      return { ...n, position: { ...n.position, y: Math.max(0, n.position.y + delta) } };
+    }));
+  }
+
+  onServerFarmExpansionChanged(req: ServerFarmExpansionRequest): void {
+    const nodes = this.store.nodes();
+    const serverFarm = nodes.find(n => n.id === req.nodeId);
+    if (!serverFarm) return;
+
+    this.store.pushUndo();
+
+    const currentHeight = serverFarm.size.height;
+    const collapsedHeight = this.serverFarmCollapsedHeights.get(req.nodeId) ?? currentHeight;
+    if (req.expanded && !this.serverFarmCollapsedHeights.has(req.nodeId)) {
+      this.serverFarmCollapsedHeights.set(req.nodeId, currentHeight);
+    }
+    if (!req.expanded) {
+      this.serverFarmCollapsedHeights.delete(req.nodeId);
+    }
+
+    const panelHeight = req.statCount === 0 ? 40 : req.statCount * 26 + 20;
+    const targetHeight = req.expanded
+      ? Math.max(currentHeight, collapsedHeight + panelHeight)
+      : collapsedHeight;
+    const delta = targetHeight - currentHeight;
+    if (delta === 0) return;
+
+    const subId = serverFarm.metadata?.subscriptionId || '';
+    const rg = serverFarm.metadata?.resourceGroup || serverFarm.groupId || '';
+    const cutoffY = serverFarm.position.y + currentHeight - 2;
+
+    this.store.setNodes(nodes.map(n => {
+      if (n.id === serverFarm.id) {
+        return { ...n, size: { ...n.size, height: targetHeight } };
+      }
+      const sameSub = (n.metadata?.subscriptionId || '') === subId;
+      const sameRg = (n.metadata?.resourceGroup || n.groupId || '') === rg;
+      if (!sameSub || !sameRg || n.position.y < cutoffY) return n;
+      return { ...n, position: { ...n.position, y: Math.max(0, n.position.y + delta) } };
+    }));
+  }
+
   // ── Container rename ──────────────────────────────────────────────────────
   startRename(type: 'rg' | 'sub' | 'vm' | 'rt', id: string, currentName: string): void {
     this.renamingContainer = { type, id };
@@ -1588,8 +1669,39 @@ export class CanvasComponent {
     this.store.pushUndo();
     this.relayoutBusy = true;
     try {
-      const laid = await this.elkLayout.layout(this.store.nodes(), this.store.edges());
-      this.store.setNodes(laid);
+      const currentNodes = this.store.nodes();
+
+      // Run ELK with collapsed node heights so expanded panels don't distort spacing.
+      // All collapsed-height maps track the pre-expansion height for each node type.
+      const collapsedMaps = [
+        this.routeTableCollapsedHeights,
+        this.virtualNetworkCollapsedHeights,
+        this.nsgCollapsedHeights,
+        this.storageAccountCollapsedHeights,
+        this.aksCollapsedHeights,
+        this.vmDetailCollapsedHeights,
+        this.uaiCollapsedHeights,
+        this.hostingEnvironmentCollapsedHeights,
+        this.serverFarmCollapsedHeights,
+      ];
+
+      const layoutNodes = currentNodes.map(node => {
+        for (const map of collapsedMaps) {
+          const h = map.get(node.id);
+          if (h !== undefined) return { ...node, size: { ...node.size, height: h } };
+        }
+        return node;
+      });
+
+      const laid = await this.elkLayout.layout(layoutNodes, this.store.edges());
+
+      // Apply only the positions from ELK back to the original nodes,
+      // keeping expanded heights intact.
+      const posById = new Map(laid.map(n => [n.id, n.position]));
+      this.store.setNodes(currentNodes.map(n => {
+        const pos = posById.get(n.id);
+        return pos ? { ...n, position: pos } : n;
+      }));
     } finally {
       this.relayoutBusy = false;
     }

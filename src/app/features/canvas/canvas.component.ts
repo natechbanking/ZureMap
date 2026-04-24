@@ -26,6 +26,8 @@ import { ResourceContextMenuComponent } from './context-menus/resource-context-m
 import { AnnotationContextMenuComponent } from './context-menus/annotation-context-menu.component';
 import { ResourceEditorModalComponent } from './resource-editor-modal.component';
 import { ExportDialogComponent } from './export-dialog.component';
+import { FinOpsInsightsPanelComponent } from './finops-insights-panel.component';
+import { EdgeStylePanelComponent } from './edge-style-panel.component';
 import { DiagramNode } from '../../core/models/diagram-node.model';
 import { Annotation, DrawingTool, StrokeStyle, EdgeRouting, EdgeMode } from '../../core/models/annotation.model';
 import { DiagramEdge, EdgeStyle } from '../../core/models/diagram-edge.model';
@@ -89,6 +91,8 @@ const ZERO_OFFSET: SizeOffset = { top: 0, right: 0, bottom: 0, left: 0 };
     AnnotationContextMenuComponent,
     ResourceEditorModalComponent,
     ExportDialogComponent,
+    FinOpsInsightsPanelComponent,
+    EdgeStylePanelComponent,
   ],
   templateUrl: "./canvas.component.html",
   styleUrl: "./canvas.component.scss",
@@ -1209,22 +1213,6 @@ export class CanvasComponent {
     return this.edgeEditor.dashStyleValue(style);
   }
 
-  colorValue(event: Event): string {
-    return (event.target as HTMLInputElement).value || '#605e5c';
-  }
-
-  numberValue(event: Event): number {
-    return Number((event.target as HTMLInputElement | HTMLSelectElement).value || 1);
-  }
-
-  selectValue(event: Event): string {
-    return (event.target as HTMLSelectElement).value;
-  }
-
-  checkedValue(event: Event): boolean {
-    return !!(event.target as HTMLInputElement).checked;
-  }
-
   // ── Context menu ──────────────────────────────────────────────────────────
   onContextMenuRequested(req: ContextMenuRequest): void {
     const node = this.store.nodes().find(n => n.id === req.nodeId);
@@ -1548,6 +1536,10 @@ export class CanvasComponent {
 
   get finOpsTopNodes(): Array<{ id: string; label: string; cost: number }> {
     return this.actions.finOpsTopNodes;
+  }
+
+  get finOpsTopNodesView(): Array<{ id: string; label: string; costText: string }> {
+    return this.finOpsTopNodes.map(n => ({ id: n.id, label: n.label, costText: this.formatUsd(n.cost) }));
   }
 
   formatUsd(value: number): string {

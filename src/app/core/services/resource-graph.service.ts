@@ -139,8 +139,16 @@ export class ResourceGraphService {
       });
 
       if (!resp.ok) {
-        const errBody = await resp.text().catch(() => '');
-        throw new Error(`Resource Graph query failed: ${resp.status} — ${errBody}`);
+        let friendly = `Resource Graph query failed (HTTP ${resp.status})`;
+        let code = 'SERVER_ERROR';
+        let detail = '';
+        try {
+          const errBody = await resp.json();
+          if (errBody?.error) friendly = errBody.error;
+          if (errBody?.code) code = errBody.code;
+          if (errBody?.detail) detail = errBody.detail;
+        } catch { /* ignore parse errors */ }
+        throw Object.assign(new Error(friendly), { azCode: code, azDetail: detail });
       }
       const data = await resp.json() as ResourceGraphResponse;
       allResources.push(...(data.data ?? []));

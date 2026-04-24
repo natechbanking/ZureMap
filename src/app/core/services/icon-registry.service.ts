@@ -37,6 +37,7 @@ export const RESOURCE_TYPE_MAP: Record<string, { label: string; icon: string }> 
   'microsoft.network/privatednszones/virtualnetworklinks': { label: 'Virtual Network Link', icon: 'networking/10061-icon-service-Virtual-Networks.svg' },
   'microsoft.network/networkwatchers':              { label: 'Network Watcher',       icon: 'networking/10066-icon-service-Network-Watcher.svg' },
   'microsoft.network/frontdoors':                   { label: 'Front Door',             icon: 'networking/10073-icon-service-Front-Door-and-CDN-Profiles.svg' },
+  'microsoft.network/azurefirewalls':              { label: 'Azure Firewall',         icon: 'networking/10084-icon-service-Firewalls.svg' },
   'microsoft.network/routetables':                  { label: 'Route Table',            icon: 'networking/10082-icon-service-Route-Tables.svg' },
   'microsoft.network/routetables/routes':           { label: 'Route',                  icon: 'networking/10082-icon-service-Route-Tables.svg' },
   'microsoft.web/sites':                            { label: 'App Service',            icon: 'app services/10035-icon-service-App-Services.svg' },

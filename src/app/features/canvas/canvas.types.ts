@@ -54,6 +54,8 @@ export interface TagRule {
   color: string;
   /** Optional badge text shown on the container header. */
   badgeLabel?: string;
+  /** Extra padding (px) added around the natural container bounds when rendering the highlight. */
+  sizeOffset?: { top: number; right: number; bottom: number; left: number };
 }
 
 export interface ResourceEditorDraft {

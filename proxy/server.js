@@ -40,10 +40,54 @@ app.use(express.json());
 // In-memory diagram state cache (written by Angular via a POST endpoint)
 let currentDiagramState = null;
 
+// Classify raw Azure CLI / network errors into a structured error for the frontend
+function classifyAzError(raw = '') {
+  const s = raw.toLowerCase();
+  if (
+    s.includes('nameresolutionerror') ||
+    s.includes('failed to resolve') ||
+    s.includes('name or service not known') ||
+    s.includes('[errno -3]') ||
+    s.includes('max retries exceeded')
+  ) {
+    return { code: 'NO_NETWORK', message: 'Cannot reach Azure — no network connectivity. Check your internet connection and try again.' };
+  }
+  if (
+    s.includes('az login') ||
+    s.includes('please run') ||
+    s.includes('not logged in') ||
+    s.includes('unauthorized_client') ||
+    s.includes('aadsts')
+  ) {
+    return { code: 'AUTH_REQUIRED', message: "Azure CLI authentication required. Please run 'az login' and try again." };
+  }
+  if (s.includes('timed out') || s.includes('etimedout') || s.includes('timeout')) {
+    return { code: 'TIMEOUT', message: 'Request timed out. Azure services may be temporarily unavailable — try again in a moment.' };
+  }
+  if (s.includes('403') || s.includes('forbidden') || s.includes('authorizationfailed')) {
+    return { code: 'PERMISSION_DENIED', message: 'Insufficient permissions to complete this request.' };
+  }
+  if (s.includes('429') || s.includes('too many requests') || s.includes('throttl')) {
+    return { code: 'QUOTA_EXCEEDED', message: 'Azure throttled the request. Wait a few seconds and try again.' };
+  }
+  return { code: 'SERVER_ERROR', message: 'An unexpected error occurred while communicating with Azure.' };
+}
+
+// Build the structured error response body sent to Angular
+function azErrorBody(raw) {
+  const { code, message } = classifyAzError(raw);
+  return { error: message, code, detail: raw.slice(0, 800) }; // cap detail to avoid giant payloads
+}
+
+const AZ_TIMEOUT_MS = 60_000; // 60 s for any az CLI call
+
 function runAz(args) {
   return new Promise((resolve, reject) => {
-    execFile('az', args, { maxBuffer: 50 * 1024 * 1024 }, (err, stdout, stderr) => {
-      if (err) return reject(new Error(stderr || err.message));
+    execFile('az', args, { maxBuffer: 50 * 1024 * 1024, timeout: AZ_TIMEOUT_MS }, (err, stdout, stderr) => {
+      if (err) {
+        const raw = stderr || err.message || '';
+        return reject(Object.assign(new Error(raw), { azRaw: raw }));
+      }
       try { resolve(JSON.parse(stdout)); }
       catch { resolve(stdout.trim()); }
     });
@@ -68,7 +112,7 @@ app.post('/api/az/login', async (req, res) => {
     await runAz(['login', '--output', 'json']);
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json(azErrorBody(err.azRaw ?? err.message));
   }
 });
 
@@ -86,7 +130,7 @@ app.get('/api/az/subscriptions', async (req, res) => {
     res.json(normalized);
   } catch (err) {
     log('error', 'Subscriptions fetch failed:', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json(azErrorBody(err.azRaw ?? err.message));
   }
 });
 
@@ -96,7 +140,7 @@ app.get('/api/az/token', async (req, res) => {
     const token = await runAz(['account', 'get-access-token', '--resource', resource, '--output', 'json']);
     res.json(token);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json(azErrorBody(err.azRaw ?? err.message));
   }
 });
 
@@ -123,7 +167,7 @@ app.post('/api/az/query', async (req, res) => {
     res.json({ data: result.data ?? [], $skipToken: result.$skipToken });
   } catch (err) {
     log('error', 'Resource Graph query failed:', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json(azErrorBody(err.azRaw ?? err.message));
   }
 });
 
@@ -169,7 +213,7 @@ app.get('/api/az/scan-stream', async (req, res) => {
     res.end();
   } catch (err) {
     log('error', 'Scan stream error:', err.message);
-    res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);
+    res.write(`data: ${JSON.stringify(azErrorBody(err.azRaw ?? err.message))}\n\n`);
     res.end();
   }
 });
@@ -225,8 +269,9 @@ app.post('/api/az/cost', async (req, res) => {
     log('info', `Cost query: $${total.toFixed(2)} across ${resources.length} resources for sub ${subscriptionId}`);
   } catch (err) {
     log('error', `Cost query failed (sub ${subscriptionId}):`, err.message);
-    const status = err.message?.includes('403') ? 403 : 500;
-    res.status(status).json({ error: err.message });
+    const raw = err.azRaw ?? err.message ?? '';
+    const status = (err.httpStatus === 403 || raw.includes('403')) ? 403 : 500;
+    res.status(status).json(azErrorBody(raw));
   }
 });
 
@@ -272,7 +317,7 @@ app.get('/api/az/storage-details', async (req, res) => {
     res.json(result);
   } catch (err) {
     log('error', `Storage details failed for ${accountName}:`, err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json(azErrorBody(err.azRaw ?? err.message));
   }
 });
 
@@ -308,7 +353,7 @@ app.get('/api/az/uai-role-assignments', async (req, res) => {
     res.json(normalized);
   } catch (err) {
     log('error', `UAI role assignments failed for principal ${principalId}:`, err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json(azErrorBody(err.azRaw ?? err.message));
   }
 });
 
@@ -363,18 +408,24 @@ ${edgeSummary || 'None'}${costSection}
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
+const HTTPS_TIMEOUT_MS = 30_000; // 30 s socket timeout for ARM REST calls
+
 function httpsPost(hostname, path, headers, body) {
   return new Promise((resolve, reject) => {
     const req = https.request({ hostname, path, method: 'POST', headers }, (res) => {
       let data = '';
       res.on('data', chunk => data += chunk);
       res.on('end', () => {
-        if (res.statusCode >= 400) return reject(new Error(`HTTP ${res.statusCode}: ${data}`));
+        if (res.statusCode >= 400) {
+          const err = Object.assign(new Error(`HTTP ${res.statusCode}: ${data}`), { httpStatus: res.statusCode, azRaw: data });
+          return reject(err);
+        }
         try { resolve(JSON.parse(data)); }
         catch { resolve(data); }
       });
     });
-    req.on('error', reject);
+    req.setTimeout(HTTPS_TIMEOUT_MS, () => { req.destroy(Object.assign(new Error('Request timed out'), { azRaw: 'timed out' })); });
+    req.on('error', err => reject(Object.assign(err, { azRaw: err.message })));
     req.write(body);
     req.end();
   });
@@ -386,12 +437,16 @@ function httpsGet(hostname, path, headers) {
       let data = '';
       res.on('data', chunk => data += chunk);
       res.on('end', () => {
-        if (res.statusCode >= 400) return reject(new Error(`HTTP ${res.statusCode}: ${data}`));
+        if (res.statusCode >= 400) {
+          const err = Object.assign(new Error(`HTTP ${res.statusCode}: ${data}`), { httpStatus: res.statusCode, azRaw: data });
+          return reject(err);
+        }
         try { resolve(JSON.parse(data)); }
         catch { resolve(data); }
       });
     });
-    req.on('error', reject);
+    req.setTimeout(HTTPS_TIMEOUT_MS, () => { req.destroy(Object.assign(new Error('Request timed out'), { azRaw: 'timed out' })); });
+    req.on('error', err => reject(Object.assign(err, { azRaw: err.message })));
     req.end();
   });
 }

@@ -312,13 +312,28 @@ interface ConnectionType {
           }
 
           @case ('error') {
-            <div class="text-center py-4">
-              <div class="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <span class="text-red-600 text-xl font-bold">&#10005;</span>
+            <div class="py-2">
+              <div class="flex items-start gap-3 p-4 bg-red-50 border border-red-200 rounded-lg mb-4">
+                <div class="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <span class="text-red-600 text-sm font-bold">&#10005;</span>
+                </div>
+                <div class="flex-1 min-w-0">
+                  <p class="text-sm font-semibold text-red-700 mb-1">{{ errorTitle() }}</p>
+                  <p class="text-sm text-gray-600 leading-snug">{{ store.errorMessage() }}</p>
+                  @if (errorDetail()) {
+                    <details class="mt-2">
+                      <summary class="text-xs text-gray-400 cursor-pointer hover:text-gray-600 select-none">Show technical detail</summary>
+                      <pre class="mt-1.5 text-[10px] text-gray-500 bg-white border border-gray-200 rounded p-2 overflow-x-auto whitespace-pre-wrap break-all leading-relaxed">{{ errorDetail() }}</pre>
+                    </details>
+                  }
+                </div>
               </div>
-              <p class="text-red-600 font-medium mb-2">Scan failed</p>
-              <p class="text-sm text-gray-500 mb-4">{{ store.errorMessage() }}</p>
-              <button (click)="startScan()" class="text-azure-blue hover:underline text-sm">Try again</button>
+              <button
+                (click)="startScan()"
+                class="w-full py-2.5 px-4 bg-azure-blue text-white rounded-lg font-medium hover:bg-blue-700 transition-colors text-sm"
+              >
+                Try again
+              </button>
             </div>
           }
 
@@ -362,6 +377,25 @@ export class ScanComponent implements OnInit {
   optionsUserAssignedIdentityEdges = false;
   progressLog = signal<string[]>([]);
   scanSteps = signal<Array<{ name: string; status: 'pending' | 'active' | 'done' }>>([]);
+  private scanError = signal<{ code: string; detail: string } | null>(null);
+
+  private static readonly ERROR_TITLES: Record<string, string> = {
+    NO_NETWORK: 'No network connectivity',
+    AUTH_REQUIRED: 'Authentication required',
+    TIMEOUT: 'Request timed out',
+    PERMISSION_DENIED: 'Permission denied',
+    QUOTA_EXCEEDED: 'Too many requests',
+    SERVER_ERROR: 'Unexpected error',
+  };
+
+  errorTitle(): string {
+    const code = this.scanError()?.code ?? 'SERVER_ERROR';
+    return ScanComponent.ERROR_TITLES[code] ?? 'Scan failed';
+  }
+
+  errorDetail(): string | null {
+    return this.scanError()?.detail ?? null;
+  }
 
   readonly connectionTypes: ConnectionType[] = [
     {
@@ -398,6 +432,7 @@ export class ScanComponent implements OnInit {
     this.optionsUserAssignedIdentityEdges = false;
     this.progressLog.set([]);
     this.scanSteps.set([]);
+    this.scanError.set(null);
     this.store.scanPhase.set('idle');
     this.store.errorMessage.set(null);
 
@@ -422,6 +457,7 @@ export class ScanComponent implements OnInit {
       error: (err) => {
         this.store.scanPhase.set('error');
         this.store.errorMessage.set(err.message ?? 'Login failed');
+        this.scanError.set({ code: err.azCode ?? 'SERVER_ERROR', detail: err.azDetail ?? err.message ?? '' });
       },
     });
   }
@@ -435,6 +471,7 @@ export class ScanComponent implements OnInit {
       error: (err) => {
         this.store.scanPhase.set('error');
         this.store.errorMessage.set(err.message ?? 'Failed to list subscriptions');
+        this.scanError.set({ code: err.azCode ?? 'SERVER_ERROR', detail: err.azDetail ?? err.message ?? '' });
       },
     });
   }
@@ -546,8 +583,13 @@ export class ScanComponent implements OnInit {
       });
     } catch (err: unknown) {
       this.zone.run(() => {
+        const e = err as Record<string, unknown>;
+        const message = err instanceof Error ? err.message : 'Scan failed';
+        const code = typeof e['azCode'] === 'string' ? e['azCode'] : 'SERVER_ERROR';
+        const detail = typeof e['azDetail'] === 'string' ? e['azDetail'] : '';
         this.store.scanPhase.set('error');
-        this.store.errorMessage.set(err instanceof Error ? err.message : 'Scan failed');
+        this.store.errorMessage.set(message);
+        this.scanError.set({ code, detail: detail || message });
       });
     }
   }

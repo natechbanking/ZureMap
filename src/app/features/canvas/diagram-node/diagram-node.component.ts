@@ -80,6 +80,12 @@ export interface ServerFarmExpansionRequest {
   statCount: number;
 }
 
+export interface PublicIpExpansionRequest {
+  nodeId: string;
+  expanded: boolean;
+  detailCount: number;
+}
+
 interface AksNodePoolView {
   name: string;
   count: number;
@@ -140,6 +146,11 @@ interface HostingEnvironmentStatView {
 }
 
 interface ServerFarmStatView {
+  label: string;
+  value: string;
+}
+
+interface PublicIpDetailView {
   label: string;
   value: string;
 }
@@ -303,6 +314,19 @@ interface ServerFarmStatView {
           (click)="toggleVmPanel($event)"
         >
           {{ vmExpanded ? 'Hide details' : 'Show details' }}
+        </button>
+      }
+
+      @if (isPublicIpAddress) {
+        <button
+          type="button"
+          data-export-hide
+          class="mt-0.5 px-2 py-0.5 rounded border border-blue-200 bg-blue-50 text-[10px] leading-tight text-blue-700 hover:bg-blue-100"
+          [title]="publicIpExpanded ? 'Hide public IP details' : 'Show public IP details'"
+          (mousedown)="stopEvent($event)"
+          (click)="togglePublicIpPanel($event)"
+        >
+          {{ publicIpExpanded ? 'Hide details' : 'Show details' }} ({{ publicIpDetails.length }})
         </button>
       }
 
@@ -651,6 +675,26 @@ interface ServerFarmStatView {
           </div>
         </div>
       }
+      @if (isPublicIpAddress && publicIpExpanded) {
+        <div
+          class="w-full mt-1 rounded border border-blue-200 bg-white shadow-sm overflow-hidden"
+          (mousedown)="stopEvent($event)"
+          (click)="stopEvent($event)"
+        >
+          @if (publicIpDetails.length === 0) {
+            <p class="text-[10px] text-gray-400 px-2 py-1.5">No public IP details available.</p>
+          } @else {
+            <div class="p-1.5">
+              @for (detail of publicIpDetails; track detail.label) {
+                <div class="flex items-center justify-between gap-2 px-1.5 py-1 border-b border-blue-50 last:border-b-0">
+                  <span class="text-[10px] text-gray-500 truncate" [title]="detail.label">{{ detail.label }}</span>
+                  <span class="text-[10px] font-semibold text-gray-800 shrink-0 truncate max-w-[110px] text-right" [title]="detail.value">{{ detail.value }}</span>
+                </div>
+              }
+            </div>
+          }
+        </div>
+      }
     </div>
   `,
 })
@@ -673,6 +717,7 @@ export class DiagramNodeComponent {
   @Output() uaiExpansionChanged = new EventEmitter<UaiExpansionRequest>();
   @Output() hostingEnvironmentExpansionChanged = new EventEmitter<HostingEnvironmentExpansionRequest>();
   @Output() serverFarmExpansionChanged = new EventEmitter<ServerFarmExpansionRequest>();
+  @Output() publicIpExpansionChanged = new EventEmitter<PublicIpExpansionRequest>();
 
   private costSvc = inject(CostService);
   private store = inject(DiagramStore);
@@ -697,6 +742,7 @@ export class DiagramNodeComponent {
   uaiRoleAssignments: UaiRoleAssignmentView[] = [];
   hostingEnvironmentStatsExpanded = false;
   serverFarmStatsExpanded = false;
+  publicIpExpanded = false;
 
   get typeLabel(): string {
     const parts = this.node.resourceType.split('/');
@@ -780,6 +826,10 @@ export class DiagramNodeComponent {
     return this.node.resourceType.toLowerCase() === 'microsoft.web/serverfarms';
   }
 
+  get isPublicIpAddress(): boolean {
+    return this.node.resourceType.toLowerCase() === 'microsoft.network/publicipaddresses';
+  }
+
   get hostingEnvironmentStats(): HostingEnvironmentStatView[] {
     const props = this.node.metadata?.properties ?? {};
     const workerPools = (props['workerPools'] as Array<{
@@ -828,6 +878,30 @@ export class DiagramNodeComponent {
     ].filter((s): s is ServerFarmStatView => !!s);
 
     return stats;
+  }
+
+  get publicIpDetails(): PublicIpDetailView[] {
+    const props = this.node.metadata?.properties ?? {};
+    const sku = this.node.metadata?.sku;
+    const dns = props['dnsSettings'] as { fqdn?: string; domainNameLabel?: string } | undefined;
+    const ipTags = (props['ipTags'] as Array<{ ipTagType?: string; tag?: string }> | undefined) ?? [];
+    const ipTagSummary = ipTags.length > 0
+      ? ipTags.map(t => [t.ipTagType, t.tag].filter(Boolean).join(':')).filter(Boolean).join(', ')
+      : null;
+
+    const details: PublicIpDetailView[] = [
+      this.toTextStat('IP Address', (props['ipAddress'] as string | undefined) ?? null),
+      this.toTextStat('Allocation', (props['publicIPAllocationMethod'] as string | undefined) ?? null),
+      this.toTextStat('Version', (props['publicIPAddressVersion'] as string | undefined) ?? null),
+      this.toTextStat('FQDN', dns?.fqdn ?? null),
+      this.toTextStat('DNS Label', dns?.domainNameLabel ?? null),
+      this.toTextStat('SKU', sku?.name ?? null),
+      this.toTextStat('Tier', sku?.tier ?? null),
+      this.toStat('Idle Timeout (min)', this.toNumber(props['idleTimeoutInMinutes'])),
+      this.toTextStat('IP Tags', ipTagSummary),
+    ].filter((d): d is PublicIpDetailView => !!d);
+
+    return details;
   }
 
   get vmInfo(): VmInfoView {
@@ -1089,6 +1163,18 @@ export class DiagramNodeComponent {
       nodeId: this.node.id,
       expanded: this.serverFarmStatsExpanded,
       statCount: this.serverFarmStats.length,
+    });
+  }
+
+  togglePublicIpPanel(event: MouseEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.clicked.emit(this.node.id);
+    this.publicIpExpanded = !this.publicIpExpanded;
+    this.publicIpExpansionChanged.emit({
+      nodeId: this.node.id,
+      expanded: this.publicIpExpanded,
+      detailCount: this.publicIpDetails.length,
     });
   }
 

@@ -17,6 +17,7 @@ import {
   UaiExpansionRequest,
   HostingEnvironmentExpansionRequest,
   ServerFarmExpansionRequest,
+  PublicIpExpansionRequest,
 } from './diagram-node/diagram-node.component';
 import { SidebarComponent } from '../sidebar/sidebar.component';
 import { ToolbarComponent } from '../toolbar/toolbar.component';
@@ -59,6 +60,16 @@ import {
 } from './canvas-geometry.util';
 import { DrawingRuntimeState, DrawingStyleState, onDrawEnd, onDrawMove, onDrawStart, resetDrawingRuntime } from './canvas-drawing.util';
 
+type SizeOffset = { top: number; right: number; bottom: number; left: number };
+interface TagHighlightInfo {
+  ruleId: string;
+  borderColor: string;
+  bgColor: string;
+  badgeLabel?: string;
+  sizeOffset?: SizeOffset;
+}
+const ZERO_OFFSET: SizeOffset = { top: 0, right: 0, bottom: 0, left: 0 };
+
 @Component({
   selector: 'app-canvas',
   standalone: true,
@@ -97,12 +108,35 @@ export class CanvasComponent {
   vmBounds: VmBound[] = [];
   routeTableBounds: RouteTableBound[] = [];
 
-  /** Map of rgBound.id → { borderColor, bgColor, badgeLabel } for matched tag rules. */
-  rgTagHighlights = new Map<string, { borderColor: string; bgColor: string; badgeLabel?: string }>();
-  /** Map of subscriptionId → same for subscription-level rules. */
-  subTagHighlights = new Map<string, { borderColor: string; bgColor: string; badgeLabel?: string }>();
+  /** Map of rgBound.id → highlight info for matched tag rules. */
+  rgTagHighlights = new Map<string, TagHighlightInfo>();
+  /** Map of subscriptionId → highlight info for matched tag rules. */
+  subTagHighlights = new Map<string, TagHighlightInfo>();
   /** Map of node.id → highlight color for node-level tag rules. */
   nodeTagHighlights = new Map<string, string>();
+
+  /** ID of the tag-rule highlight currently selected on canvas (for resize/delete). */
+  selectedTagHighlightRuleId: string | null = null;
+  /** Active resize drag for a tag rule highlight. */
+  tagHighlightResizeDrag: {
+    ruleId: string;
+    handle: string;
+    startX: number;
+    startY: number;
+    startOffset: SizeOffset;
+    currentOffset: SizeOffset;
+  } | null = null;
+
+  readonly resizeHandles = [
+    { id: 'nw', left: '0%',   top: '0%',   cursor: 'nw-resize' },
+    { id: 'n',  left: '50%',  top: '0%',   cursor: 'n-resize'  },
+    { id: 'ne', left: '100%', top: '0%',   cursor: 'ne-resize' },
+    { id: 'e',  left: '100%', top: '50%',  cursor: 'e-resize'  },
+    { id: 'se', left: '100%', top: '100%', cursor: 'se-resize' },
+    { id: 's',  left: '50%',  top: '100%', cursor: 's-resize'  },
+    { id: 'sw', left: '0%',   top: '100%', cursor: 'sw-resize' },
+    { id: 'w',  left: '0%',   top: '50%',  cursor: 'w-resize'  },
+  ];
   /** All tag keys + their known values across all nodes, for autofill. */
   availableTags = new Map<string, Set<string>>();
   private collapsedResourceGroups = new Set<string>();
@@ -186,6 +220,7 @@ export class CanvasComponent {
   private uaiCollapsedHeights = new Map<string, number>();
   private hostingEnvironmentCollapsedHeights = new Map<string, number>();
   private serverFarmCollapsedHeights = new Map<string, number>();
+  private publicIpCollapsedHeights = new Map<string, number>();
   selectedEdgeId: string | null = null;
   edgeWaypointDragState: EdgeWaypointDragState | null = null;
   annWaypointDragState: AnnWaypointDragState | null = null;
@@ -238,10 +273,19 @@ export class CanvasComponent {
       this.deleteSelectedNode();
       return;
     }
+    if ((e.key === 'Delete' || e.key === 'Backspace') && this.selectedTagHighlightRuleId) {
+      e.preventDefault();
+      const ruleId = this.selectedTagHighlightRuleId;
+      this.selectedTagHighlightRuleId = null;
+      this.store.tagRules.set(this.store.tagRules().filter(r => r.id !== ruleId));
+      this.recomputeTagHighlights(this.store.nodes());
+      return;
+    }
     if (e.key === 'Escape') {
       this.closeContextMenu();
       this.cancelRename();
       this.selectedAnnotationId = null;
+      this.selectedTagHighlightRuleId = null;
       if (this.editingAnnotation) this.cancelEdit();
     }
   }
@@ -251,6 +295,26 @@ export class CanvasComponent {
   onDocMouseMove(e: MouseEvent): void {
     if (this.activeTool !== 'pointer' && this.isDrawing) {
       this.onDrawMouseMove(e);
+      return;
+    }
+
+    if (this.tagHighlightResizeDrag) {
+      const drag = this.tagHighlightResizeDrag;
+      const dxL = (e.clientX - drag.startX) / this.zoomLevel;
+      const dyL = (e.clientY - drag.startY) / this.zoomLevel;
+      const b = drag.startOffset;
+      const off = { ...b };
+      switch (drag.handle) {
+        case 'nw': off.left = Math.max(0, b.left - dxL); off.top = Math.max(0, b.top - dyL); break;
+        case 'n':  off.top  = Math.max(0, b.top  - dyL); break;
+        case 'ne': off.right = Math.max(0, b.right + dxL); off.top = Math.max(0, b.top - dyL); break;
+        case 'e':  off.right  = Math.max(0, b.right  + dxL); break;
+        case 'se': off.right  = Math.max(0, b.right  + dxL); off.bottom = Math.max(0, b.bottom + dyL); break;
+        case 's':  off.bottom = Math.max(0, b.bottom + dyL); break;
+        case 'sw': off.left   = Math.max(0, b.left   - dxL); off.bottom = Math.max(0, b.bottom + dyL); break;
+        case 'w':  off.left   = Math.max(0, b.left   - dxL); break;
+      }
+      this.tagHighlightResizeDrag = { ...drag, currentOffset: off };
       return;
     }
 
@@ -324,6 +388,14 @@ export class CanvasComponent {
   onDocMouseUp(e: MouseEvent): void {
     if (this.activeTool !== 'pointer' && this.isDrawing) {
       this.onDrawMouseUp(e);
+    }
+    if (this.tagHighlightResizeDrag) {
+      const { ruleId, currentOffset } = this.tagHighlightResizeDrag;
+      this.store.tagRules.set(
+        this.store.tagRules().map(r => r.id === ruleId ? { ...r, sizeOffset: currentOffset } : r)
+      );
+      this.recomputeTagHighlights(this.store.nodes());
+      this.tagHighlightResizeDrag = null;
     }
     this.toolbarDragState = null;
     this.subscriptionDragState = null;
@@ -678,6 +750,7 @@ export class CanvasComponent {
       collapsedSubscriptions: this.collapsedSubscriptions,
       collapsedResourceGroups: this.collapsedResourceGroups,
       customContainerNames: this.store.customContainerNames(),
+      draggedSubscriptionId: this.subscriptionDragState?.subscriptionId,
       moveSubscriptionGroup: (subscriptionId, delta) => this.store.moveSubscriptionGroup(subscriptionId, delta),
     });
   }
@@ -685,7 +758,8 @@ export class CanvasComponent {
   private resolveRgContainerOverlaps(bounds: RgBound[]): void {
     if (this.isResolvingRgOverlaps || bounds.length < 2) return;
     const gap = 18;
-    const maxIters = 12;
+    const maxIters = 16;
+    const draggedRgId = this.rgDragState?.id;
     this.isResolvingRgOverlaps = true;
     try {
       for (let iter = 0; iter < maxIters; iter++) {
@@ -704,12 +778,31 @@ export class CanvasComponent {
             const b = current[j];
             if (!a.subscriptionId || !b.subscriptionId || a.subscriptionId !== b.subscriptionId) continue;
 
+            // Overlap is positive when penetrating, negative when apart.
+            // Start pushing once containers are within `gap` of each other in both axes.
             const overlapX = Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x);
             const overlapY = Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y);
-            if (overlapX <= 0 || overlapY <= 0) continue;
+            if (overlapX <= -gap || overlapY <= -gap) continue;
 
-            const lower = a.y <= b.y ? b : a;
-            this.store.moveNodeGroup(lower.id, { dx: 0, dy: overlapY + gap });
+            const moveX = overlapX + gap;
+            const moveY = overlapY + gap;
+
+            // Never push the container being dragged — always push the other one.
+            // Among non-dragged containers, resolve along the axis needing less movement,
+            // pushing the container that sits further in that direction.
+            const aIsDragged = a.id === draggedRgId;
+            const bIsDragged = b.id === draggedRgId;
+
+            if (moveX <= moveY) {
+              const pushTarget = aIsDragged || (!bIsDragged && a.x <= b.x) ? b : a;
+              const sign = pushTarget === b ? 1 : -1;
+              this.store.moveNodeGroup(pushTarget.id, { dx: moveX * sign, dy: 0 });
+            } else {
+              const pushTarget = aIsDragged || (!bIsDragged && a.y <= b.y) ? b : a;
+              const sign = pushTarget === b ? 1 : -1;
+              this.store.moveNodeGroup(pushTarget.id, { dx: 0, dy: moveY * sign });
+            }
+
             moved = true;
             break outer;
           }
@@ -786,24 +879,26 @@ export class CanvasComponent {
       }
     };
 
-    const toHighlight = (color: string, badge?: string) => ({
-      borderColor: color,
-      bgColor: color + '22',
-      badgeLabel: badge,
+    const toHighlight = (rule: TagRule): TagHighlightInfo => ({
+      ruleId: rule.id,
+      borderColor: rule.color,
+      bgColor: rule.color + '22',
+      badgeLabel: rule.badgeLabel,
+      sizeOffset: rule.sizeOffset,
     });
 
     for (const rule of rules) {
       if (rule.target === 'rg' || rule.target === 'both') {
         for (const [rgKey, tags] of rgTagMap) {
           if (!this.rgTagHighlights.has(rgKey) && evalRule(rule, tags)) {
-            this.rgTagHighlights.set(rgKey, toHighlight(rule.color, rule.badgeLabel));
+            this.rgTagHighlights.set(rgKey, toHighlight(rule));
           }
         }
       }
       if (rule.target === 'sub' || rule.target === 'both') {
         for (const [sub, tags] of subTagMap) {
           if (!this.subTagHighlights.has(sub) && evalRule(rule, tags)) {
-            this.subTagHighlights.set(sub, toHighlight(rule.color, rule.badgeLabel));
+            this.subTagHighlights.set(sub, toHighlight(rule));
           }
         }
       }
@@ -815,6 +910,54 @@ export class CanvasComponent {
         }
       }
     }
+  }
+
+  // ── Tag highlight selection & resize ──────────────────────────────────────
+
+  getEffectiveSizeOffset(hl: TagHighlightInfo | undefined): SizeOffset {
+    if (!hl) return ZERO_OFFSET;
+    if (this.tagHighlightResizeDrag?.ruleId === hl.ruleId) {
+      return this.tagHighlightResizeDrag!.currentOffset;
+    }
+    return hl.sizeOffset ?? ZERO_OFFSET;
+  }
+
+  getHighlightBounds(
+    bound: { x: number; y: number; width: number; height: number },
+    hl: TagHighlightInfo | undefined,
+  ): { x: number; y: number; w: number; h: number } {
+    const off = this.getEffectiveSizeOffset(hl);
+    return {
+      x: bound.x - off.left,
+      y: bound.y - off.top,
+      w: bound.width + off.left + off.right,
+      h: bound.height + off.top + off.bottom,
+    };
+  }
+
+  selectTagHighlight(ruleId: string, event: MouseEvent): void {
+    event.stopPropagation();
+    this.selectedTagHighlightRuleId = ruleId;
+    this.selectedAnnotationId = null;
+    this.store.selectedNodeId.set(null);
+  }
+
+  clearHighlightSelection(): void {
+    this.selectedTagHighlightRuleId = null;
+  }
+
+  onTagHighlightResizeMouseDown(e: MouseEvent, ruleId: string, handle: string): void {
+    e.preventDefault();
+    e.stopPropagation();
+    const rule = this.store.tagRules().find(r => r.id === ruleId);
+    const startOffset = rule?.sizeOffset ?? { ...ZERO_OFFSET };
+    this.tagHighlightResizeDrag = {
+      ruleId, handle,
+      startX: e.clientX,
+      startY: e.clientY,
+      startOffset,
+      currentOffset: { ...startOffset },
+    };
   }
 
   // ── Toolbar drag ───────────────────────────────────────────────────────────
@@ -1126,6 +1269,81 @@ export class CanvasComponent {
     this.closeContextMenu();
   }
 
+  ctxTagCount(): number {
+    if (!this.contextMenu) return 0;
+    const tags = this.contextMenu.node.metadata?.tags;
+    if (!tags || typeof tags !== 'object') return 0;
+    return Object.keys(tags).length;
+  }
+
+  ctxVisualizeTags(): void {
+    if (!this.contextMenu) return;
+
+    const nodeId = this.contextMenu.nodeId;
+    const nodes = this.store.nodes();
+    const node = nodes.find(n => n.id === nodeId);
+    if (!node) {
+      this.closeContextMenu();
+      return;
+    }
+
+    const tags = node.metadata?.tags ?? {};
+    const entries = Object.entries(tags)
+      .filter(([key]) => key.trim().length > 0)
+      .sort(([a], [b]) => a.localeCompare(b));
+    if (entries.length === 0) {
+      this.closeContextMenu();
+      return;
+    }
+
+    const MAX_TAGS = 40;
+    const visibleEntries = entries.slice(0, MAX_TAGS);
+    const hiddenCount = entries.length - visibleEntries.length;
+    const compactEntries: Array<[string, string]> = hiddenCount > 0
+      ? [...visibleEntries, ['_more', `+${hiddenCount} more`] as [string, string]]
+      : visibleEntries;
+
+    const TAG_ITEM_PREFIX = 'tagviz-';
+    const preservedItems = (node.custom?.internalItems ?? []).filter(item => !item.id.startsWith(TAG_ITEM_PREFIX));
+    const generatedItems = this.layoutTagItems(compactEntries, node.size.width, TAG_ITEM_PREFIX);
+    const allItems = [...preservedItems, ...generatedItems];
+
+    const estimatedItemHeight = 18;
+    const bottomPadding = 12;
+    const requiredHeight = allItems.length === 0
+      ? node.size.height
+      : Math.max(
+          node.size.height,
+          ...allItems.map(item => item.y + estimatedItemHeight + bottomPadding)
+        );
+
+    this.store.pushUndo();
+
+    const deltaHeight = requiredHeight - node.size.height;
+    const cutoffY = node.position.y + node.size.height - 2;
+    const subId = node.metadata?.subscriptionId || '';
+    const rg = node.metadata?.resourceGroup || node.groupId || '';
+
+    this.store.setNodes(nodes.map(n => {
+      if (n.id === node.id) {
+        return {
+          ...n,
+          size: { ...n.size, height: requiredHeight },
+          custom: { ...(n.custom ?? {}), internalItems: allItems },
+        };
+      }
+
+      if (deltaHeight <= 0) return n;
+      const sameSub = (n.metadata?.subscriptionId || '') === subId;
+      const sameRg = (n.metadata?.resourceGroup || n.groupId || '') === rg;
+      if (!sameSub || !sameRg || n.position.y < cutoffY) return n;
+      return { ...n, position: { ...n.position, y: Math.max(0, n.position.y + deltaHeight) } };
+    }));
+
+    this.store.selectNode(nodeId);
+    this.closeContextMenu();
+  }
+
   ctxAnnDuplicate(): void {
     if (!this.annotationContextMenu) return;
     this.selectedAnnotationId = this.annotationContextMenu.annotationId;
@@ -1169,6 +1387,32 @@ export class CanvasComponent {
     this.store.deleteAnnotation(this.annotationContextMenu.annotationId);
     if (this.selectedAnnotationId === this.annotationContextMenu.annotationId) this.selectedAnnotationId = null;
     this.closeContextMenu();
+  }
+
+  private layoutTagItems(entries: Array<[string, string]>, nodeWidth: number, prefix: string): Array<{ id: string; text: string; x: number; y: number }> {
+    const startX = 8;
+    const startY = 56;
+    const colGap = 6;
+    const rowHeight = 18;
+    const itemFootprintWidth = 96;
+    const usableWidth = Math.max(40, nodeWidth - 16);
+    const columns = Math.max(1, Math.floor((usableWidth + colGap) / (itemFootprintWidth + colGap)));
+
+    return entries.map(([key, value], index) => {
+      const col = index % columns;
+      const row = Math.floor(index / columns);
+      const xUnclamped = startX + col * (itemFootprintWidth + colGap);
+      const x = Math.max(2, Math.min(Math.max(2, nodeWidth - 24), xUnclamped));
+      const y = startY + row * rowHeight;
+      const text = key === '_more' ? value : `${key}: ${value}`;
+      const stableKey = key.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || `tag-${index}`;
+      return {
+        id: `${prefix}${stableKey}`,
+        text,
+        x,
+        y,
+      };
+    });
   }
 
   // ── Resource editor ───────────────────────────────────────────────────────
@@ -1574,6 +1818,45 @@ export class CanvasComponent {
 
     this.store.setNodes(nodes.map(n => {
       if (n.id === serverFarm.id) {
+        return { ...n, size: { ...n.size, height: targetHeight } };
+      }
+      const sameSub = (n.metadata?.subscriptionId || '') === subId;
+      const sameRg = (n.metadata?.resourceGroup || n.groupId || '') === rg;
+      if (!sameSub || !sameRg || n.position.y < cutoffY) return n;
+      return { ...n, position: { ...n.position, y: Math.max(0, n.position.y + delta) } };
+    }));
+  }
+
+  onPublicIpExpansionChanged(req: PublicIpExpansionRequest): void {
+    const nodes = this.store.nodes();
+    const pip = nodes.find(n => n.id === req.nodeId);
+    if (!pip) return;
+
+    this.store.pushUndo();
+
+    const currentHeight = pip.size.height;
+    const collapsedHeight = this.publicIpCollapsedHeights.get(req.nodeId) ?? currentHeight;
+    if (req.expanded && !this.publicIpCollapsedHeights.has(req.nodeId)) {
+      this.publicIpCollapsedHeights.set(req.nodeId, currentHeight);
+    }
+    if (!req.expanded) {
+      this.publicIpCollapsedHeights.delete(req.nodeId);
+    }
+
+    // Detail rows are compact key/value lines plus panel chrome.
+    const panelHeight = req.detailCount === 0 ? 40 : req.detailCount * 24 + 20;
+    const targetHeight = req.expanded
+      ? Math.max(currentHeight, collapsedHeight + panelHeight)
+      : collapsedHeight;
+    const delta = targetHeight - currentHeight;
+    if (delta === 0) return;
+
+    const subId = pip.metadata?.subscriptionId || '';
+    const rg = pip.metadata?.resourceGroup || pip.groupId || '';
+    const cutoffY = pip.position.y + currentHeight - 2;
+
+    this.store.setNodes(nodes.map(n => {
+      if (n.id === pip.id) {
         return { ...n, size: { ...n.size, height: targetHeight } };
       }
       const sameSub = (n.metadata?.subscriptionId || '') === subId;

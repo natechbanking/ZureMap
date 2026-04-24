@@ -360,120 +360,260 @@ const EDGE_MODES: EdgeMode[] = ['none', 'start', 'end', 'both'];
           @if (activeTab === 'highlight') {
             <!-- HIGHLIGHT TAB -->
             <div class="space-y-3">
-              <!-- Rule builder -->
-              <div class="bg-gray-50 rounded-lg border border-gray-200 p-2.5 space-y-2">
-                <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">New Rule</p>
 
-                <div class="flex gap-1.5">
-                  <input
-                    type="text"
-                    list="tag-keys-list"
-                    class="flex-1 min-w-0 text-xs border border-gray-200 rounded-md px-2 py-1.5 outline-none focus:border-blue-400"
-                    placeholder="Tag key"
-                    [(ngModel)]="draftKey"
-                  />
-                  <datalist id="tag-keys-list">
-                    @for (k of tagKeyOptions; track k) {
-                      <option [value]="k"></option>
-                    }
-                  </datalist>
-                  <select
-                    class="text-xs border border-gray-200 rounded-md px-1.5 py-1.5 outline-none focus:border-blue-400 bg-white"
-                    [(ngModel)]="draftOperator"
-                  >
-                    <option value="eq">=</option>
-                    <option value="neq">≠</option>
-                    <option value="contains">contains</option>
-                    <option value="exists">exists</option>
-                    <option value="notexists">not exists</option>
-                  </select>
-                </div>
+              <!-- New rule builder (collapsed when a rule is being edited) -->
+              @if (!editDraft) {
+                <div class="bg-gray-50 rounded-lg border border-gray-200 p-2.5 space-y-2">
+                  <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">New Rule</p>
 
-                @if (draftOperator !== 'exists' && draftOperator !== 'notexists') {
-                  <input
-                    type="text"
-                    list="tag-values-list"
-                    class="w-full text-xs border border-gray-200 rounded-md px-2 py-1.5 outline-none focus:border-blue-400"
-                    placeholder="Tag value"
-                    [(ngModel)]="draftValue"
-                  />
-                  <datalist id="tag-values-list">
-                    @for (v of tagValueOptions; track v) {
-                      <option [value]="v"></option>
-                    }
-                  </datalist>
-                }
-
-                <input
-                  type="text"
-                  class="w-full text-xs border border-gray-200 rounded-md px-2 py-1.5 outline-none focus:border-blue-400"
-                  placeholder="Badge label (optional)"
-                  [(ngModel)]="draftBadge"
-                />
-
-                <div class="flex items-center gap-2">
-                  <div class="flex rounded-md border border-gray-200 overflow-hidden text-[10px] font-medium">
-                    @for (t of ruleTargets; track t.id) {
-                      <button
-                        class="px-2 py-1.5 transition-colors"
-                        [class.bg-blue-500]="draftTarget === t.id"
-                        [class.text-white]="draftTarget === t.id"
-                        [class.bg-white]="draftTarget !== t.id"
-                        [class.text-gray-600]="draftTarget !== t.id"
-                        [class.hover:bg-gray-50]="draftTarget !== t.id"
-                        (click)="draftTarget = t.id"
-                      >{{ t.label }}</button>
-                    }
-                  </div>
-                  <div class="flex items-center gap-1.5 ml-auto">
+                  <div class="flex gap-1.5">
                     <input
-                      type="color"
-                      class="w-7 h-7 p-0 border-0 rounded cursor-pointer"
-                      [(ngModel)]="draftColor"
-                      title="Highlight color"
+                      type="text"
+                      list="tag-keys-list"
+                      class="flex-1 min-w-0 text-xs border border-gray-200 rounded-md px-2 py-1.5 outline-none focus:border-blue-400"
+                      placeholder="Tag key"
+                      [(ngModel)]="draftKey"
                     />
-                    <button
-                      class="px-2.5 py-1.5 rounded-md text-[10px] font-semibold transition-colors"
-                      [class.bg-blue-500]="draftKey.trim()"
-                      [class.text-white]="draftKey.trim()"
-                      [class.hover:bg-blue-600]="draftKey.trim()"
-                      [class.bg-gray-100]="!draftKey.trim()"
-                      [class.text-gray-400]="!draftKey.trim()"
-                      [disabled]="!draftKey.trim()"
-                      (click)="addRule()"
-                    >Add</button>
+                    <datalist id="tag-keys-list">
+                      @for (k of tagKeyOptions; track k) {
+                        <option [value]="k"></option>
+                      }
+                    </datalist>
+                    <select
+                      class="text-xs border border-gray-200 rounded-md px-1.5 py-1.5 outline-none focus:border-blue-400 bg-white"
+                      [(ngModel)]="draftOperator"
+                    >
+                      <option value="eq">=</option>
+                      <option value="neq">≠</option>
+                      <option value="contains">contains</option>
+                      <option value="exists">exists</option>
+                      <option value="notexists">not exists</option>
+                    </select>
+                  </div>
+
+                  @if (draftOperator !== 'exists' && draftOperator !== 'notexists') {
+                    <input
+                      type="text"
+                      list="tag-values-list"
+                      class="w-full text-xs border border-gray-200 rounded-md px-2 py-1.5 outline-none focus:border-blue-400"
+                      placeholder="Tag value"
+                      [(ngModel)]="draftValue"
+                    />
+                    <datalist id="tag-values-list">
+                      @for (v of tagValueOptions; track v) {
+                        <option [value]="v"></option>
+                      }
+                    </datalist>
+                  }
+
+                  <input
+                    type="text"
+                    class="w-full text-xs border border-gray-200 rounded-md px-2 py-1.5 outline-none focus:border-blue-400"
+                    placeholder="Badge label (optional)"
+                    [(ngModel)]="draftBadge"
+                  />
+
+                  <div class="flex items-center gap-2">
+                    <div class="flex rounded-md border border-gray-200 overflow-hidden text-[10px] font-medium">
+                      @for (t of ruleTargets; track t.id) {
+                        <button
+                          class="px-2 py-1.5 transition-colors"
+                          [class.bg-blue-500]="draftTarget === t.id"
+                          [class.text-white]="draftTarget === t.id"
+                          [class.bg-white]="draftTarget !== t.id"
+                          [class.text-gray-600]="draftTarget !== t.id"
+                          [class.hover:bg-gray-50]="draftTarget !== t.id"
+                          (click)="draftTarget = t.id"
+                        >{{ t.label }}</button>
+                      }
+                    </div>
+                    <div class="flex items-center gap-1.5 ml-auto">
+                      <input
+                        type="color"
+                        class="w-7 h-7 p-0 border-0 rounded cursor-pointer"
+                        [(ngModel)]="draftColor"
+                        title="Highlight color"
+                      />
+                      <button
+                        class="px-2.5 py-1.5 rounded-md text-[10px] font-semibold transition-colors"
+                        [class.bg-blue-500]="draftKey.trim()"
+                        [class.text-white]="draftKey.trim()"
+                        [class.hover:bg-blue-600]="draftKey.trim()"
+                        [class.bg-gray-100]="!draftKey.trim()"
+                        [class.text-gray-400]="!draftKey.trim()"
+                        [disabled]="!draftKey.trim()"
+                        (click)="addRule()"
+                      >Add</button>
+                    </div>
                   </div>
                 </div>
-              </div>
+              }
 
               <!-- Active rules list -->
-              @if (tagRules.length === 0) {
+              @if (tagRules.length === 0 && !editDraft) {
                 <p class="text-[11px] text-gray-400 text-center py-3">No rules yet. Add one above.</p>
               } @else {
                 <div class="space-y-1.5">
-                  <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Active Rules ({{ tagRules.length }})</p>
-                  @for (rule of tagRules; track rule.id) {
-                    <div class="flex items-center gap-2 px-2.5 py-2 bg-white rounded-lg border border-gray-200">
-                      <span
-                        class="w-3 h-3 rounded-sm flex-shrink-0"
-                        [style.background-color]="rule.color"
-                      ></span>
-                      <div class="flex-1 min-w-0">
-                        <p class="text-[11px] font-medium text-gray-700 truncate">
-                          {{ rule.tagKey }} {{ operatorLabel(rule.operator) }}{{ rule.tagValue ? ' ' + rule.tagValue : '' }}
-                        </p>
-                        <p class="text-[10px] text-gray-400">{{ rule.target === 'rg' ? 'Resource Groups' : rule.target === 'sub' ? 'Subscriptions' : 'Both' }}{{ rule.badgeLabel ? ' · "' + rule.badgeLabel + '"' : '' }}</p>
+                  @if (!editDraft) {
+                    <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Active Rules ({{ tagRules.length }})</p>
+                  }
+                  @for (rule of tagRules; track rule.id; let idx = $index) {
+
+                    @if (editDraft?.id === rule.id) {
+                      <!-- ── Inline edit form ── -->
+                      <div class="rounded-lg border-2 p-2.5 space-y-2" [style.border-color]="editDraft!.color" [style.background-color]="editDraft!.color + '11'">
+                        <div class="flex items-center justify-between">
+                          <p class="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Edit Rule</p>
+                          <button class="text-[10px] text-gray-400 hover:text-gray-600" (click)="cancelEdit()">Cancel</button>
+                        </div>
+
+                        <div class="flex gap-1.5">
+                          <input
+                            type="text"
+                            list="edit-tag-keys-list"
+                            class="flex-1 min-w-0 text-xs border border-gray-200 rounded-md px-2 py-1.5 outline-none focus:border-blue-400 bg-white"
+                            placeholder="Tag key"
+                            [ngModel]="editDraft!.tagKey"
+                            (ngModelChange)="patchDraft('tagKey', $event)"
+                          />
+                          <datalist id="edit-tag-keys-list">
+                            @for (k of tagKeyOptions; track k) {
+                              <option [value]="k"></option>
+                            }
+                          </datalist>
+                          <select
+                            class="text-xs border border-gray-200 rounded-md px-1.5 py-1.5 outline-none focus:border-blue-400 bg-white"
+                            [ngModel]="editDraft!.operator"
+                            (ngModelChange)="patchDraft('operator', $event)"
+                          >
+                            <option value="eq">=</option>
+                            <option value="neq">≠</option>
+                            <option value="contains">contains</option>
+                            <option value="exists">exists</option>
+                            <option value="notexists">not exists</option>
+                          </select>
+                        </div>
+
+                        @if (editDraft!.operator !== 'exists' && editDraft!.operator !== 'notexists') {
+                          <input
+                            type="text"
+                            list="edit-tag-values-list"
+                            class="w-full text-xs border border-gray-200 rounded-md px-2 py-1.5 outline-none focus:border-blue-400 bg-white"
+                            placeholder="Tag value"
+                            [ngModel]="editDraft!.tagValue"
+                            (ngModelChange)="patchDraft('tagValue', $event)"
+                          />
+                          <datalist id="edit-tag-values-list">
+                            @for (v of editTagValueOptions; track v) {
+                              <option [value]="v"></option>
+                            }
+                          </datalist>
+                        }
+
+                        <input
+                          type="text"
+                          class="w-full text-xs border border-gray-200 rounded-md px-2 py-1.5 outline-none focus:border-blue-400 bg-white"
+                          placeholder="Badge label (optional)"
+                          [ngModel]="editDraft!.badgeLabel ?? ''"
+                          (ngModelChange)="patchDraftBadge($event)"
+                        />
+
+                        <div class="flex items-center gap-2">
+                          <div class="flex rounded-md border border-gray-200 overflow-hidden text-[10px] font-medium">
+                            @for (t of ruleTargets; track t.id) {
+                              <button
+                                class="px-2 py-1.5 transition-colors"
+                                [class.bg-blue-500]="editDraft!.target === t.id"
+                                [class.text-white]="editDraft!.target === t.id"
+                                [class.bg-white]="editDraft!.target !== t.id"
+                                [class.text-gray-600]="editDraft!.target !== t.id"
+                                (click)="patchDraft('target', t.id)"
+                              >{{ t.label }}</button>
+                            }
+                          </div>
+                          <input
+                            type="color"
+                            class="w-7 h-7 p-0 border-0 rounded cursor-pointer ml-auto"
+                            [ngModel]="editDraft!.color"
+                            (ngModelChange)="patchDraft('color', $event)"
+                            title="Highlight color"
+                          />
+                          <button
+                            class="px-2.5 py-1.5 rounded-md text-[10px] font-semibold bg-blue-500 text-white hover:bg-blue-600 transition-colors"
+                            (click)="saveEdit()"
+                          >Save</button>
+                        </div>
                       </div>
-                      <button
-                        class="w-5 h-5 flex items-center justify-center text-gray-400 hover:text-red-500 transition-colors rounded"
-                        title="Remove rule"
-                        (click)="removeRule(rule.id)"
+
+                    } @else {
+                      <!-- ── Compact rule card ── -->
+                      <div
+                        class="group flex items-center gap-2 px-2.5 py-2 bg-white rounded-lg border transition-colors"
+                        [class.border-gray-200]="editDraft?.id !== rule.id"
+                        [class.opacity-40]="editDraft && editDraft.id !== rule.id"
                       >
-                        <svg viewBox="0 0 20 20" class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-                          <path d="M4 4 L16 16 M16 4 L4 16" />
-                        </svg>
-                      </button>
-                    </div>
+                        <!-- Priority reorder -->
+                        <div class="flex flex-col gap-0.5 flex-shrink-0">
+                          <button
+                            class="w-4 h-3.5 flex items-center justify-center text-gray-300 hover:text-gray-500 disabled:opacity-20 transition-colors rounded"
+                            title="Move up (higher priority)"
+                            [disabled]="idx === 0"
+                            (click)="moveRule(rule.id, -1)"
+                          >
+                            <svg viewBox="0 0 12 8" class="w-2.5 h-2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                              <path d="M1 6 L6 2 L11 6" />
+                            </svg>
+                          </button>
+                          <button
+                            class="w-4 h-3.5 flex items-center justify-center text-gray-300 hover:text-gray-500 disabled:opacity-20 transition-colors rounded"
+                            title="Move down (lower priority)"
+                            [disabled]="idx === tagRules.length - 1"
+                            (click)="moveRule(rule.id, 1)"
+                          >
+                            <svg viewBox="0 0 12 8" class="w-2.5 h-2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                              <path d="M1 2 L6 6 L11 2" />
+                            </svg>
+                          </button>
+                        </div>
+
+                        <!-- Color swatch -->
+                        <span class="w-3 h-3 rounded-sm flex-shrink-0" [style.background-color]="rule.color"></span>
+
+                        <!-- Summary -->
+                        <div class="flex-1 min-w-0">
+                          <p class="text-[11px] font-medium text-gray-700 truncate">
+                            {{ rule.tagKey }} {{ operatorLabel(rule.operator) }}{{ rule.tagValue ? ' ' + rule.tagValue : '' }}
+                          </p>
+                          <p class="text-[10px] text-gray-400 truncate">
+                            {{ targetLabel(rule.target) }}{{ rule.badgeLabel ? ' · "' + rule.badgeLabel + '"' : '' }}
+                          </p>
+                        </div>
+
+                        <!-- Actions (edit + delete) -->
+                        <div class="flex items-center gap-0.5 flex-shrink-0">
+                          <button
+                            class="w-6 h-6 flex items-center justify-center text-gray-300 hover:text-blue-500 transition-colors rounded"
+                            title="Edit rule"
+                            (click)="beginEdit(rule)"
+                          >
+                            <svg viewBox="0 0 20 20" class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                              <path d="M13 3 L17 7 L7 17 L3 17 L3 13 Z" />
+                              <path d="M11 5 L15 9" />
+                            </svg>
+                          </button>
+                          <button
+                            class="w-6 h-6 flex items-center justify-center text-gray-300 hover:text-red-500 transition-colors rounded"
+                            title="Delete rule"
+                            (click)="removeRule(rule.id)"
+                          >
+                            <svg viewBox="0 0 20 20" class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                              <path d="M4 4 L16 16 M16 4 L4 16" />
+                            </svg>
+                          </button>
+                        </div>
+                      </div>
+                    }
+
                   }
                 </div>
               }
@@ -747,6 +887,54 @@ export class DrawingToolbarComponent {
       eq: '=', neq: '≠', contains: 'contains', exists: 'exists', notexists: 'not exists',
     };
     return map[op];
+  }
+
+  editDraft: TagRule | null = null;
+
+  get editTagValueOptions(): string[] {
+    if (!this.editDraft?.tagKey) return [];
+    return Array.from(this.availableTags.get(this.editDraft.tagKey) ?? []).sort();
+  }
+
+  targetLabel(target: TagRule['target']): string {
+    const map: Record<TagRule['target'], string> = {
+      node: 'Nodes', rg: 'Resource Groups', sub: 'Subscriptions', both: 'RG + Sub',
+    };
+    return map[target];
+  }
+
+  beginEdit(rule: TagRule): void {
+    this.editDraft = { ...rule };
+  }
+
+  saveEdit(): void {
+    if (!this.editDraft) return;
+    this.tagRulesChange.emit(this.tagRules.map(r => r.id === this.editDraft!.id ? this.editDraft! : r));
+    this.editDraft = null;
+  }
+
+  cancelEdit(): void {
+    this.editDraft = null;
+  }
+
+  patchDraft(field: keyof TagRule, value: unknown): void {
+    if (!this.editDraft) return;
+    this.editDraft = { ...this.editDraft, [field]: value } as TagRule;
+  }
+
+  patchDraftBadge(value: string): void {
+    if (!this.editDraft) return;
+    this.editDraft = { ...this.editDraft, badgeLabel: value || undefined };
+  }
+
+  moveRule(id: string, direction: -1 | 1): void {
+    const idx = this.tagRules.findIndex(r => r.id === id);
+    if (idx === -1) return;
+    const next = [...this.tagRules];
+    const swap = idx + direction;
+    if (swap < 0 || swap >= next.length) return;
+    [next[idx], next[swap]] = [next[swap], next[idx]];
+    this.tagRulesChange.emit(next);
   }
 
   readonly toolCategories = [

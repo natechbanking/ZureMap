@@ -48,6 +48,8 @@ import { CanvasAnnotationService } from './canvas-annotation.service';
 import { CanvasDragService } from './canvas-drag.service';
 import { CanvasOverlapService } from './canvas-overlap.service';
 import { CanvasActionsService } from './canvas-actions.service';
+import { CanvasNodeExpansionService } from './canvas-node-expansion.service';
+import { CanvasTagVisualizationService } from './canvas-tag-visualization.service';
 import {
   diamondPointsFromRect as diamondPointsFromRectUtil,
   edgeAnchorBetween,
@@ -93,6 +95,8 @@ export class CanvasComponent {
   private annotationSvc = inject(CanvasAnnotationService);
   private dragSvc = inject(CanvasDragService);
   private overlapSvc = inject(CanvasOverlapService);
+  private nodeExpansion = inject(CanvasNodeExpansionService);
+  private tagVisualization = inject(CanvasTagVisualizationService);
   readonly rgIconUrl = inject(IconRegistryService).getIconUrl('microsoft.resources/resourcegroups');
   readonly subscriptionIconUrl = inject(IconRegistryService).getIconUrl('microsoft.resources/subscriptions');
 
@@ -1278,69 +1282,13 @@ export class CanvasComponent {
 
   ctxVisualizeTags(): void {
     if (!this.contextMenu) return;
-
     const nodeId = this.contextMenu.nodeId;
-    const nodes = this.store.nodes();
-    const node = nodes.find(n => n.id === nodeId);
-    if (!node) {
-      this.closeContextMenu();
-      return;
+    const nextNodes = this.tagVisualization.apply(this.store.nodes(), nodeId);
+    if (nextNodes) {
+      this.store.pushUndo();
+      this.store.setNodes(nextNodes);
+      this.store.selectNode(nodeId);
     }
-
-    const tags = node.metadata?.tags ?? {};
-    const entries = Object.entries(tags)
-      .filter(([key]) => key.trim().length > 0)
-      .sort(([a], [b]) => a.localeCompare(b));
-    if (entries.length === 0) {
-      this.closeContextMenu();
-      return;
-    }
-
-    const MAX_TAGS = 40;
-    const visibleEntries = entries.slice(0, MAX_TAGS);
-    const hiddenCount = entries.length - visibleEntries.length;
-    const compactEntries: Array<[string, string]> = hiddenCount > 0
-      ? [...visibleEntries, ['_more', `+${hiddenCount} more`] as [string, string]]
-      : visibleEntries;
-
-    const TAG_ITEM_PREFIX = 'tagviz-';
-    const preservedItems = (node.custom?.internalItems ?? []).filter(item => !item.id.startsWith(TAG_ITEM_PREFIX));
-    const generatedItems = this.layoutTagItems(compactEntries, node.size.width, TAG_ITEM_PREFIX);
-    const allItems = [...preservedItems, ...generatedItems];
-
-    const estimatedItemHeight = 18;
-    const bottomPadding = 12;
-    const requiredHeight = allItems.length === 0
-      ? node.size.height
-      : Math.max(
-          node.size.height,
-          ...allItems.map(item => item.y + estimatedItemHeight + bottomPadding)
-        );
-
-    this.store.pushUndo();
-
-    const deltaHeight = requiredHeight - node.size.height;
-    const cutoffY = node.position.y + node.size.height - 2;
-    const subId = node.metadata?.subscriptionId || '';
-    const rg = node.metadata?.resourceGroup || node.groupId || '';
-
-    this.store.setNodes(nodes.map(n => {
-      if (n.id === node.id) {
-        return {
-          ...n,
-          size: { ...n.size, height: requiredHeight },
-          custom: { ...(n.custom ?? {}), internalItems: allItems },
-        };
-      }
-
-      if (deltaHeight <= 0) return n;
-      const sameSub = (n.metadata?.subscriptionId || '') === subId;
-      const sameRg = (n.metadata?.resourceGroup || n.groupId || '') === rg;
-      if (!sameSub || !sameRg || n.position.y < cutoffY) return n;
-      return { ...n, position: { ...n.position, y: Math.max(0, n.position.y + deltaHeight) } };
-    }));
-
-    this.store.selectNode(nodeId);
     this.closeContextMenu();
   }
 
@@ -1387,32 +1335,6 @@ export class CanvasComponent {
     this.store.deleteAnnotation(this.annotationContextMenu.annotationId);
     if (this.selectedAnnotationId === this.annotationContextMenu.annotationId) this.selectedAnnotationId = null;
     this.closeContextMenu();
-  }
-
-  private layoutTagItems(entries: Array<[string, string]>, nodeWidth: number, prefix: string): Array<{ id: string; text: string; x: number; y: number }> {
-    const startX = 8;
-    const startY = 56;
-    const colGap = 6;
-    const rowHeight = 18;
-    const itemFootprintWidth = 96;
-    const usableWidth = Math.max(40, nodeWidth - 16);
-    const columns = Math.max(1, Math.floor((usableWidth + colGap) / (itemFootprintWidth + colGap)));
-
-    return entries.map(([key, value], index) => {
-      const col = index % columns;
-      const row = Math.floor(index / columns);
-      const xUnclamped = startX + col * (itemFootprintWidth + colGap);
-      const x = Math.max(2, Math.min(Math.max(2, nodeWidth - 24), xUnclamped));
-      const y = startY + row * rowHeight;
-      const text = key === '_more' ? value : `${key}: ${value}`;
-      const stableKey = key.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || `tag-${index}`;
-      return {
-        id: `${prefix}${stableKey}`,
-        text,
-        x,
-        y,
-      };
-    });
   }
 
   // ── Resource editor ───────────────────────────────────────────────────────
@@ -1477,393 +1399,114 @@ export class CanvasComponent {
   }
 
   onRouteTableExpansionChanged(req: RouteTableExpansionRequest): void {
-    const nodes = this.store.nodes();
-    const routeTable = nodes.find(n => n.id === req.nodeId);
-    if (!routeTable) return;
-
-    this.store.pushUndo();
-
-    const currentHeight = routeTable.size.height;
-    const collapsedHeight = this.routeTableCollapsedHeights.get(req.nodeId) ?? currentHeight;
-    if (req.expanded && !this.routeTableCollapsedHeights.has(req.nodeId)) {
-      this.routeTableCollapsedHeights.set(req.nodeId, currentHeight);
-    }
-    if (!req.expanded) {
-      this.routeTableCollapsedHeights.delete(req.nodeId);
-    }
-
     // Route cards are compact but include 3 text rows + spacing + panel chrome.
     // Keep a small safety buffer to avoid clipping at different font metrics/zoom.
-    const panelHeight = req.routeCount === 0 ? 48 : req.routeCount * 52 + 28;
-    const targetHeight = req.expanded
-      ? Math.max(currentHeight, collapsedHeight + panelHeight)
-      : collapsedHeight;
-    const delta = targetHeight - currentHeight;
-    if (delta === 0) return;
-
-    const subId = routeTable.metadata?.subscriptionId || '';
-    const rg = routeTable.metadata?.resourceGroup || routeTable.groupId || '';
-    const cutoffY = routeTable.position.y + currentHeight - 2;
-
-    this.store.setNodes(nodes.map(n => {
-      if (n.id === routeTable.id) {
-        return { ...n, size: { ...n.size, height: targetHeight } };
-      }
-      const sameSub = (n.metadata?.subscriptionId || '') === subId;
-      const sameRg = (n.metadata?.resourceGroup || n.groupId || '') === rg;
-      if (!sameSub || !sameRg || n.position.y < cutoffY) return n;
-      return { ...n, position: { ...n.position, y: Math.max(0, n.position.y + delta) } };
-    }));
+    this.applyNodePanelExpansion(
+      req.nodeId,
+      req.expanded,
+      req.routeCount === 0 ? 48 : req.routeCount * 52 + 28,
+      this.routeTableCollapsedHeights,
+    );
   }
 
   onVirtualNetworkExpansionChanged(req: VirtualNetworkExpansionRequest): void {
-    const nodes = this.store.nodes();
-    const virtualNetwork = nodes.find(n => n.id === req.nodeId);
-    if (!virtualNetwork) return;
-
-    this.store.pushUndo();
-
-    const currentHeight = virtualNetwork.size.height;
-    const collapsedHeight = this.virtualNetworkCollapsedHeights.get(req.nodeId) ?? currentHeight;
-    if (req.expanded && !this.virtualNetworkCollapsedHeights.has(req.nodeId)) {
-      this.virtualNetworkCollapsedHeights.set(req.nodeId, currentHeight);
-    }
-    if (!req.expanded) {
-      this.virtualNetworkCollapsedHeights.delete(req.nodeId);
-    }
-
     // Subnet cards are compact and include 2 text rows + spacing + panel chrome.
-    const panelHeight = req.subnetCount === 0 ? 40 : req.subnetCount * 40 + 24;
-    const targetHeight = req.expanded
-      ? Math.max(currentHeight, collapsedHeight + panelHeight)
-      : collapsedHeight;
-    const delta = targetHeight - currentHeight;
-    if (delta === 0) return;
-
-    const subId = virtualNetwork.metadata?.subscriptionId || '';
-    const rg = virtualNetwork.metadata?.resourceGroup || virtualNetwork.groupId || '';
-    const cutoffY = virtualNetwork.position.y + currentHeight - 2;
-
-    this.store.setNodes(nodes.map(n => {
-      if (n.id === virtualNetwork.id) {
-        return { ...n, size: { ...n.size, height: targetHeight } };
-      }
-      const sameSub = (n.metadata?.subscriptionId || '') === subId;
-      const sameRg = (n.metadata?.resourceGroup || n.groupId || '') === rg;
-      if (!sameSub || !sameRg || n.position.y < cutoffY) return n;
-      return { ...n, position: { ...n.position, y: Math.max(0, n.position.y + delta) } };
-    }));
+    this.applyNodePanelExpansion(
+      req.nodeId,
+      req.expanded,
+      req.subnetCount === 0 ? 40 : req.subnetCount * 40 + 24,
+      this.virtualNetworkCollapsedHeights,
+    );
   }
 
   onNsgExpansionChanged(req: NsgExpansionRequest): void {
-    const nodes = this.store.nodes();
-    const nsg = nodes.find(n => n.id === req.nodeId);
-    if (!nsg) return;
-
-    this.store.pushUndo();
-
-    const currentHeight = nsg.size.height;
-    const collapsedHeight = this.nsgCollapsedHeights.get(req.nodeId) ?? currentHeight;
-    if (req.expanded && !this.nsgCollapsedHeights.has(req.nodeId)) {
-      this.nsgCollapsedHeights.set(req.nodeId, currentHeight);
-    }
-    if (!req.expanded) {
-      this.nsgCollapsedHeights.delete(req.nodeId);
-    }
-
     // NSG rule cards have 3 rows (badges + name + ports) + spacing + panel chrome.
-    const panelHeight = req.ruleCount === 0 ? 40 : req.ruleCount * 52 + 24;
-    const targetHeight = req.expanded
-      ? Math.max(currentHeight, collapsedHeight + panelHeight)
-      : collapsedHeight;
-    const delta = targetHeight - currentHeight;
-    if (delta === 0) return;
-
-    const subId = nsg.metadata?.subscriptionId || '';
-    const rg = nsg.metadata?.resourceGroup || nsg.groupId || '';
-    const cutoffY = nsg.position.y + currentHeight - 2;
-
-    this.store.setNodes(nodes.map(n => {
-      if (n.id === nsg.id) {
-        return { ...n, size: { ...n.size, height: targetHeight } };
-      }
-      const sameSub = (n.metadata?.subscriptionId || '') === subId;
-      const sameRg = (n.metadata?.resourceGroup || n.groupId || '') === rg;
-      if (!sameSub || !sameRg || n.position.y < cutoffY) return n;
-      return { ...n, position: { ...n.position, y: Math.max(0, n.position.y + delta) } };
-    }));
+    this.applyNodePanelExpansion(
+      req.nodeId,
+      req.expanded,
+      req.ruleCount === 0 ? 40 : req.ruleCount * 52 + 24,
+      this.nsgCollapsedHeights,
+    );
   }
 
   onStorageAccountExpansionChanged(req: StorageAccountExpansionRequest): void {
-    const nodes = this.store.nodes();
-    const sa = nodes.find(n => n.id === req.nodeId);
-    if (!sa) return;
-
-    this.store.pushUndo();
-
-    const currentHeight = sa.size.height;
-    const collapsedHeight = this.storageAccountCollapsedHeights.get(req.nodeId) ?? currentHeight;
-    if (req.expanded && !this.storageAccountCollapsedHeights.has(req.nodeId)) {
-      this.storageAccountCollapsedHeights.set(req.nodeId, currentHeight);
-    }
-    if (!req.expanded) {
-      this.storageAccountCollapsedHeights.delete(req.nodeId);
-    }
-
     // Each item row ~24px + section header ~20px per non-empty category + panel chrome 16px.
-    const panelHeight = req.itemCount === 0 ? 32 : req.itemCount * 24 + 64;
-    const targetHeight = req.expanded
-      ? Math.max(currentHeight, collapsedHeight + panelHeight)
-      : collapsedHeight;
-    const delta = targetHeight - currentHeight;
-    if (delta === 0) return;
-
-    const subId = sa.metadata?.subscriptionId || '';
-    const rg = sa.metadata?.resourceGroup || sa.groupId || '';
-    const cutoffY = sa.position.y + currentHeight - 2;
-
-    this.store.setNodes(nodes.map(n => {
-      if (n.id === sa.id) {
-        return { ...n, size: { ...n.size, height: targetHeight } };
-      }
-      const sameSub = (n.metadata?.subscriptionId || '') === subId;
-      const sameRg = (n.metadata?.resourceGroup || n.groupId || '') === rg;
-      if (!sameSub || !sameRg || n.position.y < cutoffY) return n;
-      return { ...n, position: { ...n.position, y: Math.max(0, n.position.y + delta) } };
-    }));
+    this.applyNodePanelExpansion(
+      req.nodeId,
+      req.expanded,
+      req.itemCount === 0 ? 32 : req.itemCount * 24 + 64,
+      this.storageAccountCollapsedHeights,
+    );
   }
 
   onVmExpansionChanged(req: VmExpansionRequest): void {
-    const nodes = this.store.nodes();
-    const vm = nodes.find(n => n.id === req.nodeId);
-    if (!vm) return;
-
-    this.store.pushUndo();
-
-    const currentHeight = vm.size.height;
-    const collapsedHeight = this.vmDetailCollapsedHeights.get(req.nodeId) ?? currentHeight;
-    if (req.expanded && !this.vmDetailCollapsedHeights.has(req.nodeId)) {
-      this.vmDetailCollapsedHeights.set(req.nodeId, currentHeight);
-    }
-    if (!req.expanded) {
-      this.vmDetailCollapsedHeights.delete(req.nodeId);
-    }
-
     // Header badges row ~28px + up to 3 detail rows ~18px each + panel chrome 20px.
-    const panelHeight = 28 + 3 * 18 + 20;
-    const targetHeight = req.expanded
-      ? Math.max(currentHeight, collapsedHeight + panelHeight)
-      : collapsedHeight;
-    const delta = targetHeight - currentHeight;
-    if (delta === 0) return;
-
-    const subId = vm.metadata?.subscriptionId || '';
-    const rg = vm.metadata?.resourceGroup || vm.groupId || '';
-    const cutoffY = vm.position.y + currentHeight - 2;
-
-    this.store.setNodes(nodes.map(n => {
-      if (n.id === vm.id) {
-        return { ...n, size: { ...n.size, height: targetHeight } };
-      }
-      const sameSub = (n.metadata?.subscriptionId || '') === subId;
-      const sameRg = (n.metadata?.resourceGroup || n.groupId || '') === rg;
-      if (!sameSub || !sameRg || n.position.y < cutoffY) return n;
-      return { ...n, position: { ...n.position, y: Math.max(0, n.position.y + delta) } };
-    }));
+    this.applyNodePanelExpansion(req.nodeId, req.expanded, 28 + 3 * 18 + 20, this.vmDetailCollapsedHeights);
   }
 
   onAksExpansionChanged(req: AksExpansionRequest): void {
-    const nodes = this.store.nodes();
-    const aks = nodes.find(n => n.id === req.nodeId);
-    if (!aks) return;
-
-    this.store.pushUndo();
-
-    const currentHeight = aks.size.height;
-    const collapsedHeight = this.aksCollapsedHeights.get(req.nodeId) ?? currentHeight;
-    if (req.expanded && !this.aksCollapsedHeights.has(req.nodeId)) {
-      this.aksCollapsedHeights.set(req.nodeId, currentHeight);
-    }
-    if (!req.expanded) {
-      this.aksCollapsedHeights.delete(req.nodeId);
-    }
-
     // Cluster metadata header ~28px + each node pool card ~52px + panel chrome 20px.
-    const panelHeight = req.nodePoolCount === 0 ? 48 : req.nodePoolCount * 52 + 48;
-    const targetHeight = req.expanded
-      ? Math.max(currentHeight, collapsedHeight + panelHeight)
-      : collapsedHeight;
-    const delta = targetHeight - currentHeight;
-    if (delta === 0) return;
-
-    const subId = aks.metadata?.subscriptionId || '';
-    const rg = aks.metadata?.resourceGroup || aks.groupId || '';
-    const cutoffY = aks.position.y + currentHeight - 2;
-
-    this.store.setNodes(nodes.map(n => {
-      if (n.id === aks.id) {
-        return { ...n, size: { ...n.size, height: targetHeight } };
-      }
-      const sameSub = (n.metadata?.subscriptionId || '') === subId;
-      const sameRg = (n.metadata?.resourceGroup || n.groupId || '') === rg;
-      if (!sameSub || !sameRg || n.position.y < cutoffY) return n;
-      return { ...n, position: { ...n.position, y: Math.max(0, n.position.y + delta) } };
-    }));
+    this.applyNodePanelExpansion(
+      req.nodeId,
+      req.expanded,
+      req.nodePoolCount === 0 ? 48 : req.nodePoolCount * 52 + 48,
+      this.aksCollapsedHeights,
+    );
   }
 
   onUaiExpansionChanged(req: UaiExpansionRequest): void {
-    const nodes = this.store.nodes();
-    const uai = nodes.find(n => n.id === req.nodeId);
-    if (!uai) return;
-
-    this.store.pushUndo();
-
-    const currentHeight = uai.size.height;
-    const collapsedHeight = this.uaiCollapsedHeights.get(req.nodeId) ?? currentHeight;
-    if (req.expanded && !this.uaiCollapsedHeights.has(req.nodeId)) {
-      this.uaiCollapsedHeights.set(req.nodeId, currentHeight);
-    }
-    if (!req.expanded) {
-      this.uaiCollapsedHeights.delete(req.nodeId);
-    }
-
     // Assignment cards contain role + scope rows and optional description.
-    const panelHeight = req.assignmentCount === 0 ? 48 : req.assignmentCount * 64 + 24;
-    const targetHeight = req.expanded
-      ? Math.max(currentHeight, collapsedHeight + panelHeight)
-      : collapsedHeight;
-    const delta = targetHeight - currentHeight;
-    if (delta === 0) return;
-
-    const subId = uai.metadata?.subscriptionId || '';
-    const rg = uai.metadata?.resourceGroup || uai.groupId || '';
-    const cutoffY = uai.position.y + currentHeight - 2;
-
-    this.store.setNodes(nodes.map(n => {
-      if (n.id === uai.id) {
-        return { ...n, size: { ...n.size, height: targetHeight } };
-      }
-      const sameSub = (n.metadata?.subscriptionId || '') === subId;
-      const sameRg = (n.metadata?.resourceGroup || n.groupId || '') === rg;
-      if (!sameSub || !sameRg || n.position.y < cutoffY) return n;
-      return { ...n, position: { ...n.position, y: Math.max(0, n.position.y + delta) } };
-    }));
+    this.applyNodePanelExpansion(
+      req.nodeId,
+      req.expanded,
+      req.assignmentCount === 0 ? 48 : req.assignmentCount * 64 + 24,
+      this.uaiCollapsedHeights,
+    );
   }
 
   onHostingEnvironmentExpansionChanged(req: HostingEnvironmentExpansionRequest): void {
-    const nodes = this.store.nodes();
-    const hostingEnvironment = nodes.find(n => n.id === req.nodeId);
-    if (!hostingEnvironment) return;
-
-    this.store.pushUndo();
-
-    const currentHeight = hostingEnvironment.size.height;
-    const collapsedHeight = this.hostingEnvironmentCollapsedHeights.get(req.nodeId) ?? currentHeight;
-    if (req.expanded && !this.hostingEnvironmentCollapsedHeights.has(req.nodeId)) {
-      this.hostingEnvironmentCollapsedHeights.set(req.nodeId, currentHeight);
-    }
-    if (!req.expanded) {
-      this.hostingEnvironmentCollapsedHeights.delete(req.nodeId);
-    }
-
     // Stats panel rows are compact key/value lines plus panel chrome.
-    const panelHeight = req.statCount === 0 ? 40 : req.statCount * 26 + 20;
-    const targetHeight = req.expanded
-      ? Math.max(currentHeight, collapsedHeight + panelHeight)
-      : collapsedHeight;
-    const delta = targetHeight - currentHeight;
-    if (delta === 0) return;
-
-    const subId = hostingEnvironment.metadata?.subscriptionId || '';
-    const rg = hostingEnvironment.metadata?.resourceGroup || hostingEnvironment.groupId || '';
-    const cutoffY = hostingEnvironment.position.y + currentHeight - 2;
-
-    this.store.setNodes(nodes.map(n => {
-      if (n.id === hostingEnvironment.id) {
-        return { ...n, size: { ...n.size, height: targetHeight } };
-      }
-      const sameSub = (n.metadata?.subscriptionId || '') === subId;
-      const sameRg = (n.metadata?.resourceGroup || n.groupId || '') === rg;
-      if (!sameSub || !sameRg || n.position.y < cutoffY) return n;
-      return { ...n, position: { ...n.position, y: Math.max(0, n.position.y + delta) } };
-    }));
+    this.applyNodePanelExpansion(
+      req.nodeId,
+      req.expanded,
+      req.statCount === 0 ? 40 : req.statCount * 26 + 20,
+      this.hostingEnvironmentCollapsedHeights,
+    );
   }
 
   onServerFarmExpansionChanged(req: ServerFarmExpansionRequest): void {
-    const nodes = this.store.nodes();
-    const serverFarm = nodes.find(n => n.id === req.nodeId);
-    if (!serverFarm) return;
-
-    this.store.pushUndo();
-
-    const currentHeight = serverFarm.size.height;
-    const collapsedHeight = this.serverFarmCollapsedHeights.get(req.nodeId) ?? currentHeight;
-    if (req.expanded && !this.serverFarmCollapsedHeights.has(req.nodeId)) {
-      this.serverFarmCollapsedHeights.set(req.nodeId, currentHeight);
-    }
-    if (!req.expanded) {
-      this.serverFarmCollapsedHeights.delete(req.nodeId);
-    }
-
-    const panelHeight = req.statCount === 0 ? 40 : req.statCount * 26 + 20;
-    const targetHeight = req.expanded
-      ? Math.max(currentHeight, collapsedHeight + panelHeight)
-      : collapsedHeight;
-    const delta = targetHeight - currentHeight;
-    if (delta === 0) return;
-
-    const subId = serverFarm.metadata?.subscriptionId || '';
-    const rg = serverFarm.metadata?.resourceGroup || serverFarm.groupId || '';
-    const cutoffY = serverFarm.position.y + currentHeight - 2;
-
-    this.store.setNodes(nodes.map(n => {
-      if (n.id === serverFarm.id) {
-        return { ...n, size: { ...n.size, height: targetHeight } };
-      }
-      const sameSub = (n.metadata?.subscriptionId || '') === subId;
-      const sameRg = (n.metadata?.resourceGroup || n.groupId || '') === rg;
-      if (!sameSub || !sameRg || n.position.y < cutoffY) return n;
-      return { ...n, position: { ...n.position, y: Math.max(0, n.position.y + delta) } };
-    }));
+    this.applyNodePanelExpansion(
+      req.nodeId,
+      req.expanded,
+      req.statCount === 0 ? 40 : req.statCount * 26 + 20,
+      this.serverFarmCollapsedHeights,
+    );
   }
 
   onPublicIpExpansionChanged(req: PublicIpExpansionRequest): void {
-    const nodes = this.store.nodes();
-    const pip = nodes.find(n => n.id === req.nodeId);
-    if (!pip) return;
-
-    this.store.pushUndo();
-
-    const currentHeight = pip.size.height;
-    const collapsedHeight = this.publicIpCollapsedHeights.get(req.nodeId) ?? currentHeight;
-    if (req.expanded && !this.publicIpCollapsedHeights.has(req.nodeId)) {
-      this.publicIpCollapsedHeights.set(req.nodeId, currentHeight);
-    }
-    if (!req.expanded) {
-      this.publicIpCollapsedHeights.delete(req.nodeId);
-    }
-
     // Detail rows are compact key/value lines plus panel chrome.
-    const panelHeight = req.detailCount === 0 ? 40 : req.detailCount * 24 + 20;
-    const targetHeight = req.expanded
-      ? Math.max(currentHeight, collapsedHeight + panelHeight)
-      : collapsedHeight;
-    const delta = targetHeight - currentHeight;
-    if (delta === 0) return;
+    this.applyNodePanelExpansion(
+      req.nodeId,
+      req.expanded,
+      req.detailCount === 0 ? 40 : req.detailCount * 24 + 20,
+      this.publicIpCollapsedHeights,
+    );
+  }
 
-    const subId = pip.metadata?.subscriptionId || '';
-    const rg = pip.metadata?.resourceGroup || pip.groupId || '';
-    const cutoffY = pip.position.y + currentHeight - 2;
-
-    this.store.setNodes(nodes.map(n => {
-      if (n.id === pip.id) {
-        return { ...n, size: { ...n.size, height: targetHeight } };
-      }
-      const sameSub = (n.metadata?.subscriptionId || '') === subId;
-      const sameRg = (n.metadata?.resourceGroup || n.groupId || '') === rg;
-      if (!sameSub || !sameRg || n.position.y < cutoffY) return n;
-      return { ...n, position: { ...n.position, y: Math.max(0, n.position.y + delta) } };
-    }));
+  private applyNodePanelExpansion(
+    nodeId: string,
+    expanded: boolean,
+    panelHeight: number,
+    collapsedHeights: Map<string, number>,
+  ): void {
+    const nextNodes = this.nodeExpansion.apply(this.store.nodes(), collapsedHeights, {
+      nodeId,
+      expanded,
+      panelHeight,
+    });
+    if (!nextNodes) return;
+    this.store.pushUndo();
+    this.store.setNodes(nextNodes);
   }
 
   // ── Container rename ──────────────────────────────────────────────────────

@@ -14,6 +14,7 @@ import {
   StorageAccountExpansionRequest,
   AksExpansionRequest,
   VmExpansionRequest,
+  UaiExpansionRequest,
 } from './diagram-node/diagram-node.component';
 import { SidebarComponent } from '../sidebar/sidebar.component';
 import { ToolbarComponent } from '../toolbar/toolbar.component';
@@ -65,6 +66,7 @@ import { DrawingRuntimeState, DrawingStyleState, onDrawEnd, onDrawMove, onDrawSt
 })
 export class CanvasComponent {
   @ViewChild('canvasHost', { read: ElementRef }) canvasHostRef!: ElementRef;
+  @ViewChild('exportRoot', { read: ElementRef }) exportRootRef!: ElementRef;
   @ViewChild('editTextarea') editTextareaRef?: ElementRef;
   @ViewChild('renameInput') renameInputRef?: ElementRef;
 
@@ -179,6 +181,7 @@ export class CanvasComponent {
   private storageAccountCollapsedHeights = new Map<string, number>();
   private aksCollapsedHeights = new Map<string, number>();
   private vmDetailCollapsedHeights = new Map<string, number>();
+  private uaiCollapsedHeights = new Map<string, number>();
   selectedEdgeId: string | null = null;
   edgeWaypointDragState: EdgeWaypointDragState | null = null;
   annWaypointDragState: AnnWaypointDragState | null = null;
@@ -186,6 +189,11 @@ export class CanvasComponent {
   resourceEditorOpen = false;
   resourceEditorNodeId: string | null = null;
   resourceEditorDraft: ResourceEditorDraft | null = null;
+
+  exportDialogOpen = false;
+  exportBg: 'white' | 'black' | 'transparent' = 'white';
+  exportEmbed = false;
+  exportBusy = false;
 
   // ── Keyboard shortcuts ─────────────────────────────────────────────────────
   @HostListener('document:keydown', ['$event'])
@@ -1455,6 +1463,45 @@ export class CanvasComponent {
     }));
   }
 
+  onUaiExpansionChanged(req: UaiExpansionRequest): void {
+    const nodes = this.store.nodes();
+    const uai = nodes.find(n => n.id === req.nodeId);
+    if (!uai) return;
+
+    this.store.pushUndo();
+
+    const currentHeight = uai.size.height;
+    const collapsedHeight = this.uaiCollapsedHeights.get(req.nodeId) ?? currentHeight;
+    if (req.expanded && !this.uaiCollapsedHeights.has(req.nodeId)) {
+      this.uaiCollapsedHeights.set(req.nodeId, currentHeight);
+    }
+    if (!req.expanded) {
+      this.uaiCollapsedHeights.delete(req.nodeId);
+    }
+
+    // Assignment cards contain role + scope rows and optional description.
+    const panelHeight = req.assignmentCount === 0 ? 48 : req.assignmentCount * 64 + 24;
+    const targetHeight = req.expanded
+      ? Math.max(currentHeight, collapsedHeight + panelHeight)
+      : collapsedHeight;
+    const delta = targetHeight - currentHeight;
+    if (delta === 0) return;
+
+    const subId = uai.metadata?.subscriptionId || '';
+    const rg = uai.metadata?.resourceGroup || uai.groupId || '';
+    const cutoffY = uai.position.y + currentHeight - 2;
+
+    this.store.setNodes(nodes.map(n => {
+      if (n.id === uai.id) {
+        return { ...n, size: { ...n.size, height: targetHeight } };
+      }
+      const sameSub = (n.metadata?.subscriptionId || '') === subId;
+      const sameRg = (n.metadata?.resourceGroup || n.groupId || '') === rg;
+      if (!sameSub || !sameRg || n.position.y < cutoffY) return n;
+      return { ...n, position: { ...n.position, y: Math.max(0, n.position.y + delta) } };
+    }));
+  }
+
   // ── Container rename ──────────────────────────────────────────────────────
   startRename(type: 'rg' | 'sub' | 'vm' | 'rt', id: string, currentName: string): void {
     this.renamingContainer = { type, id };
@@ -1513,10 +1560,26 @@ export class CanvasComponent {
   get finOpsError(): string | null { return this.actions.finOpsError; }
   get finOpsLoadedSubscriptions(): number { return this.actions.finOpsLoadedSubscriptions; }
 
-  exportSvg(): void { this.actions.exportSvg(this.canvasHostRef); }
-  async exportPng(): Promise<void> { await this.actions.exportPng(this.canvasHostRef); }
+  openExportDialog(): void { this.exportDialogOpen = true; }
+  closeExportDialog(): void { this.exportDialogOpen = false; }
+  async doExport(): Promise<void> {
+    if (!this.exportRootRef) return;
+    this.exportBusy = true;
+    try {
+      await this.actions.exportImage(this.exportRootRef, {
+        background: this.exportBg,
+        embed: this.exportEmbed,
+        canvasWidth: this.canvasWidth,
+        canvasHeight: this.canvasHeight,
+      });
+    } finally {
+      this.exportBusy = false;
+      this.exportDialogOpen = false;
+    }
+  }
+
   exportJson(): void { this.actions.exportJson(); }
-  async onImportJson(file: File): Promise<void> { await this.actions.onImportJson(file); }
+  async onImportFile(file: File): Promise<void> { await this.actions.onImportFile(file); }
 
   rescan(): void { this.actions.rescan(); }
 

@@ -22,6 +22,7 @@
     "@azure/msal-browser": "^5.7.0",
     "elkjs": "^0.11.1",
     "file-saver": "^2.0.5",
+    "html-to-image": "^1.11.13",
     "ng-diagram": "^1.1.2",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0",

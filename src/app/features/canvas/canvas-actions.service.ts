@@ -1,7 +1,7 @@
 import { ElementRef, Injectable } from '@angular/core';
 import { Router } from '@angular/router';
 import { DriftService } from '../../core/services/drift.service';
-import { ExportService } from '../../core/services/export.service';
+import { ExportService, ExportImageOptions } from '../../core/services/export.service';
 import { DiagramStore } from '../../core/store/diagram.store';
 import { CanvasFinopsService } from './canvas-finops.service';
 
@@ -77,24 +77,27 @@ export class CanvasActionsService {
     this.store.setNodes(this.store.nodes().map(n => ({ ...n, driftStatus: undefined })));
   }
 
-  exportSvg(canvasHostRef: ElementRef | undefined): void {
-    if (canvasHostRef) this.exportSvc.exportSVG(canvasHostRef);
-  }
-
-  async exportPng(canvasHostRef: ElementRef | undefined): Promise<void> {
-    if (canvasHostRef) await this.exportSvc.exportPNG(canvasHostRef);
+  async exportImage(exportRootRef: ElementRef, options: ExportImageOptions): Promise<void> {
+    const state = {
+      version: '1.0' as const,
+      exportedAt: new Date().toISOString(),
+      subscriptions: this.store.activeSubscriptions(),
+      nodes: this.store.nodes(),
+      edges: this.store.edges(),
+    };
+    await this.exportSvc.exportImage(exportRootRef, options, state);
   }
 
   exportJson(): void {
     this.exportSvc.exportJSON(this.store.nodes(), this.store.edges(), this.store.activeSubscriptions());
   }
 
-  async onImportJson(file: File): Promise<void> {
+  async onImportFile(file: File): Promise<void> {
     try {
-      const state = await this.exportSvc.importJSON(file);
+      const state = await this.exportSvc.importFile(file);
       this.store.loadBaseline(state.nodes);
     } catch {
-      console.error('Failed to import ZureMap JSON');
+      console.error('Failed to import file');
     }
   }
 

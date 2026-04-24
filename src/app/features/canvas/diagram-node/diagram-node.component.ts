@@ -6,6 +6,7 @@ import { CostBadgeComponent } from '../../../shared/components/cost-badge/cost-b
 import { CostService } from '../../../core/services/cost.service';
 import { DiagramStore } from '../../../core/store/diagram.store';
 import { StorageDetailsService, StorageDetails } from '../../../core/services/storage-details.service';
+import { UaiRoleAssignmentsService, UaiRoleAssignment } from '../../../core/services/uai-role-assignments.service';
 
 export interface ContextMenuRequest {
   nodeId: string;
@@ -61,6 +62,12 @@ export interface VmExpansionRequest {
   expanded: boolean;
 }
 
+export interface UaiExpansionRequest {
+  nodeId: string;
+  expanded: boolean;
+  assignmentCount: number;
+}
+
 interface AksNodePoolView {
   name: string;
   count: number;
@@ -107,6 +114,14 @@ interface NsgRuleView {
   isDefault: boolean;
 }
 
+interface UaiRoleAssignmentView {
+  id: string;
+  roleDefinitionName: string;
+  scope: string;
+  principalType: string;
+  description: string | null;
+}
+
 @Component({
   selector: 'app-diagram-node',
   standalone: true,
@@ -143,6 +158,7 @@ interface NsgRuleView {
       @if (isRouteTable) {
         <button
           type="button"
+          data-export-hide
           class="mt-0.5 px-2 py-0.5 rounded border border-cyan-200 bg-cyan-50 text-[10px] leading-tight text-cyan-700 hover:bg-cyan-100"
           [title]="routesExpanded ? 'Hide routes' : 'Show routes'"
           (mousedown)="stopEvent($event)"
@@ -152,9 +168,29 @@ interface NsgRuleView {
         </button>
       }
 
+      @if (isUserAssignedIdentity) {
+        <button
+          type="button"
+          data-export-hide
+          class="mt-0.5 px-2 py-0.5 rounded border border-sky-200 bg-sky-50 text-[10px] leading-tight text-sky-700 hover:bg-sky-100"
+          [title]="uaiAssignmentsExpanded ? 'Hide role assignments' : 'Show role assignments'"
+          (mousedown)="stopEvent($event)"
+          (click)="toggleUaiRoleAssignmentsPanel($event)"
+        >
+          @if (uaiAssignmentsExpanded) {
+            Hide assignments
+          } @else if (!uaiAssignmentsLoaded) {
+            Show assignments
+          } @else {
+            Show assignments ({{ uaiRoleAssignments.length }})
+          }
+        </button>
+      }
+
       @if (isVirtualNetwork) {
         <button
           type="button"
+          data-export-hide
           class="mt-0.5 px-2 py-0.5 rounded border border-indigo-200 bg-indigo-50 text-[10px] leading-tight text-indigo-700 hover:bg-indigo-100"
           [title]="subnetsExpanded ? 'Hide subnets' : 'Show subnets'"
           (mousedown)="stopEvent($event)"
@@ -167,6 +203,7 @@ interface NsgRuleView {
       @if (isNsg) {
         <button
           type="button"
+          data-export-hide
           class="mt-0.5 px-2 py-0.5 rounded border border-orange-200 bg-orange-50 text-[10px] leading-tight text-orange-700 hover:bg-orange-100"
           [title]="nsgRulesExpanded ? 'Hide rules' : 'Show rules'"
           (mousedown)="stopEvent($event)"
@@ -179,6 +216,7 @@ interface NsgRuleView {
       @if (isStorageAccount) {
         <button
           type="button"
+          data-export-hide
           class="mt-0.5 px-2 py-0.5 rounded border border-teal-200 bg-teal-50 text-[10px] leading-tight text-teal-700 hover:bg-teal-100"
           [title]="storageDetailsExpanded ? 'Hide storage details' : 'Show storage details'"
           (mousedown)="stopEvent($event)"
@@ -197,6 +235,7 @@ interface NsgRuleView {
       @if (isAks) {
         <button
           type="button"
+          data-export-hide
           class="mt-0.5 px-2 py-0.5 rounded border border-violet-200 bg-violet-50 text-[10px] leading-tight text-violet-700 hover:bg-violet-100"
           [title]="aksExpanded ? 'Hide cluster details' : 'Show cluster details'"
           (mousedown)="stopEvent($event)"
@@ -209,6 +248,7 @@ interface NsgRuleView {
       @if (isVm) {
         <button
           type="button"
+          data-export-hide
           class="mt-0.5 px-2 py-0.5 rounded border border-emerald-200 bg-emerald-50 text-[10px] leading-tight text-emerald-700 hover:bg-emerald-100"
           [title]="vmExpanded ? 'Hide VM details' : 'Show VM details'"
           (mousedown)="stopEvent($event)"
@@ -238,6 +278,7 @@ interface NsgRuleView {
 
       <button
         type="button"
+        data-export-hide
         class="absolute -right-1 -bottom-1 w-3.5 h-3.5 rounded-sm border border-gray-300 bg-white shadow-sm cursor-se-resize hover:border-blue-400 hover:bg-blue-50 flex items-center justify-center"
         title="Resize resource"
         (mousedown)="onResizeMouseDown($event)"
@@ -277,6 +318,45 @@ interface NsgRuleView {
                   <p class="text-[10px] text-gray-500 truncate" [title]="route.nextHopType + (route.nextHopIpAddress ? ' • ' + route.nextHopIpAddress : '')">
                     {{ route.nextHopType }}{{ route.nextHopIpAddress ? ' • ' + route.nextHopIpAddress : '' }}
                   </p>
+                </div>
+              }
+            </div>
+          }
+        </div>
+      }
+
+      @if (isUserAssignedIdentity && uaiAssignmentsExpanded) {
+        <div
+          class="w-full mt-1 rounded border border-sky-200 bg-white shadow-sm overflow-hidden"
+          (mousedown)="stopEvent($event)"
+          (click)="stopEvent($event)"
+        >
+          @if (uaiAssignmentsLoading) {
+            <p class="text-[10px] text-gray-400 px-2 py-1.5 text-center">Loading...</p>
+          } @else if (uaiAssignmentsError) {
+            <p class="text-[10px] text-red-400 px-2 py-1.5">{{ uaiAssignmentsError }}</p>
+          } @else if (uaiRoleAssignments.length === 0) {
+            <p class="text-[10px] text-gray-500 px-2 py-1.5">No role assignments found for this identity.</p>
+          } @else {
+            <div class="space-y-1 p-1.5">
+              @for (assignment of uaiRoleAssignments; track assignment.id) {
+                <div class="rounded border border-sky-100 bg-sky-50/40 px-1.5 py-1">
+                  <div class="flex items-center gap-1 mb-0.5">
+                    <p class="text-[10px] font-semibold text-gray-800 truncate flex-1" [title]="assignment.roleDefinitionName">
+                      {{ assignment.roleDefinitionName }}
+                    </p>
+                    <span class="text-[9px] px-1.5 py-px rounded-full bg-gray-100 text-gray-600 leading-tight shrink-0">
+                      {{ assignment.principalType }}
+                    </span>
+                  </div>
+                  <p class="text-[10px] text-gray-600 break-all leading-snug" [title]="assignment.scope">
+                    <span class="text-gray-400">Scope </span>{{ assignment.scope }}
+                  </p>
+                  @if (assignment.description) {
+                    <p class="text-[10px] text-gray-500 break-all leading-snug mt-0.5" [title]="assignment.description">
+                      {{ assignment.description }}
+                    </p>
+                  }
                 </div>
               }
             </div>
@@ -500,10 +580,12 @@ export class DiagramNodeComponent {
   @Output() storageAccountExpansionChanged = new EventEmitter<StorageAccountExpansionRequest>();
   @Output() aksExpansionChanged = new EventEmitter<AksExpansionRequest>();
   @Output() vmExpansionChanged = new EventEmitter<VmExpansionRequest>();
+  @Output() uaiExpansionChanged = new EventEmitter<UaiExpansionRequest>();
 
   private costSvc = inject(CostService);
   private store = inject(DiagramStore);
   private storageDetailsSvc = inject(StorageDetailsService);
+  private uaiRoleAssignmentsSvc = inject(UaiRoleAssignmentsService);
   private internalDrag: { itemId: string; startMouseX: number; startMouseY: number; startX: number; startY: number } | null = null;
   private resizeDrag: { startMouseX: number; startMouseY: number; startW: number; startH: number } | null = null;
   private _storageDetails: StorageDetails | null = null;
@@ -516,6 +598,11 @@ export class DiagramNodeComponent {
   storageDetailsError: string | null = null;
   aksExpanded = false;
   vmExpanded = false;
+  uaiAssignmentsExpanded = false;
+  uaiAssignmentsLoading = false;
+  uaiAssignmentsLoaded = false;
+  uaiAssignmentsError: string | null = null;
+  uaiRoleAssignments: UaiRoleAssignmentView[] = [];
 
   get typeLabel(): string {
     const parts = this.node.resourceType.split('/');
@@ -585,6 +672,10 @@ export class DiagramNodeComponent {
 
   get isVm(): boolean {
     return this.node.resourceType.toLowerCase() === 'microsoft.compute/virtualmachines';
+  }
+
+  get isUserAssignedIdentity(): boolean {
+    return this.node.resourceType.toLowerCase() === 'microsoft.managedidentity/userassignedidentities';
   }
 
   get vmInfo(): VmInfoView {
@@ -777,6 +868,54 @@ export class DiagramNodeComponent {
     }
   }
 
+  async toggleUaiRoleAssignmentsPanel(event: MouseEvent): Promise<void> {
+    event.preventDefault();
+    event.stopPropagation();
+    this.clicked.emit(this.node.id);
+    this.uaiAssignmentsExpanded = !this.uaiAssignmentsExpanded;
+
+    if (this.uaiAssignmentsExpanded && !this.uaiAssignmentsLoaded && !this.uaiAssignmentsLoading) {
+      const principalId = (this.node.metadata?.properties?.['principalId'] as string | undefined)?.trim();
+      const subscriptionId = this.node.metadata?.subscriptionId?.trim();
+      if (!principalId || !subscriptionId) {
+        this.uaiAssignmentsError = 'Principal or subscription metadata is missing.';
+        this.uaiExpansionChanged.emit({
+          nodeId: this.node.id,
+          expanded: true,
+          assignmentCount: 0,
+        });
+        return;
+      }
+
+      this.uaiAssignmentsLoading = true;
+      this.uaiAssignmentsError = null;
+      this.uaiExpansionChanged.emit({ nodeId: this.node.id, expanded: true, assignmentCount: 2 });
+
+      try {
+        const assignments = await this.uaiRoleAssignmentsSvc.getAssignments(principalId, subscriptionId);
+        this.uaiRoleAssignments = assignments.map(this.toUaiRoleAssignmentView);
+        this.uaiAssignmentsLoaded = true;
+        this.uaiAssignmentsLoading = false;
+        this.uaiExpansionChanged.emit({
+          nodeId: this.node.id,
+          expanded: true,
+          assignmentCount: this.uaiRoleAssignments.length,
+        });
+      } catch (err) {
+        this.uaiAssignmentsLoading = false;
+        this.uaiAssignmentsError = 'Failed to load role assignments';
+        console.warn('[ZureMap] UAI role assignment fetch failed:', err);
+      }
+      return;
+    }
+
+    this.uaiExpansionChanged.emit({
+      nodeId: this.node.id,
+      expanded: this.uaiAssignmentsExpanded,
+      assignmentCount: this.uaiRoleAssignments.length,
+    });
+  }
+
   toggleVmPanel(event: MouseEvent): void {
     event.preventDefault();
     event.stopPropagation();
@@ -795,6 +934,16 @@ export class DiagramNodeComponent {
       expanded: this.aksExpanded,
       nodePoolCount: this.aksInfo.nodePools.length,
     });
+  }
+
+  private toUaiRoleAssignmentView(assignment: UaiRoleAssignment): UaiRoleAssignmentView {
+    return {
+      id: assignment.id,
+      roleDefinitionName: assignment.roleDefinitionName || 'Unknown role',
+      scope: assignment.scope || 'Unknown scope',
+      principalType: assignment.principalType || 'Principal',
+      description: assignment.description ?? null,
+    };
   }
 
   stopEvent(event: MouseEvent): void {

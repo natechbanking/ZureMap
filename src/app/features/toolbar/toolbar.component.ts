@@ -49,15 +49,14 @@ import { CommonModule } from '@angular/common';
 
         <label
           class="px-3 py-1 rounded text-xs text-white/70 hover:bg-white/10 cursor-pointer"
-          title="Import ZureMap JSON"
+          title="Import ZureMap JSON or embedded PNG"
         >
           ↑ Import
-          <input type="file" accept=".json" class="sr-only" (change)="onFileChange($event)" />
+          <input type="file" accept=".json,.png" class="sr-only" (change)="onFileChange($event)" />
         </label>
 
         <button (click)="exportJson.emit()" class="px-3 py-1 rounded text-xs text-white/70 hover:bg-white/10" title="Export JSON">↓ JSON</button>
-        <button (click)="exportSvg.emit()" class="px-3 py-1 rounded text-xs text-white/70 hover:bg-white/10" title="Export SVG">↓ SVG</button>
-        <button (click)="exportPng.emit()" class="px-3 py-1 rounded text-xs text-white/70 hover:bg-white/10" title="Export PNG">↓ PNG</button>
+        <button (click)="openExportDialog.emit()" class="px-3 py-1 rounded text-xs text-white/70 hover:bg-white/10" title="Export image">↓ Export</button>
 
         <div class="h-4 w-px bg-white/20 mx-1"></div>
 
@@ -89,8 +88,7 @@ export class ToolbarComponent {
 
   @Input() relayoutBusy = false;
 
-  @Output() exportSvg = new EventEmitter<void>();
-  @Output() exportPng = new EventEmitter<void>();
+  @Output() openExportDialog = new EventEmitter<void>();
   @Output() exportJson = new EventEmitter<void>();
   @Output() importJson = new EventEmitter<File>();
   @Output() toggleFinOps = new EventEmitter<void>();

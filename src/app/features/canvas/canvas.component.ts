@@ -22,6 +22,10 @@ import {
 import { SidebarComponent } from '../sidebar/sidebar.component';
 import { ToolbarComponent } from '../toolbar/toolbar.component';
 import { DrawingToolbarComponent } from './drawing-toolbar/drawing-toolbar.component';
+import { ResourceContextMenuComponent } from './context-menus/resource-context-menu.component';
+import { AnnotationContextMenuComponent } from './context-menus/annotation-context-menu.component';
+import { ResourceEditorModalComponent } from './resource-editor-modal.component';
+import { ExportDialogComponent } from './export-dialog.component';
 import { DiagramNode } from '../../core/models/diagram-node.model';
 import { Annotation, DrawingTool, StrokeStyle, EdgeRouting, EdgeMode } from '../../core/models/annotation.model';
 import { DiagramEdge, EdgeStyle } from '../../core/models/diagram-edge.model';
@@ -75,7 +79,17 @@ const ZERO_OFFSET: SizeOffset = { top: 0, right: 0, bottom: 0, left: 0 };
 @Component({
   selector: 'app-canvas',
   standalone: true,
-  imports: [CommonModule, DiagramNodeComponent, SidebarComponent, ToolbarComponent, DrawingToolbarComponent],
+  imports: [
+    CommonModule,
+    DiagramNodeComponent,
+    SidebarComponent,
+    ToolbarComponent,
+    DrawingToolbarComponent,
+    ResourceContextMenuComponent,
+    AnnotationContextMenuComponent,
+    ResourceEditorModalComponent,
+    ExportDialogComponent,
+  ],
   templateUrl: "./canvas.component.html",
   styleUrl: "./canvas.component.scss",
 })
@@ -1211,18 +1225,6 @@ export class CanvasComponent {
     return !!(event.target as HTMLInputElement).checked;
   }
 
-  textValue(event: Event): string {
-    return (event.target as HTMLInputElement | HTMLTextAreaElement).value ?? '';
-  }
-
-  setResourceEditorStatus(event: Event): void {
-    if (!this.resourceEditorDraft) return;
-    const value = this.selectValue(event);
-    if (value === 'running' || value === 'stopped' || value === 'failed' || value === 'unknown') {
-      this.resourceEditorDraft.status = value;
-    }
-  }
-
   // ── Context menu ──────────────────────────────────────────────────────────
   onContextMenuRequested(req: ContextMenuRequest): void {
     const node = this.store.nodes().find(n => n.id === req.nodeId);
@@ -1271,13 +1273,6 @@ export class CanvasComponent {
     if (!this.contextMenu) return;
     this.store.selectNode(this.contextMenu.nodeId);
     this.closeContextMenu();
-  }
-
-  ctxTagCount(): number {
-    if (!this.contextMenu) return 0;
-    const tags = this.contextMenu.node.metadata?.tags;
-    if (!tags || typeof tags !== 'object') return 0;
-    return Object.keys(tags).length;
   }
 
   ctxVisualizeTags(): void {

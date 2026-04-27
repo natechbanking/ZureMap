@@ -92,6 +92,12 @@ export interface ScheduleExpansionRequest {
   detailCount: number;
 }
 
+export interface DiskExpansionRequest {
+  nodeId: string;
+  expanded: boolean;
+  detailCount: number;
+}
+
 interface AksNodePoolView {
   name: string;
   count: number;
@@ -346,6 +352,19 @@ interface PublicIpDetailView {
           (click)="toggleSchedulePanel($event)"
         >
           {{ scheduleExpanded ? 'Hide details' : 'Show details' }} ({{ scheduleDetails.length }})
+        </button>
+      }
+
+      @if (isDisk) {
+        <button
+          type="button"
+          data-export-hide
+          class="mt-0.5 px-2 py-0.5 rounded border border-lime-200 bg-lime-50 text-[10px] leading-tight text-lime-700 hover:bg-lime-100"
+          [title]="diskExpanded ? 'Hide disk details' : 'Show disk details'"
+          (mousedown)="stopEvent($event)"
+          (click)="toggleDiskPanel($event)"
+        >
+          {{ diskExpanded ? 'Hide details' : 'Show details' }} ({{ diskDetails.length }})
         </button>
       }
 
@@ -734,6 +753,26 @@ interface PublicIpDetailView {
           }
         </div>
       }
+      @if (isDisk && diskExpanded) {
+        <div
+          class="w-full mt-1 rounded border border-lime-200 bg-white shadow-sm overflow-hidden"
+          (mousedown)="stopEvent($event)"
+          (click)="stopEvent($event)"
+        >
+          @if (diskDetails.length === 0) {
+            <p class="text-[10px] text-gray-400 px-2 py-1.5">No disk details available.</p>
+          } @else {
+            <div class="p-1.5">
+              @for (detail of diskDetails; track detail.label) {
+                <div class="flex items-center justify-between gap-2 px-1.5 py-1 border-b border-lime-50 last:border-b-0">
+                  <span class="text-[10px] text-gray-500 truncate" [title]="detail.label">{{ detail.label }}</span>
+                  <span class="text-[10px] font-semibold text-gray-800 shrink-0 truncate max-w-[110px] text-right" [title]="detail.value">{{ detail.value }}</span>
+                </div>
+              }
+            </div>
+          }
+        </div>
+      }
     </div>
   `,
 })
@@ -758,6 +797,7 @@ export class DiagramNodeComponent {
   @Output() serverFarmExpansionChanged = new EventEmitter<ServerFarmExpansionRequest>();
   @Output() publicIpExpansionChanged = new EventEmitter<PublicIpExpansionRequest>();
   @Output() scheduleExpansionChanged = new EventEmitter<ScheduleExpansionRequest>();
+  @Output() diskExpansionChanged = new EventEmitter<DiskExpansionRequest>();
 
   private costSvc = inject(CostService);
   private store = inject(DiagramStore);
@@ -784,6 +824,7 @@ export class DiagramNodeComponent {
   serverFarmStatsExpanded = false;
   publicIpExpanded = false;
   scheduleExpanded = false;
+  diskExpanded = false;
 
   get typeLabel(): string {
     const parts = this.node.resourceType.split('/');
@@ -874,6 +915,10 @@ export class DiagramNodeComponent {
   get isSchedule(): boolean {
     const type = this.node.resourceType.toLowerCase();
     return type === 'microsoft.automation/schedules' || type === 'microsoft.devtestlab/schedules';
+  }
+
+  get isDisk(): boolean {
+    return this.node.resourceType.toLowerCase() === 'microsoft.compute/disks';
   }
 
   get hostingEnvironmentStats(): HostingEnvironmentStatView[] {
@@ -1003,6 +1048,35 @@ export class DiagramNodeComponent {
       }
     }
 
+    return details;
+  }
+
+  get diskDetails(): PublicIpDetailView[] {
+    const props = this.node.metadata?.properties ?? {};
+    const sku = this.node.metadata?.sku;
+    const encryption = (props['encryption'] as {
+      type?: string;
+      diskEncryptionSetId?: string;
+    } | undefined) ?? {};
+    const details: PublicIpDetailView[] = [
+      this.toTextStat('State', this.pickText(props, ['diskState', 'provisioningState'])),
+      this.toTextStat('OS Type', this.pickText(props, ['osType'])),
+      this.toTextStat('Create Option', this.pickText(props, ['creationData.createOption'])),
+      this.toTextStat('Size (GiB)', this.pickText(props, ['diskSizeGB'])),
+      this.toTextStat('Performance Tier', this.pickText(props, ['tier'])),
+      this.toTextStat('IOPS', this.pickText(props, ['diskIOPSReadWrite'])),
+      this.toTextStat('Throughput (MBps)', this.pickText(props, ['diskMBpsReadWrite'])),
+      this.toTextStat('SKU', sku?.name ?? null),
+      this.toTextStat('Tier', sku?.tier ?? null),
+      this.toTextStat('Network Access', this.pickText(props, ['networkAccessPolicy'])),
+      this.toTextStat('Public Network Access', this.pickText(props, ['publicNetworkAccess'])),
+      this.toTextStat('Bursting Enabled', this.toBoolText(props['burstingEnabled'])),
+      this.toTextStat('Max Shares', this.pickText(props, ['maxShares'])),
+      this.toTextStat('Hyper-V Generation', this.pickText(props, ['hyperVGeneration'])),
+      this.toTextStat('Encryption Type', this.toDisplayText(encryption.type)),
+      this.toTextStat('Disk Encryption Set', this.toDisplayText(encryption.diskEncryptionSetId)),
+      this.toTextStat('Source Resource ID', this.pickText(props, ['creationData.sourceResourceId'])),
+    ].filter((d): d is PublicIpDetailView => !!d);
     return details;
   }
 
@@ -1289,6 +1363,18 @@ export class DiagramNodeComponent {
       nodeId: this.node.id,
       expanded: this.scheduleExpanded,
       detailCount: this.scheduleDetails.length,
+    });
+  }
+
+  toggleDiskPanel(event: MouseEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.clicked.emit(this.node.id);
+    this.diskExpanded = !this.diskExpanded;
+    this.diskExpansionChanged.emit({
+      nodeId: this.node.id,
+      expanded: this.diskExpanded,
+      detailCount: this.diskDetails.length,
     });
   }
 

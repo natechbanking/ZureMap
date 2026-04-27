@@ -31,6 +31,13 @@ const SUB_GAP = 120;
 const CANVAS_MARGIN_X = 72;
 const CANVAS_MARGIN_Y = 96;
 
+type ClassifiedEdges = {
+  intraVmEdges: Map<string, DiagramEdge[]>;
+  intraRgEdges: Map<string, DiagramEdge[]>;
+  intraSubEdges: Map<string, DiagramEdge[]>;
+  rootEdgeList: DiagramEdge[];
+};
+
 @Injectable({ providedIn: 'root' })
 export class ELKLayoutService {
   private worker: Worker | null = null;
@@ -59,11 +66,9 @@ export class ELKLayoutService {
     }
 
     // VM groups: VMs that have visible children (NICs, disks, etc.)
-    // These become __vm__ compound containers in ELK — separate from VNet children
-    // so that ELK allocates space for the group and prevents other nodes overlapping.
     const vmChildIds = new Set<string>();
     const vmParentIds = new Set<string>();
-    const vmGroups = new Map<string, DiagramNode[]>(); // vmId -> [vm, ...children]
+    const vmGroups = new Map<string, DiagramNode[]>();
     for (const n of nodes) {
       if (n.resourceType !== 'microsoft.compute/virtualmachines') continue;
       if (!n.children?.length) continue;
@@ -75,7 +80,6 @@ export class ELKLayoutService {
     }
 
     // Standalone top-level nodes: exclude VNet children, VM children, and VMs-with-children.
-    // VMs-with-children go inside __vm__ containers, not directly into the RG container.
     const rgMap = new Map<string, DiagramNode[]>();
     for (const node of nodes) {
       if (childNodeIds.has(node.id)) continue;
@@ -99,22 +103,32 @@ export class ELKLayoutService {
       vmGroupsByRg.get(key)!.set(vmId, members);
     }
 
-    // Sort standalone nodes by connectivity so ELK places edge-related items closer
-    const degreeByNodeId = new Map<string, number>();
-    for (const edge of edges) {
-      degreeByNodeId.set(edge.sourceId, (degreeByNodeId.get(edge.sourceId) ?? 0) + 1);
-      degreeByNodeId.set(edge.targetId, (degreeByNodeId.get(edge.targetId) ?? 0) + 1);
-    }
-    for (const [, rgNodes] of rgMap) {
-      rgNodes.sort((a, b) => {
-        const degreeDelta = (degreeByNodeId.get(b.id) ?? 0) - (degreeByNodeId.get(a.id) ?? 0);
-        if (degreeDelta !== 0) return degreeDelta;
-        return a.resourceType.localeCompare(b.resourceType);
-      });
+    // Build container maps (nodeToRg, nodeToVm, multiSub) needed for edge classification
+    const { nodeToRg, nodeToVm, multiSub } = this.buildNodeMaps(nodes, rgMap, vmGroupsByRg);
+
+    // Classify edges once — shared by the sort step, buildElkGraph, and gridPackRgGroups
+    const classified = this.classifyEdges(edges, nodeToRg, nodeToVm, childNodeIds, multiSub);
+    const { intraRgEdges, intraSubEdges, rootEdgeList } = classified;
+
+    // BFS-cluster sort: connected nodes become adjacent in ELK children arrays so
+    // considerModelOrder can keep them together during crossing minimization.
+    for (const [rgKey, rgNodes] of rgMap) {
+      rgMap.set(rgKey, this.sortByConnectivityClusters(rgNodes, intraRgEdges.get(rgKey) ?? []));
     }
 
+    // Collect cross-RG edges for gridPackRgGroups affinity sort.
+    // multiSub=true  → intraSubEdges covers same-sub cross-RG edges
+    // multiSub=false → all cross-RG edges fall into rootEdgeList
+    const crossRgEdges: DiagramEdge[] = [
+      ...Array.from(intraSubEdges.values()).flat(),
+      ...rootEdgeList,
+    ];
+
     try {
-      const elkGraph = this.buildElkGraph(nodes, edges, opts, rgMap, childNodeIds, vmGroupsByRg);
+      const elkGraph = this.buildElkGraph(
+        nodes, edges, opts, rgMap, childNodeIds, vmGroupsByRg,
+        nodeToRg, classified, multiSub,
+      );
       let result: unknown;
       if (this.worker) {
         result = await this.runInWorker(elkGraph);
@@ -127,13 +141,12 @@ export class ELKLayoutService {
       const positions = new Map<string, { x: number; y: number }>();
       this.extractPositions(result as ElkNode, positions, 0, 0);
 
-      const positioned = positions.size >= Math.max(1, nodes.length * 0.5);
-      if (positioned) {
+      if (positions.size >= Math.max(1, nodes.length * 0.5)) {
         const laidOut = nodes.map(node => {
           const pos = positions.get(node.id);
           return pos ? { ...node, position: pos } : node;
         });
-        return this.gridPackRgGroups(laidOut, nodes, rgMap, vmGroupsByRg);
+        return this.gridPackRgGroups(laidOut, nodes, rgMap, vmGroupsByRg, crossRgEdges);
       }
     } catch {
       // fall through to manual layout
@@ -141,69 +154,54 @@ export class ELKLayoutService {
 
     return this.gridPackRgGroups(
       this.manualGroupLayout(nodes, rgMap, childNodeIds, vmGroupsByRg),
-      nodes, rgMap, vmGroupsByRg,
+      nodes, rgMap, vmGroupsByRg, crossRgEdges,
     );
   }
 
-  private buildElkGraph(
-    nodes: DiagramNode[],
-    edges: DiagramEdge[],
-    opts: ELKLayoutOptions,
-    rgMap: Map<string, DiagramNode[]>,        // key = `${subId}::${rgName}`, standalone nodes only
-    childNodeIds: Set<string>,
-    vmGroupsByRg: Map<string, Map<string, DiagramNode[]>>,
-  ): object {
-    const nodeById = new Map(nodes.map(n => [n.id, n]));
+  // ── Helpers extracted from buildElkGraph ────────────────────────────────────
 
-    // Map every node id to its RG key (`${subId}::${rgName}`)
+  private buildNodeMaps(
+    nodes: DiagramNode[],
+    rgMap: Map<string, DiagramNode[]>,
+    vmGroupsByRg: Map<string, Map<string, DiagramNode[]>>,
+  ): { nodeToRg: Map<string, string>; nodeToVm: Map<string, string>; multiSub: boolean } {
+    void nodes;
     const nodeToRg = new Map<string, string>();
     for (const [rgKey, rgNodes] of rgMap) {
       for (const node of rgNodes) {
         nodeToRg.set(node.id, rgKey);
-        // VNet children inherit the parent's RG
-        if (node.children) {
-          for (const childId of node.children) nodeToRg.set(childId, rgKey);
-        }
+        if (node.children) for (const childId of node.children) nodeToRg.set(childId, rgKey);
       }
     }
-    for (const [rgKey, vmGroupsInRg] of vmGroupsByRg) {
-      for (const members of vmGroupsInRg.values()) {
-        for (const m of members) nodeToRg.set(m.id, rgKey);
-      }
-    }
-
-    // Map each VM group member to its VM parent id for intra-VM edge detection
-    const nodeToVm = new Map<string, string>();
     for (const [rgKey, vmGroupsInRg] of vmGroupsByRg) {
       void rgKey;
-      for (const [vmId, members] of vmGroupsInRg) {
-        for (const m of members) nodeToVm.set(m.id, vmId);
-      }
+      for (const members of vmGroupsInRg.values())
+        for (const m of members) nodeToRg.set(m.id, rgKey);
     }
 
-    // Determine how many unique subscriptions are present so we know whether
-    // __sub__ containers exist (multiSub) before classifying edges.
+    const nodeToVm = new Map<string, string>();
+    for (const [, vmGroupsInRg] of vmGroupsByRg)
+      for (const [vmId, members] of vmGroupsInRg)
+        for (const m of members) nodeToVm.set(m.id, vmId);
+
     const allRgKeys = new Set([...rgMap.keys(), ...vmGroupsByRg.keys()]);
     const uniqueSubs = new Set(Array.from(allRgKeys).map(k => k.split('::')[0]));
-    const multiSub = uniqueSubs.size > 1;
+    return { nodeToRg, nodeToVm, multiSub: uniqueSubs.size > 1 };
+  }
 
-    // ── LCA edge routing ──────────────────────────────────────────────────────
-    // Each edge is placed at its Lowest Common Ancestor container so the layout
-    // algorithm at that level can use the edge to pull connected containers
-    // closer together and minimise crossings.
-    //
-    //  intra-VM  → __vm__ (both endpoints in the same VM group)
-    //  intra-RG  → __rg__ (same RG, different VMs or one/both non-VM)
-    //  intra-sub → __sub__ (same subscription, different RGs; only when multiSub)
-    //  inter-sub → root   (different subscriptions, or unclassified)
-    const intraVmEdges  = new Map<string, DiagramEdge[]>(); // vmId   → edges
-    const intraRgEdges  = new Map<string, DiagramEdge[]>(); // rgKey  → edges
-    const intraSubEdges = new Map<string, DiagramEdge[]>(); // subId  → edges
+  private classifyEdges(
+    edges: DiagramEdge[],
+    nodeToRg: Map<string, string>,
+    nodeToVm: Map<string, string>,
+    childNodeIds: Set<string>,
+    multiSub: boolean,
+  ): ClassifiedEdges {
+    const intraVmEdges  = new Map<string, DiagramEdge[]>();
+    const intraRgEdges  = new Map<string, DiagramEdge[]>();
+    const intraSubEdges = new Map<string, DiagramEdge[]>();
     const rootEdgeList: DiagramEdge[] = [];
 
     for (const edge of edges) {
-      // Skip edges whose endpoints are purely VNet-subnet internal (childNodeIds
-      // are laid out inside their VNet node; routing them externally causes noise).
       if (childNodeIds.has(edge.sourceId) && childNodeIds.has(edge.targetId)) continue;
 
       const sourceRg  = nodeToRg.get(edge.sourceId);
@@ -226,6 +224,75 @@ export class ELKLayoutService {
         rootEdgeList.push(edge);
       }
     }
+    return { intraVmEdges, intraRgEdges, intraSubEdges, rootEdgeList };
+  }
+
+  // BFS-cluster sort: orders standalone nodes within an RG so directly-connected
+  // pairs are adjacent in the children array. ELK's considerModelOrder setting
+  // then prefers configurations that keep model-ordered nodes together, reducing
+  // edge crossings. Isolated nodes (no intra-RG edges) are appended last by type.
+  private sortByConnectivityClusters(nodes: DiagramNode[], intraRgEdgeList: DiagramEdge[]): DiagramNode[] {
+    if (nodes.length <= 1) return nodes;
+
+    const nodeIds = new Set(nodes.map(n => n.id));
+    const adj = new Map<string, string[]>();
+    for (const n of nodes) adj.set(n.id, []);
+    for (const edge of intraRgEdgeList) {
+      if (!nodeIds.has(edge.sourceId) || !nodeIds.has(edge.targetId)) continue;
+      adj.get(edge.sourceId)!.push(edge.targetId);
+      adj.get(edge.targetId)!.push(edge.sourceId);
+    }
+
+    const localDegree = new Map(nodes.map(n => [n.id, adj.get(n.id)!.length]));
+    const nodeById    = new Map(nodes.map(n => [n.id, n]));
+    const visited     = new Set<string>();
+    const result: DiagramNode[] = [];
+
+    const sorted = [...nodes].sort((a, b) => {
+      const dd = (localDegree.get(b.id) ?? 0) - (localDegree.get(a.id) ?? 0);
+      return dd !== 0 ? dd : a.resourceType.localeCompare(b.resourceType);
+    });
+
+    for (const seed of sorted) {
+      if (visited.has(seed.id) || (localDegree.get(seed.id) ?? 0) === 0) continue;
+      const queue = [seed.id];
+      visited.add(seed.id);
+      while (queue.length) {
+        const cur = queue.shift()!;
+        result.push(nodeById.get(cur)!);
+        const neighbors = (adj.get(cur) ?? [])
+          .filter(id => !visited.has(id))
+          .sort((a, b) => (localDegree.get(b) ?? 0) - (localDegree.get(a) ?? 0));
+        for (const nb of neighbors) { visited.add(nb); queue.push(nb); }
+      }
+    }
+
+    // Append isolated nodes sorted by resourceType
+    nodes
+      .filter(n => !visited.has(n.id))
+      .sort((a, b) => a.resourceType.localeCompare(b.resourceType))
+      .forEach(n => result.push(n));
+
+    return result;
+  }
+
+  // ── ELK graph construction ──────────────────────────────────────────────────
+
+  private buildElkGraph(
+    nodes: DiagramNode[],
+    edges: DiagramEdge[],
+    opts: ELKLayoutOptions,
+    rgMap: Map<string, DiagramNode[]>,
+    childNodeIds: Set<string>,
+    vmGroupsByRg: Map<string, Map<string, DiagramNode[]>>,
+    nodeToRg: Map<string, string>,
+    classified: ClassifiedEdges,
+    multiSub: boolean,
+  ): object {
+    void edges;
+    const nodeById = new Map(nodes.map(n => [n.id, n]));
+    const allRgKeys = new Set([...rgMap.keys(), ...vmGroupsByRg.keys()]);
+    const { intraVmEdges, intraRgEdges, intraSubEdges, rootEdgeList } = classified;
 
     // ── Build leaf / VNet compound nodes ─────────────────────────────────────
     const buildLayoutNode = (node: DiagramNode): object => {
@@ -259,8 +326,6 @@ export class ELKLayoutService {
     };
 
     // ── __vm__ containers (box — keeps members tightly packed) ────────────────
-    // box doesn't use edges for placement, but we still route intra-VM edges here
-    // so they stay at the right hierarchy level semantically.
     const buildVmElkNode = (vmId: string, members: DiagramNode[]): object => ({
       id: `__vm__${vmId}`,
       layoutOptions: {
@@ -347,6 +412,9 @@ export class ELKLayoutService {
     // ── Root (rectpacking — arranges sub/RG containers in a 2-D grid) ─────────
     const rootEdges = rootEdgeList.map(e => ({ id: e.id, sources: [e.sourceId], targets: [e.targetId] }));
 
+    // nodeToRg used to validate cross-container edge references exist
+    void nodeToRg;
+
     return {
       id: 'root',
       layoutOptions: {
@@ -388,8 +456,6 @@ export class ELKLayoutService {
   }
 
   // Manual grid layout — fallback when ELK fails.
-  // Groups nodes by subscription, then by RG. VM groups are placed as a unit
-  // (VM + children in a row) so their members never scatter across the grid.
   private manualGroupLayout(
     nodes: DiagramNode[],
     rgMap: Map<string, DiagramNode[]>,
@@ -398,7 +464,6 @@ export class ELKLayoutService {
   ): DiagramNode[] {
     const result = new Map<string, { x: number; y: number }>();
 
-    // Group RG keys by subscription
     const subToRgKeys = new Map<string, string[]>();
     const allRgKeys = new Set([...rgMap.keys(), ...vmGroupsByRg.keys()]);
     for (const rgKey of allRgKeys) {
@@ -423,18 +488,15 @@ export class ELKLayoutService {
         let col = 0;
         let row = 0;
 
-        // Place VM groups first — each group occupies a row: VM on left, children to the right
         for (const [, members] of vmGroupsInRg) {
           const vm = members[0];
           const children = members.slice(1);
 
-          // VM goes in the first column of the current row
           result.set(vm.id, {
             x: subOffsetX + groupX + GROUP_PAD + col * (NODE_W + H_GAP),
             y: groupY + GROUP_LABEL_H + GROUP_PAD + row * (NODE_H + V_GAP),
           });
 
-          // Children go in subsequent columns of the same row
           children.forEach((child: DiagramNode, ci: number) => {
             result.set(child.id, {
               x: subOffsetX + groupX + GROUP_PAD + (col + ci + 1) * (NODE_W + H_GAP),
@@ -442,11 +504,9 @@ export class ELKLayoutService {
             });
           });
 
-          // Each VM group always starts on its own row
           row++;
         }
 
-        // Place standalone nodes in a 4-column grid after VM groups
         for (const node of standaloneNodes) {
           result.set(node.id, {
             x: subOffsetX + groupX + GROUP_PAD + col * (NODE_W + H_GAP),
@@ -491,7 +551,6 @@ export class ELKLayoutService {
       subOffsetX += subBlockW + SUB_GAP;
     }
 
-    // Place VNet children (subnets) that weren't placed yet
     for (const node of nodes) {
       if (childNodeIds.has(node.id) && !result.has(node.id)) {
         const parent = nodes.find(n => n.children?.includes(node.id));
@@ -528,15 +587,16 @@ export class ELKLayoutService {
   }
 
   // After ELK lays out each RG's internals, re-arrange the RG bounding boxes
-  // into a grid — keeping each subscription's RGs in their own contiguous block
-  // so that subscription bounding boxes never overlap.
+  // into a grid — keeping each subscription's RGs in their own contiguous block.
+  // RGs with cross-connections between them are placed adjacent using a greedy
+  // affinity sort so their edges span shorter distances.
   private gridPackRgGroups(
     nodes: DiagramNode[],
     allNodes: DiagramNode[],
     rgMap: Map<string, DiagramNode[]>,
     vmGroupsByRg: Map<string, Map<string, DiagramNode[]>>,
+    crossRgEdges: DiagramEdge[] = [],
   ): DiagramNode[] {
-    // Build nodeId -> rgKey
     const nodeToRg = new Map<string, string>();
     for (const [rgKey, rgNodes] of rgMap) {
       for (const n of rgNodes) nodeToRg.set(n.id, rgKey);
@@ -571,9 +631,21 @@ export class ELKLayoutService {
 
     if (rgBounds.size === 0) return this.applyCanvasMargin(nodes);
 
-    // Group RG keys by subscription — each sub gets its own contiguous block
-    // so subscription bounding boxes can never overlap (which would trigger the
-    // overlap-resolver and push subs into a vertical column).
+    // Build cross-RG affinity matrix: count edges between each pair of RG keys.
+    // Used to sort connected RG containers adjacent to each other in the grid.
+    const rgAffinity = new Map<string, Map<string, number>>();
+    for (const edge of crossRgEdges) {
+      const rgA = nodeToRg.get(edge.sourceId);
+      const rgB = nodeToRg.get(edge.targetId);
+      if (!rgA || !rgB || rgA === rgB) continue;
+      if (!rgBounds.has(rgA) || !rgBounds.has(rgB)) continue;
+      if (!rgAffinity.has(rgA)) rgAffinity.set(rgA, new Map());
+      if (!rgAffinity.has(rgB)) rgAffinity.set(rgB, new Map());
+      rgAffinity.get(rgA)!.set(rgB, (rgAffinity.get(rgA)!.get(rgB) ?? 0) + 1);
+      rgAffinity.get(rgB)!.set(rgA, (rgAffinity.get(rgB)!.get(rgA) ?? 0) + 1);
+    }
+
+    // Group RG keys by subscription
     const subToRgKeys = new Map<string, string[]>();
     for (const rgKey of rgBounds.keys()) {
       const subId = rgKey.split('::')[0];
@@ -581,19 +653,41 @@ export class ELKLayoutService {
       subToRgKeys.get(subId)!.push(rgKey);
     }
 
-    // Sort each sub's RGs largest-first
+    // Sort each sub's RGs using greedy affinity-first insertion, tiebreak by area.
+    // When crossRgEdges is empty, all affinity scores are 0 and this degrades to
+    // pure area-descending — identical to the pre-change behavior.
     for (const [, keys] of subToRgKeys) {
-      keys.sort((a, b) => {
-        const ba = rgBounds.get(a)!;
-        const bb = rgBounds.get(b)!;
-        const areaA = (ba.maxX - ba.minX) * (ba.maxY - ba.minY);
-        const areaB = (bb.maxX - bb.minX) * (bb.maxY - bb.minY);
-        return areaB - areaA;
-      });
+      if (keys.length <= 1) continue;
+
+      const area = (k: string) => {
+        const b = rgBounds.get(k)!;
+        return (b.maxX - b.minX) * (b.maxY - b.minY);
+      };
+
+      const remaining = new Set(keys);
+      const ordered: string[] = [];
+      // Seed: largest-area RG
+      ordered.push(keys.reduce((best, k) => area(k) > area(best) ? k : best, keys[0]));
+      remaining.delete(ordered[0]);
+
+      while (remaining.size > 0) {
+        let bestKey = '', bestAffinity = -1, bestArea = -1;
+        for (const candidate of remaining) {
+          let score = 0;
+          for (const placed of ordered) score += rgAffinity.get(candidate)?.get(placed) ?? 0;
+          const a = area(candidate);
+          if (score > bestAffinity || (score === bestAffinity && a > bestArea)) {
+            bestKey = candidate; bestAffinity = score; bestArea = a;
+          }
+        }
+        ordered.push(bestKey);
+        remaining.delete(bestKey);
+      }
+
+      keys.splice(0, keys.length, ...ordered);
     }
 
     // Layout each subscription's RG block and accumulate their widths
-    // so sub blocks are placed side by side.
     const newRgOrigins = new Map<string, { x: number; y: number }>();
     let subBlockX = CANVAS_MARGIN_X;
 
@@ -601,7 +695,6 @@ export class ELKLayoutService {
       const count = rgKeys.length;
       const cols = Math.max(1, Math.round(Math.sqrt(count * 1.4)));
 
-      // Per-column widths and per-row heights for this sub block
       const colWidths = new Array<number>(cols).fill(0);
       const rowHeights: number[] = [];
       for (let i = 0; i < rgKeys.length; i++) {
@@ -614,7 +707,6 @@ export class ELKLayoutService {
         rowHeights[row] = Math.max(rowHeights[row] ?? 0, h);
       }
 
-      // Cumulative X and Y origins within this sub block
       const colX: number[] = [];
       let cx = subBlockX;
       for (let c = 0; c < cols; c++) { colX[c] = cx; cx += colWidths[c] + GROUP_GAP_X; }
@@ -630,13 +722,10 @@ export class ELKLayoutService {
         });
       }
 
-      // Advance X for the next subscription block
-      const blockWidth = colWidths.reduce((sum, w) => sum + w, 0)
-        + (cols - 1) * GROUP_GAP_X;
+      const blockWidth = colWidths.reduce((sum, w) => sum + w, 0) + (cols - 1) * GROUP_GAP_X;
       subBlockX += blockWidth + SUB_GAP;
     }
 
-    // Shift every node by the delta between its old RG origin and the new one
     return nodes.map(node => {
       const rgKey = nodeToRg.get(node.id);
       if (!rgKey) return node;

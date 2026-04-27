@@ -1,0 +1,9 @@
+services:
+  zuremap:
+    build: .
+    ports:
+      - "3001:3001"
+    volumes:
+      - "${HOME}/.azure:/home/zuremap/.azure"
+    environment:
+      - AZURE_CONFIG_DIR=/home/zuremap/.azure

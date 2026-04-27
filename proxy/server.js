@@ -4,7 +4,7 @@ const { log, dim, green, yellow, red, cyan } = require('./lib/logger');
 
 const app = express();
 const PORT = Number(process.env.PORT || 3001);
-const HOST = process.env.HOST || '127.0.0.1';
+const HOST = process.env.HOST || (process.env.NODE_ENV === 'production' ? '0.0.0.0' : '127.0.0.1');
 
 app.use((req, res, next) => {
   const start = Date.now();
@@ -16,7 +16,8 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(cors({ origin: 'http://localhost:4200' }));
+const corsOrigin = process.env.NODE_ENV === 'production' ? false : 'http://localhost:4200';
+app.use(cors({ origin: corsOrigin }));
 app.use(express.json());
 
 app.use('/api/az',  require('./routes/auth'));
@@ -27,6 +28,13 @@ app.use('/api/az',  require('./routes/identity'));
 app.use('/api/az',  require('./routes/firewall'));
 app.use('/api/az',  require('./routes/dns'));
 app.use('/api',     require('./routes/diagram'));
+
+if (process.env.NODE_ENV === 'production') {
+  const path = require('path');
+  const distPath = path.join(__dirname, '../dist/zuremap/browser');
+  app.use(express.static(distPath));
+  app.get('*splat', (_req, res) => res.sendFile(path.join(distPath, 'index.html')));
+}
 
 const server = app.listen(PORT, HOST, () => {
   log('info', `ZureMap proxy running on http://${HOST}:${PORT}`);

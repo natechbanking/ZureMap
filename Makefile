@@ -1,5 +1,6 @@
 .PHONY: help install dev start proxy serve build build-prod test test-watch \
-       lint clean map-icons check
+       lint clean map-icons check \
+       docker-build docker-up docker-down docker-logs
 
 # Default target
 help: ## Show this help
@@ -69,6 +70,22 @@ clean: ## Remove build artifacts and caches
 check: node_modules ## Verify install is up-to-date then run tests
 	npx ng build
 	npx ng test --watch=false
+
+# ---------------------------------------------------------------------------
+# Docker
+# ---------------------------------------------------------------------------
+
+docker-build: ## Build the Docker image
+	docker compose build
+
+docker-up: ## Build and start the container
+	docker compose up --build
+
+docker-down: ## Stop and remove the container
+	docker compose down
+
+docker-logs: ## Tail container logs
+	docker compose logs -f
 
 # ---------------------------------------------------------------------------
 # Internal / prerequisites

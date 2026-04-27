@@ -333,6 +333,37 @@ interface ConnectionType {
             </div>
           }
 
+          @case ('empty') {
+            <div class="py-2">
+              <div class="flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-lg mb-4">
+                <div class="w-8 h-8 bg-amber-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <svg class="w-4 h-4 text-amber-600" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75">
+                    <circle cx="8" cy="8" r="6.5"/>
+                    <line x1="8" y1="5" x2="8" y2="8.5"/>
+                    <circle cx="8" cy="11" r="0.75" fill="currentColor" stroke="none"/>
+                  </svg>
+                </div>
+                <div class="flex-1 min-w-0">
+                  <p class="text-sm font-semibold text-amber-800 mb-1">No resources found</p>
+                  <p class="text-sm text-gray-600 leading-snug">
+                    The selected subscription(s) returned 0 Azure resources. This can happen if:
+                  </p>
+                  <ul class="mt-2 space-y-1 text-xs text-gray-500 list-disc list-inside">
+                    <li>The subscription is empty or resources are in a different region</li>
+                    <li>Your account lacks Reader access to the resources</li>
+                    <li>Resource Graph replication is still propagating (try again in a moment)</li>
+                  </ul>
+                </div>
+              </div>
+              <button
+                (click)="store.scanPhase.set('selecting-options')"
+                class="w-full py-2.5 px-4 bg-azure-blue text-white rounded-lg font-medium hover:bg-blue-700 transition-colors text-sm"
+              >
+                Change subscription or options
+              </button>
+            </div>
+          }
+
           @case ('error') {
             <div class="py-2">
               <div class="flex items-start gap-3 p-4 bg-red-50 border border-red-200 rounded-lg mb-4">
@@ -581,6 +612,11 @@ export class ScanComponent implements OnInit {
       setProgress(4, totalSteps, `Mapping ${merged.length} resources to diagram nodes...`);
       const nodes = this.mapper.mapResources(merged);
       addLog(`Mapped to ${nodes.length} diagram node${nodes.length !== 1 ? 's' : ''}`);
+
+      if (nodes.length === 0) {
+        this.zone.run(() => this.store.scanPhase.set('empty'));
+        return;
+      }
 
       let edges: ReturnType<ConnectionResolverService['resolveAll']> = [];
       if (this.optionsGenerateConnections) {

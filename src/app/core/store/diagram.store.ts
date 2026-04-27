@@ -20,6 +20,7 @@ export type ScanPhase =
   | 'scanning'
   | 'laying-out'
   | 'ready'
+  | 'empty'
   | 'error';
 
 @Injectable({ providedIn: 'root' })

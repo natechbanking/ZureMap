@@ -9,11 +9,11 @@ export class ConnectionResolverService {
   resolveAll(
     resources: AzureResource[],
     nodes: DiagramNode[],
-    options: { userAssignedIdentities?: boolean } = {},
+    options: { userAssignedIdentities?: boolean; virtualNetworkLinks?: boolean } = {},
   ): DiagramEdge[] {
     return [
       ...this.resolvePrivateLinkConnections(resources, nodes),
-      ...this.resolveVNetPeering(resources, nodes),
+      ...(options.virtualNetworkLinks ? this.resolveVNetPeering(resources, nodes) : []),
       ...(options.userAssignedIdentities ? this.resolveManagedIdentityEdges(resources, nodes) : []),
     ];
   }

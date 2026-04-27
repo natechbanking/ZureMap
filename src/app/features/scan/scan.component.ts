@@ -166,6 +166,26 @@ interface ConnectionType {
                         ></span>
                       </button>
                     </div>
+
+                    <div class="flex items-start justify-between gap-4">
+                      <div>
+                        <h4 class="text-xs font-semibold text-gray-700">Visualize Virtual Network Links</h4>
+                        <p class="text-[11px] text-gray-500 mt-0.5">Draw VNet peering/link arrows between virtual networks.</p>
+                      </div>
+                      <button
+                        type="button"
+                        (click)="optionsVisualizeVirtualNetworkLinks = !optionsVisualizeVirtualNetworkLinks"
+                        class="relative inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full transition-colors focus:outline-none"
+                        [class.bg-azure-blue]="optionsVisualizeVirtualNetworkLinks"
+                        [class.bg-gray-300]="!optionsVisualizeVirtualNetworkLinks"
+                      >
+                        <span
+                          class="inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform duration-200"
+                          [class.translate-x-4.5]="optionsVisualizeVirtualNetworkLinks"
+                          [class.translate-x-0.5]="!optionsVisualizeVirtualNetworkLinks"
+                        ></span>
+                      </button>
+                    </div>
                   </div>
                 }
               </div>
@@ -378,6 +398,7 @@ export class ScanComponent implements OnInit {
   optionsIncludeAppSlots = false;
   optionsIncludeNetworkInterfaces = false;
   optionsUserAssignedIdentityEdges = false;
+  optionsVisualizeVirtualNetworkLinks = false;
   progressLog = signal<string[]>([]);
   scanSteps = signal<Array<{ name: string; status: 'pending' | 'active' | 'done' }>>([]);
   private scanError = signal<{ code: string; detail: string } | null>(null);
@@ -433,6 +454,7 @@ export class ScanComponent implements OnInit {
     this.optionsIncludeAppSlots = false;
     this.optionsIncludeNetworkInterfaces = false;
     this.optionsUserAssignedIdentityEdges = false;
+    this.optionsVisualizeVirtualNetworkLinks = false;
     this.progressLog.set([]);
     this.scanSteps.set([]);
     this.scanError.set(null);
@@ -527,6 +549,7 @@ export class ScanComponent implements OnInit {
       });
       addLog(`Starting scan for ${subLabel}`);
       addLog(`Connection generation: ${this.optionsGenerateConnections ? 'enabled' : 'disabled'}`);
+      addLog(`Virtual network links: ${this.optionsVisualizeVirtualNetworkLinks ? 'enabled' : 'disabled'}`);
 
       setProgress(1, totalSteps, `Querying all resources across ${subLabel}...`);
       const allResources = await this.resourceGraph.queryAllResources(subscriptionIds).toPromise() ?? [];
@@ -557,6 +580,7 @@ export class ScanComponent implements OnInit {
         setProgress(5, totalSteps, 'Building connections between resources...');
         edges = this.connectionResolver.resolveAll(merged, nodes, {
           userAssignedIdentities: this.optionsUserAssignedIdentityEdges,
+          virtualNetworkLinks: this.optionsVisualizeVirtualNetworkLinks,
         });
         const byType = edges.reduce((acc, e) => {
           acc[e.edgeType] = (acc[e.edgeType] ?? 0) + 1;

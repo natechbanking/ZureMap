@@ -18,6 +18,7 @@ import {
   HostingEnvironmentExpansionRequest,
   ServerFarmExpansionRequest,
   PublicIpExpansionRequest,
+  ScheduleExpansionRequest,
 } from './diagram-node/diagram-node.component';
 import { SidebarComponent } from '../sidebar/sidebar.component';
 import { ToolbarComponent } from '../toolbar/toolbar.component';
@@ -28,6 +29,8 @@ import { ResourceEditorModalComponent } from './resource-editor-modal.component'
 import { ExportDialogComponent } from './export-dialog.component';
 import { FinOpsInsightsPanelComponent } from './finops-insights-panel.component';
 import { EdgeStylePanelComponent } from './edge-style-panel.component';
+import { ZoomControlsComponent } from './zoom-controls.component';
+import { AnnotationEditOverlayComponent } from './annotation-edit-overlay.component';
 import { DiagramNode } from '../../core/models/diagram-node.model';
 import { Annotation, DrawingTool, StrokeStyle, EdgeRouting, EdgeMode } from '../../core/models/annotation.model';
 import { DiagramEdge, EdgeStyle } from '../../core/models/diagram-edge.model';
@@ -93,6 +96,8 @@ const ZERO_OFFSET: SizeOffset = { top: 0, right: 0, bottom: 0, left: 0 };
     ExportDialogComponent,
     FinOpsInsightsPanelComponent,
     EdgeStylePanelComponent,
+    ZoomControlsComponent,
+    AnnotationEditOverlayComponent,
   ],
   templateUrl: "./canvas.component.html",
   styleUrl: "./canvas.component.scss",
@@ -100,7 +105,6 @@ const ZERO_OFFSET: SizeOffset = { top: 0, right: 0, bottom: 0, left: 0 };
 export class CanvasComponent {
   @ViewChild('canvasHost', { read: ElementRef }) canvasHostRef!: ElementRef;
   @ViewChild('exportRoot', { read: ElementRef }) exportRootRef!: ElementRef;
-  @ViewChild('editTextarea') editTextareaRef?: ElementRef;
   @ViewChild('renameInput') renameInputRef?: ElementRef;
 
   store = inject(DiagramStore);
@@ -243,6 +247,7 @@ export class CanvasComponent {
   private hostingEnvironmentCollapsedHeights = new Map<string, number>();
   private serverFarmCollapsedHeights = new Map<string, number>();
   private publicIpCollapsedHeights = new Map<string, number>();
+  private scheduleCollapsedHeights = new Map<string, number>();
   selectedEdgeId: string | null = null;
   edgeWaypointDragState: EdgeWaypointDragState | null = null;
   annWaypointDragState: AnnWaypointDragState | null = null;
@@ -524,7 +529,6 @@ export class CanvasComponent {
   startEditAnnotation(ann: Annotation): void {
     this.editingAnnotation = ann;
     this.editingTextValue = ann.text ?? '';
-    setTimeout(() => this.editTextareaRef?.nativeElement?.focus(), 0);
   }
 
   finishEdit(): void {
@@ -610,6 +614,11 @@ export class CanvasComponent {
 
   annDeleteBtnY(ann: Annotation): number {
     return this.annotationSvc.deleteButtonY(ann);
+  }
+
+  get selectedAnnotationForDelete(): Annotation | null {
+    if (!this.selectedAnnotationId || this.activeTool !== 'pointer') return null;
+    return this.annotationById(this.selectedAnnotationId) ?? null;
   }
 
   diamondPoints(ann: Annotation): string {
@@ -1473,6 +1482,15 @@ export class CanvasComponent {
       req.expanded,
       req.detailCount === 0 ? 40 : req.detailCount * 24 + 20,
       this.publicIpCollapsedHeights,
+    );
+  }
+
+  onScheduleExpansionChanged(req: ScheduleExpansionRequest): void {
+    this.applyNodePanelExpansion(
+      req.nodeId,
+      req.expanded,
+      req.detailCount === 0 ? 40 : req.detailCount * 24 + 20,
+      this.scheduleCollapsedHeights,
     );
   }
 

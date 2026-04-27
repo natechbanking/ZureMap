@@ -382,6 +382,7 @@
                   (hostingEnvironmentExpansionChanged)="onHostingEnvironmentExpansionChanged($event)"
                   (serverFarmExpansionChanged)="onServerFarmExpansionChanged($event)"
                   (publicIpExpansionChanged)="onPublicIpExpansionChanged($event)"
+                  (scheduleExpansionChanged)="onScheduleExpansionChanged($event)"
                   (contextMenuRequested)="onContextMenuRequested($event)"
                 />
               </div>
@@ -746,67 +747,30 @@
               }
             }
 
-            <!-- Annotation delete button (selected annotation) -->
-            @if (selectedAnnotationId && activeTool === 'pointer') {
-              @let selAnn = annotationById(selectedAnnotationId);
-              @if (selAnn) {
-                <button
-                  class="absolute z-50 w-5 h-5 bg-red-500 text-white rounded-full text-xs flex items-center justify-center shadow hover:bg-red-600 transition-colors"
-                  [style.left.px]="annDeleteBtnX(selAnn)"
-                  [style.top.px]="annDeleteBtnY(selAnn)"
-                  (mousedown)="$event.stopPropagation()"
-                  (click)="deleteSelectedAnnotation()"
-                  title="Delete annotation (Del)"
-                >✕</button>
-              }
-            }
-
-            <!-- Text/sticky editing overlay -->
-            @if (editingAnnotation) {
-              <textarea
-                #editTextarea
-                class="absolute z-50 resize p-1.5 rounded border-2 border-blue-400 shadow-lg outline-none bg-white/90 text-sm"
-                [style.left.px]="editingAnnotation.x"
-                [style.top.px]="editingAnnotation.y"
-                [style.min-width.px]="160"
-                [style.min-height.px]="editingAnnotation.type === 'sticky' ? 80 : 36"
-                [style.font-size.px]="editingAnnotation.fontSize ?? 14"
-                [style.color]="editingAnnotation.color"
-                [value]="editingTextValue"
-                placeholder="Type here…"
-                (input)="editingTextValue = $any($event.target).value"
-                (blur)="finishEdit()"
-                (keydown)="onEditKeyDown($event)"
-                (mousedown)="$event.stopPropagation()"
-              ></textarea>
-            }
+            <app-annotation-edit-overlay
+              [showDeleteButton]="selectedAnnotationForDelete !== null"
+              [deleteX]="selectedAnnotationForDelete ? annDeleteBtnX(selectedAnnotationForDelete) : 0"
+              [deleteY]="selectedAnnotationForDelete ? annDeleteBtnY(selectedAnnotationForDelete) : 0"
+              [editingAnnotation]="editingAnnotation"
+              [editingText]="editingTextValue"
+              (deleteSelected)="deleteSelectedAnnotation()"
+              (editingTextChange)="editingTextValue = $event"
+              (finishEdit)="finishEdit()"
+              (editKeyDown)="onEditKeyDown($event)"
+            />
 
             </div>
           </div>
 
         </div>
 
-        <!-- Sticky zoom controls (outside scroll container) -->
-        <div
-          class="absolute bottom-4 z-[130] flex items-center gap-1.5 px-2 py-1.5 rounded-xl border border-gray-200 bg-white/95 backdrop-blur shadow"
-          [style.right.px]="store.sidebarOpen() ? 336 : 16"
-        >
-          <button
-            class="w-7 h-7 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50"
-            title="Zoom out"
-            (click)="zoomOut()"
-          >-</button>
-          <button
-            class="px-2 h-7 rounded-lg border border-gray-200 text-xs font-medium text-gray-700 hover:bg-gray-50"
-            title="Reset zoom"
-            (click)="resetZoom()"
-          >{{ zoomPercent }}%</button>
-          <button
-            class="w-7 h-7 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50"
-            title="Zoom in"
-            (click)="zoomIn()"
-          >+</button>
-        </div>
+        <app-zoom-controls
+          [zoomPercent]="zoomPercent"
+          [right]="store.sidebarOpen() ? 336 : 16"
+          (zoomIn)="zoomIn()"
+          (zoomOut)="zoomOut()"
+          (resetZoom)="resetZoom()"
+        />
 
         @if (store.finOpsLayerActive()) {
           <app-finops-insights-panel

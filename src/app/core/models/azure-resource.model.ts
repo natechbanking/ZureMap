@@ -22,6 +22,7 @@ export interface AzureSubscription {
   name: string;
   state: string;
   tenantId: string;
+  tenantName?: string;
 }
 
 export interface AzureAccount {

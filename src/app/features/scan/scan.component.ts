@@ -57,26 +57,27 @@ interface ConnectionType {
           }
 
           @case ('selecting-options') {
-            <div>
-              <h2 class="text-base font-semibold text-gray-900 mb-1">Configure Scan</h2>
-              <p class="text-sm text-gray-500 mb-5">
-                Ready to scan
-                <span class="font-medium text-gray-700">{{ store.activeSubscriptions().length }} subscription{{ store.activeSubscriptions().length !== 1 ? 's' : '' }}</span>.
-                Choose what to include in your diagram.
-              </p>
+            <div class="space-y-6">
+              <div>
+                <h2 class="text-base font-semibold text-gray-900 mb-1">Step 2: Configure Diagram</h2>
+                <p class="text-sm text-gray-500">
+                  Ready to scan
+                  <span class="font-medium text-gray-700">{{ store.activeSubscriptions().length }} subscription{{ store.activeSubscriptions().length !== 1 ? 's' : '' }}</span>.
+                </p>
+              </div>
 
-              <div class="border border-gray-200 rounded-lg p-4 mb-5">
-                <div class="flex items-start justify-between gap-4 mb-1">
+              <div class="bg-gray-50/50 border border-gray-200 rounded-xl p-4">
+                <div class="flex items-start justify-between gap-4 mb-2">
                   <div>
                     <h3 class="text-sm font-semibold text-gray-800">Generate Connections</h3>
-                    <p class="text-xs text-gray-500 mt-0.5 max-w-xs">
-                      Detect relationships between resources and draw arrows on your diagram.
+                    <p class="text-xs text-gray-500 mt-1 max-w-sm">
+                      Detect relationships like Private Endpoints and VNet Peering to draw arrows on your diagram.
                     </p>
                   </div>
                   <button
                     type="button"
                     (click)="optionsGenerateConnections = !optionsGenerateConnections"
-                    class="relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors focus:outline-none"
+                    class="relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-azure-blue"
                     [class.bg-azure-blue]="optionsGenerateConnections"
                     [class.bg-gray-300]="!optionsGenerateConnections"
                   >
@@ -87,106 +88,107 @@ interface ConnectionType {
                     ></span>
                   </button>
                 </div>
+              </div>
 
-                @if (optionsGenerateConnections) {
-                  <div class="mt-4 pt-3 border-t border-gray-100">
-                    <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2.5">Connection types</p>
-                    <div class="space-y-2.5">
-                      @for (ct of connectionTypes; track ct.name) {
-                        <div class="flex items-start gap-2.5">
-                          <span
-                            class="inline-block w-2.5 h-2.5 rounded-sm flex-shrink-0 mt-0.5"
-                            [style.background-color]="ct.color"
-                          ></span>
-                          <p class="text-xs text-gray-600 leading-snug">
-                            <span class="font-medium">{{ ct.name }}</span>
-                            <span class="text-gray-400"> — {{ ct.description }}</span>
-                          </p>
-                        </div>
-                      }
-                    </div>
-                    <div class="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between gap-4">
+              <div>
+                <button
+                  type="button"
+                  (click)="showAdvancedOptions = !showAdvancedOptions"
+                  class="flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors w-full py-2"
+                >
+                  <svg
+                    class="w-4 h-4 transform transition-transform duration-200"
+                    [class.rotate-90]="showAdvancedOptions"
+                    fill="none" viewBox="0 0 24 24" stroke="currentColor"
+                  >
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                  </svg>
+                  Advanced Options
+                </button>
+
+                @if (showAdvancedOptions) {
+                  <div class="mt-3 space-y-3 pl-6 border-l-2 border-gray-100">
+                    <div class="flex items-start justify-between gap-4">
                       <div>
-                        <p class="text-xs font-medium text-gray-700">User-Assigned Identity Assignments</p>
-                        <p class="text-[11px] text-gray-400 mt-0.5">Draw edges from UAIs to the resources they are assigned to.</p>
+                        <h4 class="text-xs font-semibold text-gray-700">App Service Slots</h4>
+                        <p class="text-[11px] text-gray-500 mt-0.5">Show deployment slots for Web Apps.</p>
+                      </div>
+                      <button
+                        type="button"
+                        (click)="optionsIncludeAppSlots = !optionsIncludeAppSlots"
+                        class="relative inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full transition-colors focus:outline-none"
+                        [class.bg-azure-blue]="optionsIncludeAppSlots"
+                        [class.bg-gray-300]="!optionsIncludeAppSlots"
+                      >
+                        <span
+                          class="inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform duration-200"
+                          [class.translate-x-4.5]="optionsIncludeAppSlots"
+                          [class.translate-x-0.5]="!optionsIncludeAppSlots"
+                        ></span>
+                      </button>
+                    </div>
+
+                    <div class="flex items-start justify-between gap-4">
+                      <div>
+                        <h4 class="text-xs font-semibold text-gray-700">Network Interfaces (NICs)</h4>
+                        <p class="text-[11px] text-gray-500 mt-0.5">Show NIC resources (typically grouped under VMs).</p>
+                      </div>
+                      <button
+                        type="button"
+                        (click)="optionsIncludeNetworkInterfaces = !optionsIncludeNetworkInterfaces"
+                        class="relative inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full transition-colors focus:outline-none"
+                        [class.bg-azure-blue]="optionsIncludeNetworkInterfaces"
+                        [class.bg-gray-300]="!optionsIncludeNetworkInterfaces"
+                      >
+                        <span
+                          class="inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform duration-200"
+                          [ngClass]="optionsIncludeNetworkInterfaces ? 'translate-x-4' : 'translate-x-1'"
+                        ></span>
+                      </button>
+                    </div>
+
+                    <div class="flex items-start justify-between gap-4">
+                      <div>
+                        <h4 class="text-xs font-semibold text-gray-700">Managed Identity Edges</h4>
+                        <p class="text-[11px] text-gray-500 mt-0.5">Draw connection arrows from UAIs to resources.</p>
                       </div>
                       <button
                         type="button"
                         (click)="optionsUserAssignedIdentityEdges = !optionsUserAssignedIdentityEdges"
-                        class="relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors focus:outline-none"
+                        class="relative inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full transition-colors focus:outline-none"
                         [class.bg-azure-blue]="optionsUserAssignedIdentityEdges"
                         [class.bg-gray-300]="!optionsUserAssignedIdentityEdges"
                       >
                         <span
-                          class="inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform duration-200"
-                          [class.translate-x-6]="optionsUserAssignedIdentityEdges"
-                          [class.translate-x-1]="!optionsUserAssignedIdentityEdges"
+                          class="inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform duration-200"
+                          [class.translate-x-4.5]="optionsUserAssignedIdentityEdges"
+                          [class.translate-x-0.5]="!optionsUserAssignedIdentityEdges"
                         ></span>
                       </button>
                     </div>
                   </div>
-                } @else {
-                  <p class="text-xs text-gray-400 mt-3 pt-3 border-t border-gray-100">
-                    Your diagram will show resources and containers only, with no connection arrows.
-                  </p>
                 }
               </div>
 
-              <div class="border border-gray-200 rounded-lg p-4 mb-5">
-                <div class="flex items-start justify-between gap-4">
-                  <div>
-                    <h3 class="text-sm font-semibold text-gray-800">Include App Service Slots</h3>
-                    <p class="text-xs text-gray-500 mt-0.5 max-w-xs">
-                      Show deployment slots for App Service and Function apps.
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    (click)="optionsIncludeAppSlots = !optionsIncludeAppSlots"
-                    class="relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors focus:outline-none"
-                    [class.bg-azure-blue]="optionsIncludeAppSlots"
-                    [class.bg-gray-300]="!optionsIncludeAppSlots"
-                  >
-                    <span
-                      class="inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform duration-200"
-                      [class.translate-x-6]="optionsIncludeAppSlots"
-                      [class.translate-x-1]="!optionsIncludeAppSlots"
-                    ></span>
-                  </button>
-                </div>
+              <div class="flex items-center gap-3 pt-4 border-t border-gray-100">
+                <button
+                  type="button"
+                  (click)="store.scanPhase.set('selecting-subscription')"
+                  class="px-4 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-50 rounded-lg transition-colors border border-gray-200"
+                >
+                  Back
+                </button>
+                <button
+                  type="button"
+                  (click)="confirmOptions()"
+                  class="flex-1 py-2.5 px-4 bg-azure-blue text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors shadow-sm flex items-center justify-center gap-2"
+                >
+                  <span>Start Scan</span>
+                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                  </svg>
+                </button>
               </div>
-
-              <div class="border border-gray-200 rounded-lg p-4 mb-5">
-                <div class="flex items-start justify-between gap-4">
-                  <div>
-                    <h3 class="text-sm font-semibold text-gray-800">Include Network Interfaces</h3>
-                    <p class="text-xs text-gray-500 mt-0.5 max-w-xs">
-                      Show NIC resources on the diagram (typically grouped under their VM).
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    (click)="optionsIncludeNetworkInterfaces = !optionsIncludeNetworkInterfaces"
-                    class="relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors focus:outline-none"
-                    [class.bg-azure-blue]="optionsIncludeNetworkInterfaces"
-                    [class.bg-gray-300]="!optionsIncludeNetworkInterfaces"
-                  >
-                    <span
-                      class="inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform duration-200"
-                      [class.translate-x-6]="optionsIncludeNetworkInterfaces"
-                      [class.translate-x-1]="!optionsIncludeNetworkInterfaces"
-                    ></span>
-                  </button>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                (click)="confirmOptions()"
-                class="w-full py-2.5 px-4 bg-azure-blue text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors"
-              >
-                Start Scan
-              </button>
             </div>
           }
 
@@ -371,6 +373,7 @@ export class ScanComponent implements OnInit {
   private zone = inject(NgZone);
 
   needsLogin = false;
+  showAdvancedOptions = false;
   optionsGenerateConnections = true;
   optionsIncludeAppSlots = false;
   optionsIncludeNetworkInterfaces = false;

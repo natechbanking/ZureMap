@@ -86,6 +86,12 @@ export interface PublicIpExpansionRequest {
   detailCount: number;
 }
 
+export interface ScheduleExpansionRequest {
+  nodeId: string;
+  expanded: boolean;
+  detailCount: number;
+}
+
 interface AksNodePoolView {
   name: string;
   count: number;
@@ -327,6 +333,19 @@ interface PublicIpDetailView {
           (click)="togglePublicIpPanel($event)"
         >
           {{ publicIpExpanded ? 'Hide details' : 'Show details' }} ({{ publicIpDetails.length }})
+        </button>
+      }
+
+      @if (isSchedule) {
+        <button
+          type="button"
+          data-export-hide
+          class="mt-0.5 px-2 py-0.5 rounded border border-amber-200 bg-amber-50 text-[10px] leading-tight text-amber-700 hover:bg-amber-100"
+          [title]="scheduleExpanded ? 'Hide schedule details' : 'Show schedule details'"
+          (mousedown)="stopEvent($event)"
+          (click)="toggleSchedulePanel($event)"
+        >
+          {{ scheduleExpanded ? 'Hide details' : 'Show details' }} ({{ scheduleDetails.length }})
         </button>
       }
 
@@ -695,6 +714,26 @@ interface PublicIpDetailView {
           }
         </div>
       }
+      @if (isSchedule && scheduleExpanded) {
+        <div
+          class="w-full mt-1 rounded border border-amber-200 bg-white shadow-sm overflow-hidden"
+          (mousedown)="stopEvent($event)"
+          (click)="stopEvent($event)"
+        >
+          @if (scheduleDetails.length === 0) {
+            <p class="text-[10px] text-gray-400 px-2 py-1.5">No schedule details available.</p>
+          } @else {
+            <div class="p-1.5">
+              @for (detail of scheduleDetails; track detail.label) {
+                <div class="flex items-center justify-between gap-2 px-1.5 py-1 border-b border-amber-50 last:border-b-0">
+                  <span class="text-[10px] text-gray-500 truncate" [title]="detail.label">{{ detail.label }}</span>
+                  <span class="text-[10px] font-semibold text-gray-800 shrink-0 truncate max-w-[110px] text-right" [title]="detail.value">{{ detail.value }}</span>
+                </div>
+              }
+            </div>
+          }
+        </div>
+      }
     </div>
   `,
 })
@@ -718,6 +757,7 @@ export class DiagramNodeComponent {
   @Output() hostingEnvironmentExpansionChanged = new EventEmitter<HostingEnvironmentExpansionRequest>();
   @Output() serverFarmExpansionChanged = new EventEmitter<ServerFarmExpansionRequest>();
   @Output() publicIpExpansionChanged = new EventEmitter<PublicIpExpansionRequest>();
+  @Output() scheduleExpansionChanged = new EventEmitter<ScheduleExpansionRequest>();
 
   private costSvc = inject(CostService);
   private store = inject(DiagramStore);
@@ -743,6 +783,7 @@ export class DiagramNodeComponent {
   hostingEnvironmentStatsExpanded = false;
   serverFarmStatsExpanded = false;
   publicIpExpanded = false;
+  scheduleExpanded = false;
 
   get typeLabel(): string {
     const parts = this.node.resourceType.split('/');
@@ -830,6 +871,11 @@ export class DiagramNodeComponent {
     return this.node.resourceType.toLowerCase() === 'microsoft.network/publicipaddresses';
   }
 
+  get isSchedule(): boolean {
+    const type = this.node.resourceType.toLowerCase();
+    return type === 'microsoft.automation/schedules' || type === 'microsoft.devtestlab/schedules';
+  }
+
   get hostingEnvironmentStats(): HostingEnvironmentStatView[] {
     const props = this.node.metadata?.properties ?? {};
     const workerPools = (props['workerPools'] as Array<{
@@ -901,6 +947,34 @@ export class DiagramNodeComponent {
       this.toTextStat('IP Tags', ipTagSummary),
     ].filter((d): d is PublicIpDetailView => !!d);
 
+    return details;
+  }
+
+  get scheduleDetails(): PublicIpDetailView[] {
+    const props = this.node.metadata?.properties ?? {};
+    const advanced = (props['advancedSchedule'] as {
+      weekDays?: unknown[];
+      monthDays?: unknown[];
+      monthlyOccurrences?: Array<{ day?: unknown; occurrence?: unknown }>;
+    } | undefined) ?? {};
+    const monthlyOccurrences = (advanced.monthlyOccurrences ?? [])
+      .map(item => [this.toDisplayText(item.day), this.toDisplayText(item.occurrence)]
+        .filter((v): v is string => !!v)
+        .join(' #'))
+      .filter(Boolean)
+      .join(', ');
+    const details: PublicIpDetailView[] = [
+      this.toTextStat('State', this.toDisplayText(props['state'])),
+      this.toTextStat('Frequency', this.toDisplayText(props['frequency'])),
+      this.toTextStat('Interval', this.toDisplayText(props['interval'])),
+      this.toTextStat('Time Zone', this.toDisplayText(props['timeZone'])),
+      this.toTextStat('Start Time', this.toDisplayText(props['startTime'])),
+      this.toTextStat('Expiry Time', this.toDisplayText(props['expiryTime'])),
+      this.toTextStat('Next Run', this.toDisplayText(props['nextRun'])),
+      this.toTextStat('Week Days', this.toListText(advanced.weekDays)),
+      this.toTextStat('Month Days', this.toListText(advanced.monthDays)),
+      this.toTextStat('Monthly Occurrences', monthlyOccurrences || null),
+    ].filter((d): d is PublicIpDetailView => !!d);
     return details;
   }
 
@@ -1178,6 +1252,18 @@ export class DiagramNodeComponent {
     });
   }
 
+  toggleSchedulePanel(event: MouseEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.clicked.emit(this.node.id);
+    this.scheduleExpanded = !this.scheduleExpanded;
+    this.scheduleExpansionChanged.emit({
+      nodeId: this.node.id,
+      expanded: this.scheduleExpanded,
+      detailCount: this.scheduleDetails.length,
+    });
+  }
+
   toggleVmPanel(event: MouseEvent): void {
     event.preventDefault();
     event.stopPropagation();
@@ -1241,6 +1327,24 @@ export class DiagramNodeComponent {
   private toBoolText(value: unknown): string | null {
     if (typeof value === 'boolean') return value ? 'Yes' : 'No';
     return null;
+  }
+
+  private toDisplayText(value: unknown): string | null {
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      return trimmed.length > 0 ? trimmed : null;
+    }
+    if (typeof value === 'number' && Number.isFinite(value)) return value.toString();
+    if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+    return null;
+  }
+
+  private toListText(value: unknown): string | null {
+    if (!Array.isArray(value)) return null;
+    const items = value
+      .map(v => this.toDisplayText(v))
+      .filter((v): v is string => !!v);
+    return items.length > 0 ? items.join(', ') : null;
   }
 
   stopEvent(event: MouseEvent): void {

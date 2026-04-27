@@ -392,9 +392,10 @@
                   <button
                     type="button"
                     class="absolute top-0.5 right-0.5 z-10 flex items-center justify-center w-5 h-5 rounded
-                           opacity-0 group-hover:opacity-100 transition-opacity duration-150
+                           transition-opacity duration-150 group-hover:opacity-100
                            bg-white/80 border border-gray-300 text-gray-400
                            hover:text-red-500 hover:border-red-400 hover:bg-red-50 cursor-pointer"
+                    [class.opacity-0]="nodeDragState?.id !== node.id"
                     [title]="'Break out of ' + (parentLabelById().get(detachParentId) ?? 'container')"
                     (mousedown)="$event.stopPropagation()"
                     (click)="$event.stopPropagation(); detachFromParent(node.id, detachParentId)"

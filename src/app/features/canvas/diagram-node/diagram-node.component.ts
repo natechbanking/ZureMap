@@ -8,897 +8,93 @@ import { DiagramStore } from '../../../core/store/diagram.store';
 import { StorageDetailsService, StorageDetails } from '../../../core/services/storage-details.service';
 import { UaiRoleAssignmentsService, UaiRoleAssignment } from '../../../core/services/uai-role-assignments.service';
 import { AzureFirewallDetailsService, AzureFirewallPolicyRuleCounts } from '../../../core/services/azure-firewall-details.service';
-
-export interface ContextMenuRequest {
-  nodeId: string;
-  x: number;
-  y: number;
-}
-
-export interface InternalItemMoveRequest {
-  nodeId: string;
-  itemId: string;
-  x: number;
-  y: number;
-}
-
-export interface NodeResizeRequest {
-  nodeId: string;
-  width: number;
-  height: number;
-}
-
-export interface RouteTableExpansionRequest {
-  nodeId: string;
-  expanded: boolean;
-  routeCount: number;
-}
-
-export interface VirtualNetworkExpansionRequest {
-  nodeId: string;
-  expanded: boolean;
-  subnetCount: number;
-}
-
-export interface NsgExpansionRequest {
-  nodeId: string;
-  expanded: boolean;
-  ruleCount: number;
-}
-
-export interface StorageAccountExpansionRequest {
-  nodeId: string;
-  expanded: boolean;
-  itemCount: number;
-}
-
-export interface AksExpansionRequest {
-  nodeId: string;
-  expanded: boolean;
-  nodePoolCount: number;
-}
-
-export interface VmExpansionRequest {
-  nodeId: string;
-  expanded: boolean;
-}
-
-export interface UaiExpansionRequest {
-  nodeId: string;
-  expanded: boolean;
-  assignmentCount: number;
-}
-
-export interface HostingEnvironmentExpansionRequest {
-  nodeId: string;
-  expanded: boolean;
-  statCount: number;
-}
-
-export interface ServerFarmExpansionRequest {
-  nodeId: string;
-  expanded: boolean;
-  statCount: number;
-}
-
-export interface PublicIpExpansionRequest {
-  nodeId: string;
-  expanded: boolean;
-  detailCount: number;
-}
-
-export interface ScheduleExpansionRequest {
-  nodeId: string;
-  expanded: boolean;
-  detailCount: number;
-}
-
-export interface DiskExpansionRequest {
-  nodeId: string;
-  expanded: boolean;
-  detailCount: number;
-}
-
-export interface AzureFirewallExpansionRequest {
-  nodeId: string;
-  expanded: boolean;
-  detailCount: number;
-}
-
-export interface ApplicationGatewayExpansionRequest {
-  nodeId: string;
-  expanded: boolean;
-  detailCount: number;
-}
-
-export interface ConnectionExpansionRequest {
-  nodeId: string;
-  expanded: boolean;
-  detailCount: number;
-}
-
-interface AksNodePoolView {
-  name: string;
-  count: number;
-  vmSize: string;
-  mode: string;
-  osType: string;
-}
-
-interface AksInfoView {
-  kubernetesVersion: string;
-  networkPlugin: string;
-  nodePools: AksNodePoolView[];
-}
-
-interface VmInfoView {
-  vmSize: string;
-  osType: string;
-  imageOffer: string;
-  imageSku: string;
-  adminUsername: string | null;
-  computerName: string | null;
-}
-
-interface RouteEntryView {
-  name: string;
-  addressPrefix: string;
-  nextHopType: string;
-  nextHopIpAddress: string | null;
-}
-
-interface SubnetEntryView {
-  name: string;
-  addressPrefix: string;
-}
-
-interface NsgRuleView {
-  name: string;
-  direction: string;
-  priority: number;
-  access: string;
-  protocol: string;
-  sourceAddressPrefix: string;
-  destinationPortRange: string;
-  isDefault: boolean;
-}
-
-interface UaiRoleAssignmentView {
-  id: string;
-  roleDefinitionName: string;
-  scope: string;
-  principalType: string;
-  description: string | null;
-}
-
-interface HostingEnvironmentStatView {
-  label: string;
-  value: string;
-}
-
-interface ServerFarmStatView {
-  label: string;
-  value: string;
-}
-
-interface PublicIpDetailView {
-  label: string;
-  value: string;
-}
+import {
+  ContextMenuRequest,
+  InternalItemMoveRequest,
+  NodeResizeRequest,
+  RouteTableExpansionRequest,
+  VirtualNetworkExpansionRequest,
+  NsgExpansionRequest,
+  StorageAccountExpansionRequest,
+  AksExpansionRequest,
+  VmExpansionRequest,
+  UaiExpansionRequest,
+  HostingEnvironmentExpansionRequest,
+  ServerFarmExpansionRequest,
+  PublicIpExpansionRequest,
+  ScheduleExpansionRequest,
+  DiskExpansionRequest,
+  AzureFirewallExpansionRequest,
+  ApplicationGatewayExpansionRequest,
+  ConnectionExpansionRequest,
+} from './diagram-node.contracts';
+import {
+  isAks as isAksKind,
+  isApplicationGateway as isApplicationGatewayKind,
+  isAzureFirewall as isAzureFirewallKind,
+  isConnectionResource as isConnectionResourceKind,
+  isDisk as isDiskKind,
+  isHostingEnvironment as isHostingEnvironmentKind,
+  isNsg as isNsgKind,
+  isPublicIpAddress as isPublicIpAddressKind,
+  isRouteTable as isRouteTableKind,
+  isSchedule as isScheduleKind,
+  isServerFarm as isServerFarmKind,
+  isStorageAccount as isStorageAccountKind,
+  isUserAssignedIdentity as isUserAssignedIdentityKind,
+  isVirtualNetwork as isVirtualNetworkKind,
+  isVm as isVmKind,
+} from './diagram-node-kind.util';
+import { DetailKv, getPath, pickText, toDisplayText } from './diagram-node-format.util';
+import {
+  mapApplicationGatewayDetails,
+  mapAzureFirewallDetails,
+  mapConnectionDetails,
+  mapDiskDetails,
+  mapHostingEnvironmentStats,
+  mapPublicIpDetails,
+  mapScheduleDetails,
+  mapServerFarmStats,
+} from './diagram-node-simple-details.mapper';
+import {
+  AksInfoView,
+  NsgRuleView,
+  RouteEntryView,
+  SubnetEntryView,
+  VmInfoView,
+  mapAksInfo,
+  mapNsgRuleEntries,
+  mapRouteEntries,
+  mapSubnetEntries,
+  mapVmInfo,
+} from './diagram-node-list-details.mapper';
+import { UaiAssignmentsPanelComponent, UaiRoleAssignmentView } from './panels/uai-assignments-panel.component';
+import { StorageDetailsPanelComponent } from './panels/storage-details-panel.component';
+import { AksDetailsPanelComponent } from './panels/aks-details-panel.component';
+import { VmDetailsPanelComponent } from './panels/vm-details-panel.component';
+import { NsgRulesPanelComponent } from './panels/nsg-rules-panel.component';
+import { NodeDetailKvPanelComponent } from '../shared/node-detail-kv-panel.component';
+import { NodeDetailListPanelComponent, NodeDetailListSection } from '../shared/node-detail-list-panel.component';
+import { NodeToggleButtonComponent } from '../shared/node-toggle-button.component';
 
 @Component({
   selector: 'app-diagram-node',
   standalone: true,
-  imports: [CommonModule, AzureIconComponent, CostBadgeComponent],
-  template: `
-    <div
-      class="relative flex flex-col items-center justify-center gap-0.5 px-2 py-1.5 rounded-lg bg-white cursor-pointer select-none transition-all"
-      [style.width.px]="node.size.width"
-      [style.height.px]="node.size.height"
-      [style.border]="borderStyle"
-      [style.box-shadow]="boxShadow"
-      [class.ring-2]="node.selected"
-      [class.ring-azure-blue]="node.selected"
-      [class.opacity-50]="node.driftStatus === 'missing'"
-      [class.border-dashed]="node.driftStatus === 'unplanned'"
-      (click)="clicked.emit(node.id)"
-      (dblclick)="onDoubleClick($event)"
-      (contextmenu)="onContextMenu($event)"
-    >
-      <app-azure-icon [resourceType]="node.resourceType" [size]="28" />
-
-      <span
-        class="text-[11px] font-medium text-gray-800 text-center leading-tight max-w-full px-1 break-words overflow-hidden"
-        [title]="node.label"
-        style="display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;"
-      >
-        {{ node.label }}
-      </span>
-
-      <span class="text-[10px] leading-tight text-gray-400 truncate max-w-full px-1" [title]="typeLabel">
-        {{ typeLabel }}
-      </span>
-
-      @if (isRouteTable) {
-        <button
-          type="button"
-          data-export-hide
-          class="mt-0.5 px-2 py-0.5 rounded border border-cyan-200 bg-cyan-50 text-[10px] leading-tight text-cyan-700 hover:bg-cyan-100"
-          [title]="routesExpanded ? 'Hide routes' : 'Show routes'"
-          (mousedown)="stopEvent($event)"
-          (click)="toggleRoutesPanel($event)"
-        >
-          {{ routesExpanded ? 'Hide routes' : 'Show routes' }} ({{ routeEntries.length }})
-        </button>
-      }
-
-      @if (isUserAssignedIdentity) {
-        <button
-          type="button"
-          data-export-hide
-          class="mt-0.5 px-2 py-0.5 rounded border border-sky-200 bg-sky-50 text-[10px] leading-tight text-sky-700 hover:bg-sky-100"
-          [title]="uaiAssignmentsExpanded ? 'Hide role assignments' : 'Show role assignments'"
-          (mousedown)="stopEvent($event)"
-          (click)="toggleUaiRoleAssignmentsPanel($event)"
-        >
-          @if (uaiAssignmentsExpanded) {
-            Hide assignments
-          } @else if (!uaiAssignmentsLoaded) {
-            Show assignments
-          } @else {
-            Show assignments ({{ uaiRoleAssignments.length }})
-          }
-        </button>
-      }
-
-      @if (isHostingEnvironment) {
-        <button
-          type="button"
-          data-export-hide
-          class="mt-0.5 px-2 py-0.5 rounded border border-fuchsia-200 bg-fuchsia-50 text-[10px] leading-tight text-fuchsia-700 hover:bg-fuchsia-100"
-          [title]="hostingEnvironmentStatsExpanded ? 'Hide hosting environment stats' : 'Show hosting environment stats'"
-          (mousedown)="stopEvent($event)"
-          (click)="toggleHostingEnvironmentStatsPanel($event)"
-        >
-          {{ hostingEnvironmentStatsExpanded ? 'Hide stats' : 'Show stats' }} ({{ hostingEnvironmentStats.length }})
-        </button>
-      }
-
-      @if (isServerFarm) {
-        <button
-          type="button"
-          data-export-hide
-          class="mt-0.5 px-2 py-0.5 rounded border border-pink-200 bg-pink-50 text-[10px] leading-tight text-pink-700 hover:bg-pink-100"
-          [title]="serverFarmStatsExpanded ? 'Hide server farm stats' : 'Show server farm stats'"
-          (mousedown)="stopEvent($event)"
-          (click)="toggleServerFarmStatsPanel($event)"
-        >
-          {{ serverFarmStatsExpanded ? 'Hide stats' : 'Show stats' }} ({{ serverFarmStats.length }})
-        </button>
-      }
-
-      @if (isVirtualNetwork) {
-        <button
-          type="button"
-          data-export-hide
-          class="mt-0.5 px-2 py-0.5 rounded border border-indigo-200 bg-indigo-50 text-[10px] leading-tight text-indigo-700 hover:bg-indigo-100"
-          [title]="subnetsExpanded ? 'Hide subnets' : 'Show subnets'"
-          (mousedown)="stopEvent($event)"
-          (click)="toggleSubnetsPanel($event)"
-        >
-          {{ subnetsExpanded ? 'Hide subnets' : 'Show subnets' }} ({{ subnetEntries.length }})
-        </button>
-      }
-
-      @if (isNsg) {
-        <button
-          type="button"
-          data-export-hide
-          class="mt-0.5 px-2 py-0.5 rounded border border-orange-200 bg-orange-50 text-[10px] leading-tight text-orange-700 hover:bg-orange-100"
-          [title]="nsgRulesExpanded ? 'Hide rules' : 'Show rules'"
-          (mousedown)="stopEvent($event)"
-          (click)="toggleNsgRulesPanel($event)"
-        >
-          {{ nsgRulesExpanded ? 'Hide rules' : 'Show rules' }} ({{ nsgRuleEntries.length }})
-        </button>
-      }
-
-      @if (isStorageAccount) {
-        <button
-          type="button"
-          data-export-hide
-          class="mt-0.5 px-2 py-0.5 rounded border border-teal-200 bg-teal-50 text-[10px] leading-tight text-teal-700 hover:bg-teal-100"
-          [title]="storageDetailsExpanded ? 'Hide storage details' : 'Show storage details'"
-          (mousedown)="stopEvent($event)"
-          (click)="toggleStorageDetailsPanel($event)"
-        >
-          @if (storageDetailsExpanded) {
-            Hide storage
-          } @else if (!storageDetailsLoaded) {
-            Show storage
-          } @else {
-            Show storage ({{ storageItemCount }})
-          }
-        </button>
-      }
-
-      @if (isAks) {
-        <button
-          type="button"
-          data-export-hide
-          class="mt-0.5 px-2 py-0.5 rounded border border-violet-200 bg-violet-50 text-[10px] leading-tight text-violet-700 hover:bg-violet-100"
-          [title]="aksExpanded ? 'Hide cluster details' : 'Show cluster details'"
-          (mousedown)="stopEvent($event)"
-          (click)="toggleAksPanel($event)"
-        >
-          {{ aksExpanded ? 'Hide cluster' : 'Show cluster' }} ({{ aksInfo.nodePools.length }} pools)
-        </button>
-      }
-
-      @if (isVm) {
-        <button
-          type="button"
-          data-export-hide
-          class="mt-0.5 px-2 py-0.5 rounded border border-emerald-200 bg-emerald-50 text-[10px] leading-tight text-emerald-700 hover:bg-emerald-100"
-          [title]="vmExpanded ? 'Hide VM details' : 'Show VM details'"
-          (mousedown)="stopEvent($event)"
-          (click)="toggleVmPanel($event)"
-        >
-          {{ vmExpanded ? 'Hide details' : 'Show details' }}
-        </button>
-      }
-
-      @if (isPublicIpAddress) {
-        <button
-          type="button"
-          data-export-hide
-          class="mt-0.5 px-2 py-0.5 rounded border border-blue-200 bg-blue-50 text-[10px] leading-tight text-blue-700 hover:bg-blue-100"
-          [title]="publicIpExpanded ? 'Hide public IP details' : 'Show public IP details'"
-          (mousedown)="stopEvent($event)"
-          (click)="togglePublicIpPanel($event)"
-        >
-          {{ publicIpExpanded ? 'Hide details' : 'Show details' }} ({{ publicIpDetails.length }})
-        </button>
-      }
-
-      @if (isSchedule) {
-        <button
-          type="button"
-          data-export-hide
-          class="mt-0.5 px-2 py-0.5 rounded border border-amber-200 bg-amber-50 text-[10px] leading-tight text-amber-700 hover:bg-amber-100"
-          [title]="scheduleExpanded ? 'Hide schedule details' : 'Show schedule details'"
-          (mousedown)="stopEvent($event)"
-          (click)="toggleSchedulePanel($event)"
-        >
-          {{ scheduleExpanded ? 'Hide details' : 'Show details' }} ({{ scheduleDetails.length }})
-        </button>
-      }
-
-      @if (isDisk) {
-        <button
-          type="button"
-          data-export-hide
-          class="mt-0.5 px-2 py-0.5 rounded border border-lime-200 bg-lime-50 text-[10px] leading-tight text-lime-700 hover:bg-lime-100"
-          [title]="diskExpanded ? 'Hide disk details' : 'Show disk details'"
-          (mousedown)="stopEvent($event)"
-          (click)="toggleDiskPanel($event)"
-        >
-          {{ diskExpanded ? 'Hide details' : 'Show details' }} ({{ diskDetails.length }})
-        </button>
-      }
-
-      @if (isAzureFirewall) {
-        <button
-          type="button"
-          data-export-hide
-          class="mt-0.5 px-2 py-0.5 rounded border border-rose-200 bg-rose-50 text-[10px] leading-tight text-rose-700 hover:bg-rose-100"
-          [title]="azureFirewallExpanded ? 'Hide firewall details' : 'Show firewall details'"
-          (mousedown)="stopEvent($event)"
-          (click)="toggleAzureFirewallPanel($event)"
-        >
-          {{ azureFirewallExpanded ? 'Hide details' : 'Show details' }} ({{ azureFirewallDetails.length }})
-        </button>
-      }
-
-      @if (isApplicationGateway) {
-        <button
-          type="button"
-          data-export-hide
-          class="mt-0.5 px-2 py-0.5 rounded border border-slate-200 bg-slate-50 text-[10px] leading-tight text-slate-700 hover:bg-slate-100"
-          [title]="applicationGatewayExpanded ? 'Hide application gateway stats' : 'Show application gateway stats'"
-          (mousedown)="stopEvent($event)"
-          (click)="toggleApplicationGatewayPanel($event)"
-        >
-          {{ applicationGatewayExpanded ? 'Hide stats' : 'Show stats' }} ({{ applicationGatewayDetails.length }})
-        </button>
-      }
-
-      @if (isConnectionResource) {
-        <button
-          type="button"
-          data-export-hide
-          class="mt-0.5 px-2 py-0.5 rounded border border-cyan-200 bg-cyan-50 text-[10px] leading-tight text-cyan-700 hover:bg-cyan-100"
-          [title]="connectionExpanded ? 'Hide connection details' : 'Show connection details'"
-          (mousedown)="stopEvent($event)"
-          (click)="toggleConnectionPanel($event)"
-        >
-          {{ connectionExpanded ? 'Hide details' : 'Show details' }} ({{ connectionDetails.length }})
-        </button>
-      }
-
-      @if (node.custom?.description) {
-        <span class="text-[10px] leading-tight text-gray-500 text-center max-w-full px-1 truncate" [title]="node.custom?.description">
-          {{ node.custom?.description }}
-        </span>
-      }
-
-      @for (item of node.custom?.internalItems ?? []; track item.id) {
-        <div
-          class="absolute px-1 py-0.5 text-[10px] rounded bg-blue-50/90 border border-blue-200 text-blue-700 shadow-sm cursor-move max-w-[90px] truncate"
-          [style.left.px]="item.x"
-          [style.top.px]="item.y"
-          [title]="item.text"
-          (mousedown)="onInternalItemMouseDown($event, item)"
-        >
-          {{ item.text }}
-        </div>
-      }
-
-      <button
-        type="button"
-        data-export-hide
-        class="absolute -right-1 -bottom-1 w-3.5 h-3.5 rounded-sm border border-gray-300 bg-white shadow-sm cursor-se-resize hover:border-blue-400 hover:bg-blue-50 flex items-center justify-center"
-        title="Resize resource"
-        (mousedown)="onResizeMouseDown($event)"
-      >
-        <svg viewBox="0 0 16 16" class="w-2.5 h-2.5 text-gray-500" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round">
-          <path d="M6 10 L10 6" />
-          <path d="M8 12 L12 8" />
-          <path d="M10 14 L14 10" />
-        </svg>
-      </button>
-
-      @if (finOpsActive && node.costData) {
-        <app-cost-badge [costData]="node.costData" />
-      }
-
-      @if (node.driftStatus === 'missing') {
-        <span class="absolute -top-2 -left-2 text-xs bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center" title="Missing in Azure">!</span>
-      }
-      @if (node.driftStatus === 'unplanned') {
-        <span class="absolute -top-2 -left-2 text-xs bg-blue-500 text-white rounded-full w-4 h-4 flex items-center justify-center" title="New in Azure">+</span>
-      }
-
-      @if (isRouteTable && routesExpanded) {
-        <div
-          class="w-full mt-1 rounded border border-cyan-200 bg-white shadow-sm p-1.5"
-          (mousedown)="stopEvent($event)"
-          (click)="stopEvent($event)"
-        >
-          @if (routeEntries.length === 0) {
-            <p class="text-[10px] text-gray-500 px-1 py-0.5">No routes found on this table.</p>
-          } @else {
-            <div class="space-y-1">
-              @for (route of routeEntries; track route.name + route.addressPrefix + route.nextHopType) {
-                <div class="rounded border border-cyan-100 bg-cyan-50/40 px-1.5 py-1">
-                  <p class="text-[10px] font-semibold text-gray-800 truncate" [title]="route.name">{{ route.name }}</p>
-                  <p class="text-[10px] text-gray-600 truncate" [title]="route.addressPrefix">{{ route.addressPrefix }}</p>
-                  <p class="text-[10px] text-gray-500 truncate" [title]="route.nextHopType + (route.nextHopIpAddress ? ' • ' + route.nextHopIpAddress : '')">
-                    {{ route.nextHopType }}{{ route.nextHopIpAddress ? ' • ' + route.nextHopIpAddress : '' }}
-                  </p>
-                </div>
-              }
-            </div>
-          }
-        </div>
-      }
-
-      @if (isUserAssignedIdentity && uaiAssignmentsExpanded) {
-        <div
-          class="w-full mt-1 rounded border border-sky-200 bg-white shadow-sm overflow-hidden"
-          (mousedown)="stopEvent($event)"
-          (click)="stopEvent($event)"
-        >
-          @if (uaiAssignmentsLoading) {
-            <p class="text-[10px] text-gray-400 px-2 py-1.5 text-center">Loading...</p>
-          } @else if (uaiAssignmentsError) {
-            <p class="text-[10px] text-red-400 px-2 py-1.5">{{ uaiAssignmentsError }}</p>
-          } @else if (uaiRoleAssignments.length === 0) {
-            <p class="text-[10px] text-gray-500 px-2 py-1.5">No role assignments found for this identity.</p>
-          } @else {
-            <div class="space-y-1 p-1.5">
-              @for (assignment of uaiRoleAssignments; track assignment.id) {
-                <div class="rounded border border-sky-100 bg-sky-50/40 px-1.5 py-1">
-                  <div class="flex items-center gap-1 mb-0.5">
-                    <p class="text-[10px] font-semibold text-gray-800 truncate flex-1" [title]="assignment.roleDefinitionName">
-                      {{ assignment.roleDefinitionName }}
-                    </p>
-                    <span class="text-[9px] px-1.5 py-px rounded-full bg-gray-100 text-gray-600 leading-tight shrink-0">
-                      {{ assignment.principalType }}
-                    </span>
-                  </div>
-                  <p class="text-[10px] text-gray-600 break-all leading-snug" [title]="assignment.scope">
-                    <span class="text-gray-400">Scope </span>{{ assignment.scope }}
-                  </p>
-                  @if (assignment.description) {
-                    <p class="text-[10px] text-gray-500 break-all leading-snug mt-0.5" [title]="assignment.description">
-                      {{ assignment.description }}
-                    </p>
-                  }
-                </div>
-              }
-            </div>
-          }
-        </div>
-      }
-
-      @if (isHostingEnvironment && hostingEnvironmentStatsExpanded) {
-        <div
-          class="w-full mt-1 rounded border border-fuchsia-200 bg-white shadow-sm overflow-hidden"
-          (mousedown)="stopEvent($event)"
-          (click)="stopEvent($event)"
-        >
-          @if (hostingEnvironmentStats.length === 0) {
-            <p class="text-[10px] text-gray-500 px-2 py-1.5">No stats available for this hosting environment.</p>
-          } @else {
-            <div class="p-1.5">
-              @for (stat of hostingEnvironmentStats; track stat.label) {
-                <div class="flex items-center justify-between gap-2 px-1.5 py-1 border-b border-fuchsia-50 last:border-b-0">
-                  <span class="text-[10px] text-gray-500 truncate" [title]="stat.label">{{ stat.label }}</span>
-                  <span class="text-[10px] font-semibold text-gray-800 shrink-0" [title]="stat.value">{{ stat.value }}</span>
-                </div>
-              }
-            </div>
-          }
-        </div>
-      }
-
-      @if (isServerFarm && serverFarmStatsExpanded) {
-        <div
-          class="w-full mt-1 rounded border border-pink-200 bg-white shadow-sm overflow-hidden"
-          (mousedown)="stopEvent($event)"
-          (click)="stopEvent($event)"
-        >
-          @if (serverFarmStats.length === 0) {
-            <p class="text-[10px] text-gray-500 px-2 py-1.5">No stats available for this server farm.</p>
-          } @else {
-            <div class="p-1.5">
-              @for (stat of serverFarmStats; track stat.label) {
-                <div class="flex items-center justify-between gap-2 px-1.5 py-1 border-b border-pink-50 last:border-b-0">
-                  <span class="text-[10px] text-gray-500 truncate" [title]="stat.label">{{ stat.label }}</span>
-                  <span class="text-[10px] font-semibold text-gray-800 shrink-0" [title]="stat.value">{{ stat.value }}</span>
-                </div>
-              }
-            </div>
-          }
-        </div>
-      }
-
-      @if (isVirtualNetwork && subnetsExpanded) {
-        <div
-          class="w-full mt-1 rounded border border-indigo-200 bg-white shadow-sm p-1.5"
-          (mousedown)="stopEvent($event)"
-          (click)="stopEvent($event)"
-        >
-          @if (subnetEntries.length === 0) {
-            <p class="text-[10px] text-gray-500 px-1 py-0.5">No subnets found on this virtual network.</p>
-          } @else {
-            <div class="space-y-1">
-              @for (subnet of subnetEntries; track subnet.name + subnet.addressPrefix) {
-                <div class="rounded border border-indigo-100 bg-indigo-50/40 px-1.5 py-1">
-                  <p class="text-[10px] font-semibold text-gray-800 truncate" [title]="subnet.name">{{ subnet.name }}</p>
-                  <p class="text-[10px] text-gray-600 truncate" [title]="subnet.addressPrefix">{{ subnet.addressPrefix }}</p>
-                </div>
-              }
-            </div>
-          }
-        </div>
-      }
-
-      @if (isNsg && nsgRulesExpanded) {
-        <div
-          class="w-full mt-1 rounded border border-orange-200 bg-white shadow-sm overflow-hidden"
-          (mousedown)="stopEvent($event)"
-          (click)="stopEvent($event)"
-        >
-          @if (nsgRuleEntries.length === 0) {
-            <p class="text-[10px] text-gray-500 px-2 py-1.5">No security rules found.</p>
-          } @else {
-            @for (rule of nsgRuleEntries; track rule.name + rule.priority) {
-              <div
-                class="px-2 py-1.5 border-b last:border-b-0"
-                [ngClass]="rule.isDefault ? 'border-gray-100 bg-gray-50' : 'border-orange-50 bg-white'"
-              >
-                <div class="flex items-center gap-1 flex-wrap mb-0.5">
-                  <span
-                    class="text-[9px] font-semibold px-1.5 py-px rounded-full leading-tight shrink-0"
-                    [ngClass]="rule.access === 'Allow' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'"
-                  >{{ rule.access }}</span>
-                  <span
-                    class="text-[9px] px-1.5 py-px rounded-full leading-tight shrink-0"
-                    [ngClass]="rule.direction === 'Inbound' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'"
-                  >{{ rule.direction }}</span>
-                  <span class="text-[9px] text-gray-400 ml-auto shrink-0">#{{ rule.priority }}</span>
-                </div>
-                <p class="text-[10px] font-medium text-gray-800 break-all leading-snug" [title]="rule.name">{{ rule.name }}</p>
-                <div class="mt-0.5 space-y-px">
-                  <p class="text-[9px] text-gray-500 break-all leading-snug">
-                    <span class="text-gray-400">From </span>{{ rule.sourceAddressPrefix }}
-                  </p>
-                  <p class="text-[9px] text-gray-500 leading-snug">
-                    <span class="text-gray-400">Port </span>{{ rule.destinationPortRange }}
-                    <span class="text-gray-400"> ({{ rule.protocol }})</span>
-                  </p>
-                </div>
-              </div>
-            }
-          }
-        </div>
-      }
-
-      @if (isStorageAccount && storageDetailsExpanded) {
-        <div
-          class="w-full mt-1 rounded border border-teal-200 bg-white shadow-sm overflow-hidden"
-          (mousedown)="stopEvent($event)"
-          (click)="stopEvent($event)"
-        >
-          @if (storageDetailsLoading) {
-            <p class="text-[10px] text-gray-400 px-2 py-1.5 text-center">Loading...</p>
-          } @else if (storageDetailsError) {
-            <p class="text-[10px] text-red-400 px-2 py-1.5">{{ storageDetailsError }}</p>
-          } @else if (storageItemCount === 0) {
-            <p class="text-[10px] text-gray-400 px-2 py-1.5">No containers, shares, tables or queues found.</p>
-          } @else {
-          @if (storageContainers.length > 0) {
-            <div class="px-2 pt-1.5 pb-0.5">
-              <p class="text-[9px] font-semibold text-teal-600 uppercase tracking-wide mb-1">Blob Containers</p>
-              @for (name of storageContainers; track name) {
-                <div class="flex items-center gap-1 py-px border-b border-teal-50 last:border-b-0">
-                  <span class="text-[9px] text-gray-500">📦</span>
-                  <span class="text-[10px] text-gray-700 truncate" [title]="name">{{ name }}</span>
-                </div>
-              }
-            </div>
-          }
-          @if (storageFileShares.length > 0) {
-            <div class="px-2 pt-1.5 pb-0.5" [ngClass]="storageContainers.length > 0 ? 'border-t border-teal-100' : ''">
-              <p class="text-[9px] font-semibold text-teal-600 uppercase tracking-wide mb-1">File Shares</p>
-              @for (name of storageFileShares; track name) {
-                <div class="flex items-center gap-1 py-px border-b border-teal-50 last:border-b-0">
-                  <span class="text-[9px] text-gray-500">📁</span>
-                  <span class="text-[10px] text-gray-700 truncate" [title]="name">{{ name }}</span>
-                </div>
-              }
-            </div>
-          }
-          @if (storageTables.length > 0) {
-            <div class="px-2 pt-1.5 pb-0.5" [ngClass]="storageContainers.length + storageFileShares.length > 0 ? 'border-t border-teal-100' : ''">
-              <p class="text-[9px] font-semibold text-teal-600 uppercase tracking-wide mb-1">Tables</p>
-              @for (name of storageTables; track name) {
-                <div class="flex items-center gap-1 py-px border-b border-teal-50 last:border-b-0">
-                  <span class="text-[9px] text-gray-500">📋</span>
-                  <span class="text-[10px] text-gray-700 truncate" [title]="name">{{ name }}</span>
-                </div>
-              }
-            </div>
-          }
-          @if (storageQueues.length > 0) {
-            <div class="px-2 pt-1.5 pb-0.5" [ngClass]="storageContainers.length + storageFileShares.length + storageTables.length > 0 ? 'border-t border-teal-100' : ''">
-              <p class="text-[9px] font-semibold text-teal-600 uppercase tracking-wide mb-1">Queues</p>
-              @for (name of storageQueues; track name) {
-                <div class="flex items-center gap-1 py-px border-b border-teal-50 last:border-b-0">
-                  <span class="text-[9px] text-gray-500">📨</span>
-                  <span class="text-[10px] text-gray-700 truncate" [title]="name">{{ name }}</span>
-                </div>
-              }
-            </div>
-          }
-          }
-        </div>
-      }
-
-      @if (isAks && aksExpanded) {
-        <div
-          class="w-full mt-1 rounded border border-violet-200 bg-white shadow-sm overflow-hidden"
-          (mousedown)="stopEvent($event)"
-          (click)="stopEvent($event)"
-        >
-          <!-- Cluster metadata row -->
-          <div class="px-2 pt-1.5 pb-1 flex flex-wrap gap-1 border-b border-violet-100">
-            <span class="text-[9px] font-semibold px-1.5 py-px rounded-full bg-violet-100 text-violet-700 leading-tight">
-              k8s {{ aksInfo.kubernetesVersion }}
-            </span>
-            <span class="text-[9px] px-1.5 py-px rounded-full bg-blue-100 text-blue-700 leading-tight">
-              {{ aksInfo.networkPlugin }}
-            </span>
-          </div>
-          <!-- Node pools -->
-          @if (aksInfo.nodePools.length === 0) {
-            <p class="text-[10px] text-gray-400 px-2 py-1.5">No node pools found.</p>
-          } @else {
-            <div class="px-2 pt-1 pb-0.5">
-              <p class="text-[9px] font-semibold text-violet-600 uppercase tracking-wide mb-0.5">Node Pools</p>
-              @for (pool of aksInfo.nodePools; track pool.name) {
-                <div class="rounded border border-violet-100 bg-violet-50/40 px-1.5 py-1 mb-1 last:mb-0">
-                  <div class="flex items-center gap-1 mb-0.5">
-                    <span class="text-[10px] font-semibold text-gray-800 truncate flex-1" [title]="pool.name">{{ pool.name }}</span>
-                    <span
-                      class="text-[9px] px-1 py-px rounded-full leading-tight shrink-0"
-                      [ngClass]="pool.mode === 'System' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'"
-                    >{{ pool.mode }}</span>
-                  </div>
-                  <p class="text-[10px] text-gray-600 truncate" [title]="pool.vmSize">{{ pool.vmSize }}</p>
-                  <p class="text-[10px] text-gray-500">{{ pool.count }} node{{ pool.count !== 1 ? 's' : '' }} &middot; {{ pool.osType }}</p>
-                </div>
-              }
-            </div>
-          }
-        </div>
-      }
-      @if (isVm && vmExpanded) {
-        <div
-          class="w-full mt-1 rounded border border-emerald-200 bg-white shadow-sm overflow-hidden"
-          (mousedown)="stopEvent($event)"
-          (click)="stopEvent($event)"
-        >
-          <!-- Size + OS row -->
-          <div class="px-2 pt-1.5 pb-1 flex flex-wrap gap-1 border-b border-emerald-100">
-            <span class="text-[9px] font-semibold px-1.5 py-px rounded-full bg-emerald-100 text-emerald-700 leading-tight truncate max-w-full" [title]="vmInfo.vmSize">
-              {{ vmInfo.vmSize }}
-            </span>
-            <span
-              class="text-[9px] px-1.5 py-px rounded-full leading-tight shrink-0"
-              [ngClass]="vmInfo.osType === 'Windows' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'"
-            >{{ vmInfo.osType }}</span>
-          </div>
-          <!-- Image + credentials -->
-          <div class="px-2 py-1.5 space-y-0.5">
-            @if (vmInfo.imageOffer) {
-              <p class="text-[10px] text-gray-700 truncate" [title]="vmInfo.imageOffer + (vmInfo.imageSku ? ' · ' + vmInfo.imageSku : '')">
-                <span class="text-gray-400">Image </span>{{ vmInfo.imageOffer }}@if (vmInfo.imageSku) { <span class="text-gray-400"> · </span>{{ vmInfo.imageSku }} }
-              </p>
-            }
-            @if (vmInfo.computerName) {
-              <p class="text-[10px] text-gray-600 truncate" [title]="vmInfo.computerName">
-                <span class="text-gray-400">Host </span>{{ vmInfo.computerName }}
-              </p>
-            }
-            @if (vmInfo.adminUsername) {
-              <p class="text-[10px] text-gray-600 truncate" [title]="vmInfo.adminUsername">
-                <span class="text-gray-400">Admin </span>{{ vmInfo.adminUsername }}
-              </p>
-            }
-          </div>
-        </div>
-      }
-      @if (isPublicIpAddress && publicIpExpanded) {
-        <div
-          class="w-full mt-1 rounded border border-blue-200 bg-white shadow-sm overflow-hidden"
-          (mousedown)="stopEvent($event)"
-          (click)="stopEvent($event)"
-        >
-          @if (publicIpDetails.length === 0) {
-            <p class="text-[10px] text-gray-400 px-2 py-1.5">No public IP details available.</p>
-          } @else {
-            <div class="p-1.5">
-              @for (detail of publicIpDetails; track detail.label) {
-                <div class="flex items-center justify-between gap-2 px-1.5 py-1 border-b border-blue-50 last:border-b-0">
-                  <span class="text-[10px] text-gray-500 truncate" [title]="detail.label">{{ detail.label }}</span>
-                  <span class="text-[10px] font-semibold text-gray-800 shrink-0 truncate max-w-[110px] text-right" [title]="detail.value">{{ detail.value }}</span>
-                </div>
-              }
-            </div>
-          }
-        </div>
-      }
-      @if (isSchedule && scheduleExpanded) {
-        <div
-          class="w-full mt-1 rounded border border-amber-200 bg-white shadow-sm overflow-hidden"
-          (mousedown)="stopEvent($event)"
-          (click)="stopEvent($event)"
-        >
-          @if (scheduleDetails.length === 0) {
-            <p class="text-[10px] text-gray-400 px-2 py-1.5">No schedule details available.</p>
-          } @else {
-            <div class="p-1.5">
-              @for (detail of scheduleDetails; track detail.label) {
-                <div class="flex items-center justify-between gap-2 px-1.5 py-1 border-b border-amber-50 last:border-b-0">
-                  <span class="text-[10px] text-gray-500 truncate" [title]="detail.label">{{ detail.label }}</span>
-                  <span class="text-[10px] font-semibold text-gray-800 shrink-0 truncate max-w-[110px] text-right" [title]="detail.value">{{ detail.value }}</span>
-                </div>
-              }
-            </div>
-          }
-        </div>
-      }
-      @if (isDisk && diskExpanded) {
-        <div
-          class="w-full mt-1 rounded border border-lime-200 bg-white shadow-sm overflow-hidden"
-          (mousedown)="stopEvent($event)"
-          (click)="stopEvent($event)"
-        >
-          @if (diskDetails.length === 0) {
-            <p class="text-[10px] text-gray-400 px-2 py-1.5">No disk details available.</p>
-          } @else {
-            <div class="p-1.5">
-              @for (detail of diskDetails; track detail.label) {
-                <div class="flex items-center justify-between gap-2 px-1.5 py-1 border-b border-lime-50 last:border-b-0">
-                  <span class="text-[10px] text-gray-500 truncate" [title]="detail.label">{{ detail.label }}</span>
-                  <span class="text-[10px] font-semibold text-gray-800 shrink-0 truncate max-w-[110px] text-right" [title]="detail.value">{{ detail.value }}</span>
-                </div>
-              }
-            </div>
-          }
-        </div>
-      }
-      @if (isAzureFirewall && azureFirewallExpanded) {
-        <div
-          class="w-full mt-1 rounded border border-rose-200 bg-white shadow-sm overflow-hidden"
-          (mousedown)="stopEvent($event)"
-          (click)="stopEvent($event)"
-        >
-          @if (azureFirewallCountsLoading) {
-            <p class="text-[10px] text-gray-400 px-2 py-1.5 text-center">Loading...</p>
-          } @else if (azureFirewallCountsError) {
-            <p class="text-[10px] text-red-400 px-2 py-1.5">{{ azureFirewallCountsError }}</p>
-          } @else if (azureFirewallDetails.length === 0) {
-            <p class="text-[10px] text-gray-400 px-2 py-1.5">No firewall details available.</p>
-          } @else {
-            <div class="p-1.5">
-              @for (detail of azureFirewallDetails; track detail.label) {
-                <div class="flex items-center justify-between gap-2 px-1.5 py-1 border-b border-rose-50 last:border-b-0">
-                  <span class="text-[10px] text-gray-500 truncate" [title]="detail.label">{{ detail.label }}</span>
-                  <span class="text-[10px] font-semibold text-gray-800 shrink-0 truncate max-w-[110px] text-right" [title]="detail.value">{{ detail.value }}</span>
-                </div>
-              }
-            </div>
-          }
-        </div>
-      }
-
-      @if (isApplicationGateway && applicationGatewayExpanded) {
-        <div
-          class="w-full mt-1 rounded border border-slate-200 bg-white shadow-sm overflow-hidden"
-          (mousedown)="stopEvent($event)"
-          (click)="stopEvent($event)"
-        >
-          @if (applicationGatewayDetails.length === 0) {
-            <p class="text-[10px] text-gray-400 px-2 py-1.5">No application gateway stats available.</p>
-          } @else {
-            <div class="p-1.5">
-              @for (detail of applicationGatewayDetails; track detail.label) {
-                <div class="flex items-center justify-between gap-2 px-1.5 py-1 border-b border-slate-50 last:border-b-0">
-                  <span class="text-[10px] text-gray-500 truncate" [title]="detail.label">{{ detail.label }}</span>
-                  <span class="text-[10px] font-semibold text-gray-800 shrink-0 truncate max-w-[120px] text-right" [title]="detail.value">{{ detail.value }}</span>
-                </div>
-              }
-            </div>
-          }
-        </div>
-      }
-
-      @if (isConnectionResource && connectionExpanded) {
-        <div
-          class="w-full mt-1 rounded border border-cyan-200 bg-white shadow-sm overflow-hidden"
-          (mousedown)="stopEvent($event)"
-          (click)="stopEvent($event)"
-        >
-          @if (connectionDetails.length === 0) {
-            <p class="text-[10px] text-gray-400 px-2 py-1.5">No connection details available.</p>
-          } @else {
-            <div class="p-1.5">
-              @for (detail of connectionDetails; track detail.label) {
-                <div class="flex items-center justify-between gap-2 px-1.5 py-1 border-b border-cyan-50 last:border-b-0">
-                  <span class="text-[10px] text-gray-500 truncate" [title]="detail.label">{{ detail.label }}</span>
-                  <span class="text-[10px] font-semibold text-gray-800 shrink-0 truncate max-w-[120px] text-right" [title]="detail.value">{{ detail.value }}</span>
-                </div>
-              }
-            </div>
-          }
-        </div>
-      }
-    </div>
-  `,
+  imports: [
+    CommonModule,
+    AzureIconComponent,
+    CostBadgeComponent,
+    NodeToggleButtonComponent,
+    NodeDetailKvPanelComponent,
+    NodeDetailListPanelComponent,
+    UaiAssignmentsPanelComponent,
+    StorageDetailsPanelComponent,
+    AksDetailsPanelComponent,
+    VmDetailsPanelComponent,
+    NsgRulesPanelComponent,
+  ],
+  templateUrl: './diagram-node.component.html',
+  styleUrls: ['./diagram-node.component.scss'],
 })
 export class DiagramNodeComponent {
   @Input({ required: true }) node!: DiagramNode;
@@ -988,353 +184,123 @@ export class DiagramNodeComponent {
   }
 
   get isRouteTable(): boolean {
-    return this.node.resourceType.toLowerCase() === 'microsoft.network/routetables';
+    return isRouteTableKind(this.node.resourceType);
   }
 
   get isVirtualNetwork(): boolean {
-    return this.node.resourceType.toLowerCase() === 'microsoft.network/virtualnetworks';
+    return isVirtualNetworkKind(this.node.resourceType);
   }
 
   get isNsg(): boolean {
-    return this.node.resourceType.toLowerCase() === 'microsoft.network/networksecuritygroups';
+    return isNsgKind(this.node.resourceType);
   }
 
   get isStorageAccount(): boolean {
-    return this.node.resourceType.toLowerCase() === 'microsoft.storage/storageaccounts';
+    return isStorageAccountKind(this.node.resourceType);
   }
 
   get isAks(): boolean {
-    return this.node.resourceType.toLowerCase() === 'microsoft.containerservice/managedclusters';
+    return isAksKind(this.node.resourceType);
   }
 
   get aksInfo(): AksInfoView {
-    const props = this.node.metadata?.properties ?? {};
-    const pools = (props['agentPoolProfiles'] as Array<{
-      name?: string;
-      count?: number;
-      vmSize?: string;
-      mode?: string;
-      osType?: string;
-    }> | undefined) ?? [];
-    const netProfile = props['networkProfile'] as { networkPlugin?: string } | undefined;
-    return {
-      kubernetesVersion: (props['kubernetesVersion'] as string | undefined) ?? 'Unknown',
-      networkPlugin: netProfile?.networkPlugin ?? 'Unknown',
-      nodePools: pools.map(p => ({
-        name: p.name ?? 'unnamed',
-        count: p.count ?? 0,
-        vmSize: p.vmSize ?? 'Unknown',
-        mode: p.mode ?? 'User',
-        osType: p.osType ?? 'Linux',
-      })),
-    };
+    return mapAksInfo(this.node.metadata?.properties ?? {});
   }
 
   get isVm(): boolean {
-    return this.node.resourceType.toLowerCase() === 'microsoft.compute/virtualmachines';
+    return isVmKind(this.node.resourceType);
   }
 
   get isUserAssignedIdentity(): boolean {
-    return this.node.resourceType.toLowerCase() === 'microsoft.managedidentity/userassignedidentities';
+    return isUserAssignedIdentityKind(this.node.resourceType);
   }
 
   get isHostingEnvironment(): boolean {
-    return this.node.resourceType.toLowerCase() === 'microsoft.web/hostingenvironments';
+    return isHostingEnvironmentKind(this.node.resourceType);
   }
 
   get isServerFarm(): boolean {
-    return this.node.resourceType.toLowerCase() === 'microsoft.web/serverfarms';
+    return isServerFarmKind(this.node.resourceType);
   }
 
   get isPublicIpAddress(): boolean {
-    return this.node.resourceType.toLowerCase() === 'microsoft.network/publicipaddresses';
+    return isPublicIpAddressKind(this.node.resourceType);
   }
 
   get isSchedule(): boolean {
-    const type = this.node.resourceType.toLowerCase();
-    return type === 'microsoft.automation/schedules' || type === 'microsoft.devtestlab/schedules';
+    return isScheduleKind(this.node.resourceType);
   }
 
   get isDisk(): boolean {
-    return this.node.resourceType.toLowerCase() === 'microsoft.compute/disks';
+    return isDiskKind(this.node.resourceType);
   }
 
   get isAzureFirewall(): boolean {
-    return this.node.resourceType.toLowerCase() === 'microsoft.network/azurefirewalls';
+    return isAzureFirewallKind(this.node.resourceType);
   }
 
   get isApplicationGateway(): boolean {
-    return this.node.resourceType.toLowerCase() === 'microsoft.network/applicationgateways';
+    return isApplicationGatewayKind(this.node.resourceType);
   }
 
   get isConnectionResource(): boolean {
-    return this.node.resourceType.toLowerCase() === 'microsoft.network/connections';
+    return isConnectionResourceKind(this.node.resourceType);
   }
 
-  get hostingEnvironmentStats(): HostingEnvironmentStatView[] {
-    const props = this.node.metadata?.properties ?? {};
-    const workerPools = (props['workerPools'] as Array<{
-      workerCount?: number | string;
-      instanceCount?: number | string;
-      numberOfWorkers?: number | string;
-    }> | undefined) ?? [];
-
-    const totalWorkers = workerPools.reduce((sum, pool) => {
-      const workers = this.toNumber(pool.workerCount) ??
-        this.toNumber(pool.instanceCount) ??
-        this.toNumber(pool.numberOfWorkers) ??
-        0;
-      return sum + workers;
-    }, 0);
-
-    const stats: HostingEnvironmentStatView[] = [
-      { label: 'Worker Pools', value: workerPools.length.toString() },
-      { label: 'Worker Instances', value: totalWorkers.toString() },
-      this.toStat('Front-End Scale', this.toNumber(props['frontEndScaleFactor'])),
-      this.toStat('Dedicated Hosts', this.toNumber(props['dedicatedHostCount'])),
-      this.toStat('Cluster Settings', this.toArrayCount(props['clusterSettings'])),
-      this.toStat('Outbound IPs', this.toCsvCount(props['outboundIpAddresses'])),
-      this.toStat('IP SSL Addresses', this.toNumber(props['ipsslAddressCount'])),
-      this.toStat('Internal LB Modes', this.toCsvCount(props['internalLoadBalancingMode'])),
-    ].filter((s): s is HostingEnvironmentStatView => !!s);
-
-    return stats;
+  get hostingEnvironmentStats(): DetailKv[] {
+    return mapHostingEnvironmentStats(this.node.metadata?.properties ?? {});
   }
 
-  get serverFarmStats(): ServerFarmStatView[] {
+  get serverFarmStats(): DetailKv[] {
     const props = this.node.metadata?.properties ?? {};
     const sku = this.node.metadata?.sku;
-
-    const stats: ServerFarmStatView[] = [
-      this.toTextStat('SKU', sku?.name ?? null),
-      this.toTextStat('Tier', sku?.tier ?? null),
-      this.toStat('Capacity', this.toNumber(sku?.capacity)),
-      this.toStat('Workers', this.toNumber(props['numberOfWorkers'])),
-      this.toStat('Sites', this.toNumber(props['numberOfSites'])),
-      this.toStat('Maximum Elastic Workers', this.toNumber(props['maximumElasticWorkerCount'])),
-      this.toTextStat('Zone Redundant', this.toBoolText(props['zoneRedundant'])),
-      this.toTextStat('Reserved (Linux)', this.toBoolText(props['reserved'])),
-      this.toTextStat('Hyper-V', this.toBoolText(props['hyperV'])),
-      this.toTextStat('Per-Site Scaling', this.toBoolText(props['perSiteScaling'])),
-    ].filter((s): s is ServerFarmStatView => !!s);
-
-    return stats;
+    return mapServerFarmStats(props, sku);
   }
 
-  get publicIpDetails(): PublicIpDetailView[] {
+  get publicIpDetails(): DetailKv[] {
     const props = this.node.metadata?.properties ?? {};
     const sku = this.node.metadata?.sku;
-    const dns = props['dnsSettings'] as { fqdn?: string; domainNameLabel?: string } | undefined;
-    const ipTags = (props['ipTags'] as Array<{ ipTagType?: string; tag?: string }> | undefined) ?? [];
-    const ipTagSummary = ipTags.length > 0
-      ? ipTags.map(t => [t.ipTagType, t.tag].filter(Boolean).join(':')).filter(Boolean).join(', ')
-      : null;
-
-    const details: PublicIpDetailView[] = [
-      this.toTextStat('IP Address', (props['ipAddress'] as string | undefined) ?? null),
-      this.toTextStat('Allocation', (props['publicIPAllocationMethod'] as string | undefined) ?? null),
-      this.toTextStat('Version', (props['publicIPAddressVersion'] as string | undefined) ?? null),
-      this.toTextStat('FQDN', dns?.fqdn ?? null),
-      this.toTextStat('DNS Label', dns?.domainNameLabel ?? null),
-      this.toTextStat('SKU', sku?.name ?? null),
-      this.toTextStat('Tier', sku?.tier ?? null),
-      this.toStat('Idle Timeout (min)', this.toNumber(props['idleTimeoutInMinutes'])),
-      this.toTextStat('IP Tags', ipTagSummary),
-    ].filter((d): d is PublicIpDetailView => !!d);
-
-    return details;
+    return mapPublicIpDetails(props, sku);
   }
 
-  get scheduleDetails(): PublicIpDetailView[] {
+  get scheduleDetails(): DetailKv[] {
     const props = this.node.metadata?.properties ?? {};
-    const advanced = (this.getPath(props, 'advancedSchedule') as {
-      weekDays?: unknown[];
-      monthDays?: unknown[];
-      monthlyOccurrences?: Array<{ day?: unknown; occurrence?: unknown }>;
-    } | undefined) ?? {};
-    const monthlyOccurrences = (advanced.monthlyOccurrences ?? [])
-      .map(item => [this.toDisplayText(item.day), this.toDisplayText(item.occurrence)]
-        .filter((v): v is string => !!v)
-        .join(' #'))
-      .filter(Boolean)
-      .join(', ');
-
-    const details: PublicIpDetailView[] = [];
-    const add = (label: string, value: string | null): void => {
-      if (!value) return;
-      if (details.some(d => d.label === label && d.value === value)) return;
-      details.push({ label, value });
-    };
-
-    // Automation + DevTest Lab schedules with tolerant path lookups.
-    add('State', this.pickText(props, ['state', 'status']));
-    add('Task Type', this.pickText(props, ['taskType']));
-    add('Frequency', this.pickText(props, ['frequency', 'dailyRecurrence.time']));
-    add('Interval', this.pickText(props, ['interval', 'hourlyRecurrence.interval']));
-    add('Time Zone', this.pickText(props, ['timeZone', 'timeZoneId']));
-    add('Start Time', this.pickText(props, ['startTime', 'creationTime']));
-    add('Expiry Time', this.pickText(props, ['expiryTime']));
-    add('Next Run', this.pickText(props, ['nextRun', 'nextExecutionTime']));
-    add('Notification Time', this.pickText(props, ['notificationSettings.timeInMinutes']));
-    add('Week Days', this.pickListText(props, ['advancedSchedule.weekDays', 'weeklyRecurrence.weekDays']));
-    add('Month Days', this.pickListText(props, ['advancedSchedule.monthDays']));
-    add('Monthly Occurrences', monthlyOccurrences || null);
-    add('Target Resource ID', this.pickText(props, ['targetResourceId']));
-    add('Provisioning State', this.pickText(props, ['provisioningState']));
-
-    // Fallback when schedule-specific fields are absent.
-    if (details.length === 0) {
-      add('Name', this.toDisplayText(this.node.metadata?.name));
-      add('Type', this.toDisplayText(this.node.metadata?.type));
-      add('Location', this.toDisplayText(this.node.metadata?.location));
-      add('Resource Group', this.toDisplayText(this.node.metadata?.resourceGroup));
-      add('Subscription', this.toDisplayText(this.node.metadata?.subscriptionId));
-
-      const scalarEntries = Object.entries(props)
-        .filter(([_, value]) => this.toDisplayText(value))
-        .slice(0, 6);
-      for (const [key, value] of scalarEntries) {
-        add(this.toTitleLabel(key), this.toDisplayText(value));
-      }
-    }
-
-    return details;
+    return mapScheduleDetails(this.node.metadata, props);
   }
 
-  get diskDetails(): PublicIpDetailView[] {
+  get diskDetails(): DetailKv[] {
     const props = this.node.metadata?.properties ?? {};
     const sku = this.node.metadata?.sku;
-    const encryption = (props['encryption'] as {
-      type?: string;
-      diskEncryptionSetId?: string;
-    } | undefined) ?? {};
-    const details: PublicIpDetailView[] = [
-      this.toTextStat('State', this.pickText(props, ['diskState', 'provisioningState'])),
-      this.toTextStat('OS Type', this.pickText(props, ['osType'])),
-      this.toTextStat('Create Option', this.pickText(props, ['creationData.createOption'])),
-      this.toTextStat('Size (GiB)', this.pickText(props, ['diskSizeGB'])),
-      this.toTextStat('Performance Tier', this.pickText(props, ['tier'])),
-      this.toTextStat('IOPS', this.pickText(props, ['diskIOPSReadWrite'])),
-      this.toTextStat('Throughput (MBps)', this.pickText(props, ['diskMBpsReadWrite'])),
-      this.toTextStat('SKU', sku?.name ?? null),
-      this.toTextStat('Tier', sku?.tier ?? null),
-      this.toTextStat('Network Access', this.pickText(props, ['networkAccessPolicy'])),
-      this.toTextStat('Public Network Access', this.pickText(props, ['publicNetworkAccess'])),
-      this.toTextStat('Bursting Enabled', this.toBoolText(props['burstingEnabled'])),
-      this.toTextStat('Max Shares', this.pickText(props, ['maxShares'])),
-      this.toTextStat('Hyper-V Generation', this.pickText(props, ['hyperVGeneration'])),
-      this.toTextStat('Encryption Type', this.toDisplayText(encryption.type)),
-      this.toTextStat('Disk Encryption Set', this.toDisplayText(encryption.diskEncryptionSetId)),
-      this.toTextStat('Source Resource ID', this.pickText(props, ['creationData.sourceResourceId'])),
-    ].filter((d): d is PublicIpDetailView => !!d);
-    return details;
+    return mapDiskDetails(props, sku);
   }
 
-  get azureFirewallDetails(): PublicIpDetailView[] {
+  get azureFirewallDetails(): DetailKv[] {
     const props = this.node.metadata?.properties ?? {};
     const sku = this.node.metadata?.sku;
     const applicationRuleCount = this.azureFirewallPolicyCounts?.applicationRules ?? this.countAzureFirewallRules('application', props);
     const networkRuleCount = this.azureFirewallPolicyCounts?.networkRules ?? this.countAzureFirewallRules('network', props);
     const natRuleCount = this.azureFirewallPolicyCounts?.natRules ?? this.countAzureFirewallRules('nat', props);
-
-    const details: PublicIpDetailView[] = [
-      this.toTextStat('Provisioning State', this.pickText(props, ['provisioningState'])),
-      this.toTextStat('Operational State', this.pickText(props, ['operationalState'])),
-      this.toTextStat('Threat Intel Mode', this.pickText(props, ['threatIntelMode'])),
-      this.toTextStat('Firewall Policy', this.pickText(props, ['firewallPolicy.id'])),
-      this.toTextStat('Management IP Config', this.pickText(props, ['managementIpConfiguration.name'])),
-      this.toTextStat('IP Config Count', this.toArrayCountText(props['ipConfigurations'])),
-      this.toTextStat('Public IP Count', this.toArrayCountText(props['publicIpAddresses'])),
-      this.toTextStat('Private Range Count', this.toArrayCountText(props['privateRanges'])),
-      this.toTextStat('Application Rules', applicationRuleCount === null ? null : applicationRuleCount.toString()),
-      this.toTextStat('Network Rules', networkRuleCount === null ? null : networkRuleCount.toString()),
-      this.toTextStat('NAT Rules', natRuleCount === null ? null : natRuleCount.toString()),
-      this.toTextStat('Additional Properties', this.toArrayCountText(props['additionalProperties'])),
-      this.toTextStat('SKU', sku?.name ?? null),
-      this.toTextStat('Tier', sku?.tier ?? null),
-    ].filter((d): d is PublicIpDetailView => !!d);
-
-    return details;
+    return mapAzureFirewallDetails(props, sku, {
+      applicationRules: applicationRuleCount,
+      networkRules: networkRuleCount,
+      natRules: natRuleCount,
+    });
   }
 
-  get applicationGatewayDetails(): PublicIpDetailView[] {
+  get applicationGatewayDetails(): DetailKv[] {
     const props = this.node.metadata?.properties ?? {};
     const sku = this.node.metadata?.sku;
-    const autoscale = (props['autoscaleConfiguration'] as {
-      minCapacity?: number | string;
-      maxCapacity?: number | string;
-    } | undefined) ?? {};
-
-    const details: PublicIpDetailView[] = [
-      this.toTextStat('Provisioning State', this.pickText(props, ['provisioningState'])),
-      this.toTextStat('Operational State', this.pickText(props, ['operationalState'])),
-      this.toTextStat('SKU', sku?.name ?? null),
-      this.toTextStat('Tier', sku?.tier ?? null),
-      this.toTextStat('Capacity', this.pickText(props, ['sku.capacity']) ?? this.toDisplayText(sku?.capacity)),
-      this.toTextStat('Autoscale Min', this.toDisplayText(autoscale.minCapacity)),
-      this.toTextStat('Autoscale Max', this.toDisplayText(autoscale.maxCapacity)),
-      this.toTextStat('Gateway IP Configs', this.toArrayCountText(props['gatewayIPConfigurations'])),
-      this.toTextStat('Frontend IP Configs', this.toArrayCountText(props['frontendIPConfigurations'])),
-      this.toTextStat('Frontend Ports', this.toArrayCountText(props['frontendPorts'])),
-      this.toTextStat('HTTP Listeners', this.toArrayCountText(props['httpListeners'])),
-      this.toTextStat('Backend Pools', this.toArrayCountText(props['backendAddressPools'])),
-      this.toTextStat('Backend HTTP Settings', this.toArrayCountText(props['backendHttpSettingsCollection'])),
-      this.toTextStat('Routing Rules', this.toArrayCountText(props['requestRoutingRules'])),
-      this.toTextStat('URL Path Maps', this.toArrayCountText(props['urlPathMaps'])),
-      this.toTextStat('Probes', this.toArrayCountText(props['probes'])),
-      this.toTextStat('SSL Certificates', this.toArrayCountText(props['sslCertificates'])),
-      this.toTextStat('Trusted Root Certs', this.toArrayCountText(props['trustedRootCertificates'])),
-      this.toTextStat('Rewrite Rule Sets', this.toArrayCountText(props['rewriteRuleSets'])),
-      this.toTextStat('Web Application Firewall', this.pickText(props, ['webApplicationFirewallConfiguration.enabled'])),
-    ].filter((d): d is PublicIpDetailView => !!d);
-
-    return details;
+    return mapApplicationGatewayDetails(props, sku);
   }
 
-  get connectionDetails(): PublicIpDetailView[] {
+  get connectionDetails(): DetailKv[] {
     const props = this.node.metadata?.properties ?? {};
-
-    const details: PublicIpDetailView[] = [
-      this.toTextStat('Connection Type', this.pickText(props, ['connectionType'])),
-      this.toTextStat('Connection Protocol', this.pickText(props, ['connectionProtocol'])),
-      this.toTextStat('Provisioning State', this.pickText(props, ['provisioningState'])),
-      this.toTextStat('Connection Status', this.pickText(props, ['connectionStatus'])),
-      this.toTextStat('Egress Bytes', this.pickText(props, ['egressBytesTransferred'])),
-      this.toTextStat('Ingress Bytes', this.pickText(props, ['ingressBytesTransferred'])),
-      this.toTextStat('Authorization Key', this.pickText(props, ['authorizationKey'])),
-      this.toTextStat('Enable BGP', this.toBoolText(props['enableBgp'])),
-      this.toTextStat('Use Policy-Based Selectors', this.toBoolText(props['usePolicyBasedTrafficSelectors'])),
-      this.toTextStat('Routing Weight', this.pickText(props, ['routingWeight'])),
-      this.toTextStat('ExpressRoute Gateway Bypass', this.toBoolText(props['expressRouteGatewayBypass'])),
-      this.toTextStat('DPD Timeout (s)', this.pickText(props, ['dpdTimeoutSeconds'])),
-      this.toTextStat('IPSec Policies', this.toArrayCountText(props['ipsecPolicies'])),
-      this.toTextStat('Traffic Selector Policies', this.toArrayCountText(props['trafficSelectorPolicies'])),
-      this.toTextStat('Shared Key (set)', this.toDisplayText(props['sharedKey']) ? 'Yes' : null),
-      this.toTextStat('Virtual Network Gateway 1', this.pickText(props, ['virtualNetworkGateway1.id'])),
-      this.toTextStat('Virtual Network Gateway 2', this.pickText(props, ['virtualNetworkGateway2.id'])),
-      this.toTextStat('Local Network Gateway 2', this.pickText(props, ['localNetworkGateway2.id'])),
-      this.toTextStat('Peer', this.pickText(props, ['peer.id'])),
-    ].filter((d): d is PublicIpDetailView => !!d);
-
-    return details;
+    return mapConnectionDetails(props);
   }
 
   get vmInfo(): VmInfoView {
     const props = this.node.metadata?.properties ?? {};
-    const hw = props['hardwareProfile'] as { vmSize?: string } | undefined;
-    const storage = props['storageProfile'] as {
-      osDisk?: { osType?: string };
-      imageReference?: { offer?: string; sku?: string; publisher?: string };
-    } | undefined;
-    const os = props['osProfile'] as { computerName?: string; adminUsername?: string } | undefined;
-    return {
-      vmSize: hw?.vmSize ?? 'Unknown',
-      osType: storage?.osDisk?.osType ?? 'Unknown',
-      imageOffer: storage?.imageReference?.offer ?? '',
-      imageSku: storage?.imageReference?.sku ?? '',
-      adminUsername: os?.adminUsername ?? null,
-      computerName: os?.computerName ?? null,
-    };
+    return mapVmInfo(props);
   }
 
   get storageContainers(): string[] {
@@ -1359,37 +325,34 @@ export class DiagramNodeComponent {
   }
 
   get routeEntries(): RouteEntryView[] {
-    const routes = (this.node.metadata?.properties?.['routes'] as unknown[] | undefined) ?? [];
-    const entries: RouteEntryView[] = [];
-    for (const raw of routes) {
-      const route = raw as {
-        name?: string;
-        properties?: { addressPrefix?: string; nextHopType?: string; nextHopIpAddress?: string };
-      };
-      entries.push({
-        name: route.name ?? 'Unnamed route',
-        addressPrefix: route.properties?.addressPrefix ?? 'N/A',
-        nextHopType: route.properties?.nextHopType ?? 'Unknown',
-        nextHopIpAddress: route.properties?.nextHopIpAddress ?? null,
-      });
-    }
-    return entries;
+    return mapRouteEntries(this.node.metadata?.properties ?? {});
+  }
+
+  get routeSections(): NodeDetailListSection[] {
+    return [{
+      title: '',
+      items: this.routeEntries.map(route => ({
+        id: `${route.name}|${route.addressPrefix}|${route.nextHopType}|${route.nextHopIpAddress ?? ''}`,
+        title: route.name,
+        subtitle: route.addressPrefix,
+        meta: `${route.nextHopType}${route.nextHopIpAddress ? ` • ${route.nextHopIpAddress}` : ''}`,
+      })),
+    }];
   }
 
   get subnetEntries(): SubnetEntryView[] {
-    const subnets = (this.node.metadata?.properties?.['subnets'] as unknown[] | undefined) ?? [];
-    const entries: SubnetEntryView[] = [];
-    for (const raw of subnets) {
-      const subnet = raw as {
-        name?: string;
-        properties?: { addressPrefix?: string };
-      };
-      entries.push({
-        name: subnet.name ?? 'Unnamed subnet',
-        addressPrefix: subnet.properties?.addressPrefix ?? 'N/A',
-      });
-    }
-    return entries;
+    return mapSubnetEntries(this.node.metadata?.properties ?? {});
+  }
+
+  get subnetSections(): NodeDetailListSection[] {
+    return [{
+      title: '',
+      items: this.subnetEntries.map(subnet => ({
+        id: `${subnet.name}|${subnet.addressPrefix}`,
+        title: subnet.name,
+        subtitle: subnet.addressPrefix,
+      })),
+    }];
   }
 
   onContextMenu(event: MouseEvent): void {
@@ -1429,36 +392,7 @@ export class DiagramNodeComponent {
   }
 
   get nsgRuleEntries(): NsgRuleView[] {
-    const userRules = (this.node.metadata?.properties?.['securityRules'] as unknown[] | undefined) ?? [];
-    const defaultRules = (this.node.metadata?.properties?.['defaultSecurityRules'] as unknown[] | undefined) ?? [];
-    const toView = (raw: unknown, isDefault: boolean): NsgRuleView => {
-      const rule = raw as {
-        name?: string;
-        properties?: {
-          direction?: string;
-          priority?: number;
-          access?: string;
-          protocol?: string;
-          sourceAddressPrefix?: string;
-          destinationPortRange?: string;
-        };
-      };
-      return {
-        name: rule.name ?? 'Unnamed rule',
-        direction: rule.properties?.direction ?? 'Inbound',
-        priority: rule.properties?.priority ?? 0,
-        access: rule.properties?.access ?? 'Allow',
-        protocol: rule.properties?.protocol ?? '*',
-        sourceAddressPrefix: rule.properties?.sourceAddressPrefix ?? '*',
-        destinationPortRange: rule.properties?.destinationPortRange ?? '*',
-        isDefault,
-      };
-    };
-    const entries = [
-      ...userRules.map(r => toView(r, false)),
-      ...defaultRules.map(r => toView(r, true)),
-    ];
-    return entries.sort((a, b) => a.priority - b.priority);
+    return mapNsgRuleEntries(this.node.metadata?.properties ?? {});
   }
 
   toggleNsgRulesPanel(event: MouseEvent): void {
@@ -1704,41 +638,6 @@ export class DiagramNodeComponent {
     };
   }
 
-  private toStat(label: string, value: number | null): HostingEnvironmentStatView | null {
-    if (value === null) return null;
-    return { label, value: value.toString() };
-  }
-
-  private toTextStat(label: string, value: string | null): ServerFarmStatView | null {
-    if (!value) return null;
-    return { label, value };
-  }
-
-  private toNumber(value: unknown): number | null {
-    if (typeof value === 'number' && Number.isFinite(value)) return Math.max(0, Math.round(value));
-    if (typeof value === 'string') {
-      const parsed = Number(value);
-      if (Number.isFinite(parsed)) return Math.max(0, Math.round(parsed));
-    }
-    return null;
-  }
-
-  private toArrayCount(value: unknown): number | null {
-    return Array.isArray(value) ? value.length : null;
-  }
-
-  private toCsvCount(value: unknown): number | null {
-    if (typeof value !== 'string') return null;
-    const trimmed = value.trim();
-    if (!trimmed) return 0;
-    return trimmed.split(',').map(v => v.trim()).filter(Boolean).length;
-  }
-
-  private toArrayCountText(value: unknown): string | null {
-    const count = this.toArrayCount(value);
-    return count === null ? null : count.toString();
-  }
-
   private countAzureFirewallRules(kind: 'application' | 'network' | 'nat', props: Record<string, unknown>): number | null {
     const key = kind === 'application' ? 'application' : kind === 'network' ? 'network' : 'nat';
     const candidates = [
@@ -1752,13 +651,13 @@ export class DiagramNodeComponent {
 
     let best: number | null = null;
     for (const path of candidates) {
-      const value = this.getPath(props, path);
+      const value = getPath(props, path);
       const count = this.estimateRuleCount(value, key, path);
       if (count === null) continue;
       if (best === null || count > best) best = count;
     }
 
-    const policyId = this.pickText(props, ['firewallPolicy.id']);
+    const policyId = pickText(props, ['firewallPolicy.id']);
     const policyCount = this.countAzureFirewallPolicyRules(key, policyId);
     if (policyCount !== null && (best === null || policyCount > best)) {
       best = policyCount;
@@ -1788,13 +687,13 @@ export class DiagramNodeComponent {
     const counts: number[] = [];
 
     if (policyNode) {
-      const policyGroups = this.getPath(policyNode.metadata?.properties ?? {}, 'ruleCollectionGroups');
+      const policyGroups = getPath(policyNode.metadata?.properties ?? {}, 'ruleCollectionGroups');
       const count = this.estimateRuleCount(policyGroups, kind, 'policy.ruleCollectionGroups');
       if (count !== null) counts.push(count);
     }
 
     for (const groupNode of groupNodes) {
-      const ruleCollections = this.getPath(groupNode.metadata?.properties ?? {}, 'ruleCollections');
+      const ruleCollections = getPath(groupNode.metadata?.properties ?? {}, 'ruleCollections');
       const count = this.estimateRuleCount(ruleCollections, kind, 'ruleCollectionGroups.ruleCollections');
       if (count !== null) counts.push(count);
     }
@@ -1820,12 +719,12 @@ export class DiagramNodeComponent {
       const props = (item['properties'] as Record<string, unknown> | undefined) ?? item;
 
       const typeText = [
-        this.toDisplayText(item['ruleCollectionType']),
-        this.toDisplayText(props['ruleCollectionType']),
-        this.toDisplayText(item['type']),
-        this.toDisplayText(props['type']),
-        this.toDisplayText(item['name']),
-        this.toDisplayText(props['name']),
+        toDisplayText(item['ruleCollectionType']),
+        toDisplayText(props['ruleCollectionType']),
+        toDisplayText(item['type']),
+        toDisplayText(props['type']),
+        toDisplayText(item['name']),
+        toDisplayText(props['name']),
       ].filter((t): t is string => !!t).join(' ').toLowerCase();
 
       const matchesKind = typeText.includes(`${kind}rule`) || typeText.includes(kind);
@@ -1837,9 +736,9 @@ export class DiagramNodeComponent {
           if (!rawRule || typeof rawRule !== 'object') continue;
           const rule = rawRule as Record<string, unknown>;
           const ruleTypeText = [
-            this.toDisplayText(rule['ruleType']),
-            this.toDisplayText(rule['type']),
-            this.toDisplayText(rule['name']),
+            toDisplayText(rule['ruleType']),
+            toDisplayText(rule['type']),
+            toDisplayText(rule['name']),
           ].filter((t): t is string => !!t).join(' ').toLowerCase();
           if (ruleTypeText.includes(`${kind}rule`) || ruleTypeText.includes(kind)) {
             matchedRulesByType += 1;
@@ -1862,64 +761,6 @@ export class DiagramNodeComponent {
 
     if (matchedCollections === 0) return null;
     return matchedRules > 0 ? matchedRules : matchedCollections;
-  }
-
-  private toBoolText(value: unknown): string | null {
-    if (typeof value === 'boolean') return value ? 'Yes' : 'No';
-    return null;
-  }
-
-  private toDisplayText(value: unknown): string | null {
-    if (typeof value === 'string') {
-      const trimmed = value.trim();
-      return trimmed.length > 0 ? trimmed : null;
-    }
-    if (typeof value === 'number' && Number.isFinite(value)) return value.toString();
-    if (typeof value === 'boolean') return value ? 'Yes' : 'No';
-    return null;
-  }
-
-  private toListText(value: unknown): string | null {
-    if (!Array.isArray(value)) return null;
-    const items = value
-      .map(v => this.toDisplayText(v))
-      .filter((v): v is string => !!v);
-    return items.length > 0 ? items.join(', ') : null;
-  }
-
-  private getPath(obj: unknown, path: string): unknown {
-    if (!obj || typeof obj !== 'object') return undefined;
-    let current: unknown = obj;
-    for (const segment of path.split('.')) {
-      if (!current || typeof current !== 'object') return undefined;
-      current = (current as Record<string, unknown>)[segment];
-    }
-    return current;
-  }
-
-  private pickText(obj: unknown, paths: string[]): string | null {
-    for (const path of paths) {
-      const text = this.toDisplayText(this.getPath(obj, path));
-      if (text) return text;
-    }
-    return null;
-  }
-
-  private pickListText(obj: unknown, paths: string[]): string | null {
-    for (const path of paths) {
-      const list = this.toListText(this.getPath(obj, path));
-      if (list) return list;
-    }
-    return null;
-  }
-
-  private toTitleLabel(raw: string): string {
-    const spaced = raw
-      .replace(/([a-z])([A-Z])/g, '$1 $2')
-      .replace(/[_-]+/g, ' ')
-      .trim();
-    if (!spaced) return raw;
-    return spaced.charAt(0).toUpperCase() + spaced.slice(1);
   }
 
   stopEvent(event: MouseEvent): void {

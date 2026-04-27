@@ -23,6 +23,7 @@ export interface CanvasDragMoveContext {
   nodes: DiagramNode[];
   svgPoint: (event: MouseEvent) => { x: number; y: number };
   moveNode: (id: string, position: { x: number; y: number }) => void;
+  moveNodes: (moves: { id: string; position: { x: number; y: number } }[]) => void;
   moveSubscriptionGroup: (subscriptionId: string, delta: { dx: number; dy: number }) => void;
   moveVmGroup: (vmId: string, delta: { dx: number; dy: number }) => void;
   moveResourceGroup: (id: string, delta: { dx: number; dy: number }) => void;
@@ -60,13 +61,14 @@ export class CanvasDragService {
       const dx = (ctx.event.clientX - ctx.nodeDragState.lastX) / ctx.zoomLevel;
       const dy = (ctx.event.clientY - ctx.nodeDragState.lastY) / ctx.zoomLevel;
       if (dx !== 0 || dy !== 0) {
-        const node = ctx.nodes.find(n => n.id === ctx.nodeDragState!.id);
-        if (node) {
-          ctx.moveNode(node.id, {
-            x: Math.max(0, node.position.x + dx),
-            y: Math.max(0, node.position.y + dy),
-          });
-        }
+        const dragIds = ctx.nodeDragState.ids;
+        const moves = ctx.nodes
+          .filter(n => dragIds.includes(n.id))
+          .map(n => ({
+            id: n.id,
+            position: { x: Math.max(0, n.position.x + dx), y: Math.max(0, n.position.y + dy) },
+          }));
+        ctx.moveNodes(moves);
         const nextNodeDragState = { ...ctx.nodeDragState, hasMoved: true, lastX: ctx.event.clientX, lastY: ctx.event.clientY };
         return {
           handled: true,

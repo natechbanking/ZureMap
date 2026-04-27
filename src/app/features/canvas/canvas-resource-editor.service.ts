@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { DiagramNode } from '../../core/models/diagram-node.model';
-import { InternalItemMoveRequest } from './diagram-node/diagram-node.component';
+import { InternalItemMoveRequest } from './diagram-node/diagram-node.contracts';
 import { ResourceEditorDraft } from './canvas.types';
 
 @Injectable({ providedIn: 'root' })

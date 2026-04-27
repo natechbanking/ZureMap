@@ -27,7 +27,10 @@ export class DiagramStore {
   readonly nodes = signal<DiagramNode[]>([]);
   readonly edges = signal<DiagramEdge[]>([]);
 
-  readonly selectedNodeId = signal<string | null>(null);
+  readonly selectedNodeIds = signal<string[]>([]);
+  readonly selectedNodeId = computed(() =>
+    this.selectedNodeIds().length === 1 ? this.selectedNodeIds()[0] : null
+  );
   readonly selectedNode = computed(() =>
     this.nodes().find(n => n.id === this.selectedNodeId()) ?? null
   );
@@ -161,6 +164,13 @@ export class DiagramStore {
     );
   }
 
+  moveNodes(moves: { id: string; position: { x: number; y: number } }[]): void {
+    const posMap = new Map(moves.map(m => [m.id, m.position]));
+    this.nodes.update(current =>
+      current.map(n => posMap.has(n.id) ? { ...n, position: posMap.get(n.id)! } : n)
+    );
+  }
+
   moveNodeGroup(groupKey: string, delta: { dx: number; dy: number }): void {
     this.nodes.update(current =>
       current.map(n => {
@@ -248,7 +258,7 @@ export class DiagramStore {
   }
 
   deleteNode(nodeId: string): void {
-    if (this.selectedNodeId() === nodeId) this.selectNode(null);
+    if (this.selectedNodeIds().includes(nodeId)) this.selectNodes(this.selectedNodeIds().filter(id => id !== nodeId));
     this.nodes.update(current =>
       current
         .filter(n => n.id !== nodeId)
@@ -263,11 +273,42 @@ export class DiagramStore {
   }
 
   selectNode(nodeId: string | null): void {
-    this.selectedNodeId.set(nodeId);
-    this.sidebarOpen.set(nodeId !== null);
+    this.selectNodes(nodeId ? [nodeId] : []);
+  }
+
+  selectNodes(ids: string[]): void {
+    const idSet = new Set(ids);
+    this.selectedNodeIds.set(ids);
+    this.sidebarOpen.set(ids.length === 1);
     this.nodes.update(current =>
-      current.map(n => ({ ...n, selected: n.id === nodeId }))
+      current.map(n => ({ ...n, selected: idSet.has(n.id) }))
     );
+  }
+
+  toggleNodeInSelection(nodeId: string): void {
+    const current = this.selectedNodeIds();
+    const next = current.includes(nodeId)
+      ? current.filter(id => id !== nodeId)
+      : [...current, nodeId];
+    this.selectNodes(next);
+  }
+
+  deleteSelectedNodes(): void {
+    const ids = this.selectedNodeIds();
+    this.selectNodes([]);
+    for (const id of ids) {
+      this.nodes.update(current =>
+        current
+          .filter(n => n.id !== id)
+          .map(n => n.children?.includes(id)
+            ? { ...n, children: n.children.filter(c => c !== id) }
+            : n
+          )
+      );
+      this.edges.update(current =>
+        current.filter(e => e.sourceId !== id && e.targetId !== id)
+      );
+    }
   }
 
   loadBaseline(nodes: DiagramNode[]): void {
@@ -277,7 +318,7 @@ export class DiagramStore {
   clearDiagram(): void {
     this.nodes.set([]);
     this.edges.set([]);
-    this.selectedNodeId.set(null);
+    this.selectedNodeIds.set([]);
     this.sidebarOpen.set(false);
     this.scanPhase.set('idle');
     this.errorMessage.set(null);

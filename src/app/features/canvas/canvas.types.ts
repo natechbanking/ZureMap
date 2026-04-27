@@ -74,6 +74,7 @@ export interface ToolbarDragState {
 
 export interface NodeDragState {
   id: string;
+  ids: string[];
   lastX: number;
   lastY: number;
   hasMoved: boolean;

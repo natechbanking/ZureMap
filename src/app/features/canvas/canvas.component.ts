@@ -4,7 +4,6 @@ import { DiagramStore } from '../../core/store/diagram.store';
 import { ELKLayoutService } from '../../core/services/elk-layout.service';
 import { IconRegistryService } from '../../core/services/icon-registry.service';
 import {
-  DiagramNodeComponent,
   ContextMenuRequest,
   InternalItemMoveRequest,
   NodeResizeRequest,
@@ -23,13 +22,15 @@ import {
   AzureFirewallExpansionRequest,
   ApplicationGatewayExpansionRequest,
   ConnectionExpansionRequest,
-} from './diagram-node/diagram-node.component';
+} from './diagram-node/diagram-node.contracts';
+import { DiagramNodeComponent } from './diagram-node/diagram-node.component';
 import { SidebarComponent } from '../sidebar/sidebar.component';
 import { ToolbarComponent } from '../toolbar/toolbar.component';
 import { DrawingToolbarComponent } from './drawing-toolbar/drawing-toolbar.component';
 import { ResourceContextMenuComponent } from './context-menus/resource-context-menu.component';
 import { AnnotationContextMenuComponent } from './context-menus/annotation-context-menu.component';
 import { RgContextMenuComponent } from './context-menus/rg-context-menu.component';
+import { MultiSelectContextMenuComponent } from './context-menus/multi-select-context-menu.component';
 import { ResourceEditorModalComponent } from './resource-editor-modal.component';
 import { ExportDialogComponent } from './export-dialog.component';
 import { FinOpsInsightsPanelComponent } from './finops-insights-panel.component';
@@ -98,6 +99,7 @@ const ZERO_OFFSET: SizeOffset = { top: 0, right: 0, bottom: 0, left: 0 };
     ResourceContextMenuComponent,
     AnnotationContextMenuComponent,
     RgContextMenuComponent,
+    MultiSelectContextMenuComponent,
     ResourceEditorModalComponent,
     ExportDialogComponent,
     FinOpsInsightsPanelComponent,
@@ -248,6 +250,21 @@ export class CanvasComponent {
   contextMenu: (ContextMenuRequest & { node: DiagramNode }) | null = null;
   rgContextMenu: { x: number; y: number; id: string; name: string } | null = null;
   annotationContextMenu: { x: number; y: number; annotationId: string } | null = null;
+  multiSelectContextMenu: { x: number; y: number } | null = null;
+
+  // Marquee selection
+  marqueeState: { startX: number; startY: number; currentX: number; currentY: number; ctrlHeld: boolean } | null = null;
+
+  get marqueeRect(): { x: number; y: number; w: number; h: number } {
+    if (!this.marqueeState) return { x: 0, y: 0, w: 0, h: 0 };
+    const { startX, startY, currentX, currentY } = this.marqueeState;
+    return {
+      x: Math.min(startX, currentX),
+      y: Math.min(startY, currentY),
+      w: Math.abs(currentX - startX),
+      h: Math.abs(currentY - startY),
+    };
+  }
 
   // Container rename
   renamingContainer: { type: 'rg' | 'sub' | 'vm' | 'rt'; id: string } | null = null;
@@ -321,6 +338,12 @@ export class CanvasComponent {
       this.deleteSelectedAnnotation();
       return;
     }
+    if ((e.key === 'Delete' || e.key === 'Backspace') && this.store.selectedNodeIds().length > 1) {
+      e.preventDefault();
+      this.store.pushUndo();
+      this.store.deleteSelectedNodes();
+      return;
+    }
     if ((e.key === 'Delete' || e.key === 'Backspace') && this.store.selectedNodeId()) {
       e.preventDefault();
       this.deleteSelectedNode();
@@ -340,6 +363,7 @@ export class CanvasComponent {
       this.selectedAnnotationId = null;
       this.selectedTagHighlightRuleId = null;
       if (this.editingAnnotation) this.cancelEdit();
+      if (this.store.selectedNodeIds().length > 0) this.store.selectNodes([]);
     }
   }
 
@@ -454,6 +478,17 @@ export class CanvasComponent {
       return;
     }
 
+    if (this.marqueeState) {
+      const host = this.canvasHostRef?.nativeElement as HTMLElement;
+      const rect = host?.getBoundingClientRect();
+      const scrollLeft = host?.scrollLeft ?? 0;
+      const scrollTop = host?.scrollTop ?? 0;
+      const canvasX = (e.clientX - (rect?.left ?? 0) + scrollLeft) / this.zoomLevel;
+      const canvasY = (e.clientY - (rect?.top ?? 0) + scrollTop) / this.zoomLevel;
+      this.marqueeState = { ...this.marqueeState, currentX: canvasX, currentY: canvasY };
+      return;
+    }
+
     const result = this.dragSvc.onDocumentMouseMove({
       event: e,
       zoomLevel: this.zoomLevel,
@@ -469,6 +504,7 @@ export class CanvasComponent {
       nodes: this.store.nodes(),
       svgPoint: event => this.svgPoint(event),
       moveNode: (id, position) => this.store.moveNode(id, position),
+      moveNodes: moves => this.store.moveNodes(moves),
       moveSubscriptionGroup: (subscriptionId, delta) => this.store.moveSubscriptionGroup(subscriptionId, delta),
       moveVmGroup: (vmId, delta) => this.store.moveVmGroup(vmId, delta),
       moveResourceGroup: (id, delta) => this.store.moveNodeGroup(id, delta),
@@ -503,6 +539,28 @@ export class CanvasComponent {
       this.recomputeTagHighlights(this.store.nodes());
       this.tagHighlightResizeDrag = null;
     }
+    if (this.marqueeState) {
+      const { x, y, w, h } = this.marqueeRect;
+      if (w > 4 || h > 4) {
+        const intersected = this.store.nodes()
+          .filter(n =>
+            n.position.x + (n.size?.width ?? 80) > x &&
+            n.position.x < x + w &&
+            n.position.y + (n.size?.height ?? 60) > y &&
+            n.position.y < y + h
+          )
+          .map(n => n.id);
+        if (this.marqueeState.ctrlHeld) {
+          const existing = this.store.selectedNodeIds();
+          const merged = Array.from(new Set([...existing, ...intersected]));
+          this.store.selectNodes(merged);
+        } else {
+          this.store.selectNodes(intersected);
+        }
+      }
+      this.marqueeState = null;
+    }
+
     this.toolbarDragState = null;
     this.subscriptionDragState = null;
     this.vmDragState = null;
@@ -1068,7 +1126,7 @@ export class CanvasComponent {
     event.stopPropagation();
     this.selectedTagHighlightRuleId = ruleId;
     this.selectedAnnotationId = null;
-    this.store.selectedNodeId.set(null);
+    this.store.selectNodes([]);
   }
 
   clearHighlightSelection(): void {
@@ -1128,8 +1186,38 @@ export class CanvasComponent {
     event.stopPropagation();
     this.selectedAnnotationId = null;
     this.selectedEdgeId = null;
+
+    if (event.ctrlKey || event.metaKey) {
+      this.store.toggleNodeInSelection(node.id);
+      return;
+    }
+
+    if (!this.store.selectedNodeIds().includes(node.id)) {
+      this.store.selectNodes([node.id]);
+    }
     this.store.pushUndo();
-    this.nodeDragState = { id: node.id, lastX: event.clientX, lastY: event.clientY, hasMoved: false };
+    this.nodeDragState = { id: node.id, ids: this.store.selectedNodeIds(), lastX: event.clientX, lastY: event.clientY, hasMoved: false };
+  }
+
+  onCanvasBackgroundMouseDown(event: MouseEvent): void {
+    if (this.activeTool !== 'pointer') return;
+    if (event.button !== 0) return;
+    this.closeContextMenu();
+    this.selectedAnnotationId = null;
+    this.selectedEdgeId = null;
+
+    const host = this.canvasHostRef?.nativeElement as HTMLElement;
+    const rect = host?.getBoundingClientRect();
+    const scrollLeft = host?.scrollLeft ?? 0;
+    const scrollTop = host?.scrollTop ?? 0;
+    const canvasX = (event.clientX - (rect?.left ?? 0) + scrollLeft) / this.zoomLevel;
+    const canvasY = (event.clientY - (rect?.top ?? 0) + scrollTop) / this.zoomLevel;
+
+    if (!(event.ctrlKey || event.metaKey)) {
+      this.store.selectNodes([]);
+    }
+
+    this.marqueeState = { startX: canvasX, startY: canvasY, currentX: canvasX, currentY: canvasY, ctrlHeld: event.ctrlKey || event.metaKey };
   }
 
   onDragStart(event: DragEvent, node: DiagramNode): void {
@@ -1328,6 +1416,12 @@ export class CanvasComponent {
     if (!node) return;
     this.rgContextMenu = null;
     this.annotationContextMenu = null;
+    if (this.store.selectedNodeIds().length > 1 && this.store.selectedNodeIds().includes(req.nodeId)) {
+      this.contextMenu = null;
+      this.multiSelectContextMenu = { x: req.x, y: req.y };
+      return;
+    }
+    this.multiSelectContextMenu = null;
     this.contextMenu = { ...req, node };
   }
 
@@ -1356,6 +1450,7 @@ export class CanvasComponent {
     this.contextMenu = null;
     this.rgContextMenu = null;
     this.annotationContextMenu = null;
+    this.multiSelectContextMenu = null;
   }
 
   private parseRgBoundId(id: string): { subscriptionId: string; rgName: string } | null {
@@ -1414,6 +1509,33 @@ export class CanvasComponent {
     if (!this.contextMenu) return;
     this.store.pushUndo();
     this.store.deleteNode(this.contextMenu.nodeId);
+    this.closeContextMenu();
+  }
+
+  ctxMultiDelete(): void {
+    this.store.pushUndo();
+    this.store.deleteSelectedNodes();
+    this.closeContextMenu();
+  }
+
+  ctxMultiCopyNames(): void {
+    const nodes = this.store.nodes().filter(n => this.store.selectedNodeIds().includes(n.id));
+    navigator.clipboard.writeText(nodes.map(n => n.label).join('\n'));
+    this.closeContextMenu();
+  }
+
+  ctxMultiDetachAll(): void {
+    this.store.pushUndo();
+    for (const id of this.store.selectedNodeIds()) {
+      const node = this.store.nodes().find(n => n.id === id);
+      if (!node) continue;
+      const parentId = this.childToParentMap().get(id);
+      if (parentId) {
+        this.store.detachNodeFromParent(id, parentId);
+      } else if (node.group === 'resourceGroup') {
+        this.store.detachNodeFromResourceGroup(id);
+      }
+    }
     this.closeContextMenu();
   }
 

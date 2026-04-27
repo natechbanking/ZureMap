@@ -1,0 +1,393 @@
+
+    <div
+      class="relative flex flex-col items-center justify-center gap-0.5 px-2 py-1.5 rounded-lg bg-white cursor-pointer select-none transition-all"
+      [style.width.px]="node.size.width"
+      [style.height.px]="node.size.height"
+      [style.border]="borderStyle"
+      [style.box-shadow]="boxShadow"
+      [class.ring-2]="node.selected"
+      [class.ring-azure-blue]="node.selected"
+      [class.opacity-50]="node.driftStatus === 'missing'"
+      [class.border-dashed]="node.driftStatus === 'unplanned'"
+      (click)="clicked.emit(node.id)"
+      (dblclick)="onDoubleClick($event)"
+      (contextmenu)="onContextMenu($event)"
+    >
+      <app-azure-icon [resourceType]="node.resourceType" [size]="28" />
+
+      <span
+        class="text-[11px] font-medium text-gray-800 text-center leading-tight max-w-full px-1 break-words overflow-hidden"
+        [title]="node.label"
+        style="display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;"
+      >
+        {{ node.label }}
+      </span>
+
+      <span class="text-[10px] leading-tight text-gray-400 truncate max-w-full px-1" [title]="typeLabel">
+        {{ typeLabel }}
+      </span>
+
+      @if (isRouteTable) {
+        <app-node-toggle-button
+          [label]="(routesExpanded ? 'Hide routes' : 'Show routes') + ' (' + routeEntries.length + ')'"
+          [title]="routesExpanded ? 'Hide routes' : 'Show routes'"
+          buttonClass="mt-0.5 px-2 py-0.5 rounded border border-cyan-200 bg-cyan-50 text-[10px] leading-tight text-cyan-700 hover:bg-cyan-100"
+          (toggled)="toggleRoutesPanel($event)"
+        />
+      }
+
+      @if (isUserAssignedIdentity) {
+        <button
+          type="button"
+          data-export-hide
+          class="mt-0.5 px-2 py-0.5 rounded border border-sky-200 bg-sky-50 text-[10px] leading-tight text-sky-700 hover:bg-sky-100"
+          [title]="uaiAssignmentsExpanded ? 'Hide role assignments' : 'Show role assignments'"
+          (mousedown)="stopEvent($event)"
+          (click)="toggleUaiRoleAssignmentsPanel($event)"
+        >
+          @if (uaiAssignmentsExpanded) {
+            Hide assignments
+          } @else if (!uaiAssignmentsLoaded) {
+            Show assignments
+          } @else {
+            Show assignments ({{ uaiRoleAssignments.length }})
+          }
+        </button>
+      }
+
+      @if (isHostingEnvironment) {
+        <button
+          type="button"
+          data-export-hide
+          class="mt-0.5 px-2 py-0.5 rounded border border-fuchsia-200 bg-fuchsia-50 text-[10px] leading-tight text-fuchsia-700 hover:bg-fuchsia-100"
+          [title]="hostingEnvironmentStatsExpanded ? 'Hide hosting environment stats' : 'Show hosting environment stats'"
+          (mousedown)="stopEvent($event)"
+          (click)="toggleHostingEnvironmentStatsPanel($event)"
+        >
+          {{ hostingEnvironmentStatsExpanded ? 'Hide stats' : 'Show stats' }} ({{ hostingEnvironmentStats.length }})
+        </button>
+      }
+
+      @if (isServerFarm) {
+        <button
+          type="button"
+          data-export-hide
+          class="mt-0.5 px-2 py-0.5 rounded border border-pink-200 bg-pink-50 text-[10px] leading-tight text-pink-700 hover:bg-pink-100"
+          [title]="serverFarmStatsExpanded ? 'Hide server farm stats' : 'Show server farm stats'"
+          (mousedown)="stopEvent($event)"
+          (click)="toggleServerFarmStatsPanel($event)"
+        >
+          {{ serverFarmStatsExpanded ? 'Hide stats' : 'Show stats' }} ({{ serverFarmStats.length }})
+        </button>
+      }
+
+      @if (isVirtualNetwork) {
+        <app-node-toggle-button
+          [label]="(subnetsExpanded ? 'Hide subnets' : 'Show subnets') + ' (' + subnetEntries.length + ')'"
+          [title]="subnetsExpanded ? 'Hide subnets' : 'Show subnets'"
+          buttonClass="mt-0.5 px-2 py-0.5 rounded border border-indigo-200 bg-indigo-50 text-[10px] leading-tight text-indigo-700 hover:bg-indigo-100"
+          (toggled)="toggleSubnetsPanel($event)"
+        />
+      }
+
+      @if (isNsg) {
+        <app-node-toggle-button
+          [label]="(nsgRulesExpanded ? 'Hide rules' : 'Show rules') + ' (' + nsgRuleEntries.length + ')'"
+          [title]="nsgRulesExpanded ? 'Hide rules' : 'Show rules'"
+          buttonClass="mt-0.5 px-2 py-0.5 rounded border border-orange-200 bg-orange-50 text-[10px] leading-tight text-orange-700 hover:bg-orange-100"
+          (toggled)="toggleNsgRulesPanel($event)"
+        />
+      }
+
+      @if (isStorageAccount) {
+        <button
+          type="button"
+          data-export-hide
+          class="mt-0.5 px-2 py-0.5 rounded border border-teal-200 bg-teal-50 text-[10px] leading-tight text-teal-700 hover:bg-teal-100"
+          [title]="storageDetailsExpanded ? 'Hide storage details' : 'Show storage details'"
+          (mousedown)="stopEvent($event)"
+          (click)="toggleStorageDetailsPanel($event)"
+        >
+          @if (storageDetailsExpanded) {
+            Hide storage
+          } @else if (!storageDetailsLoaded) {
+            Show storage
+          } @else {
+            Show storage ({{ storageItemCount }})
+          }
+        </button>
+      }
+
+      @if (isAks) {
+        <button
+          type="button"
+          data-export-hide
+          class="mt-0.5 px-2 py-0.5 rounded border border-violet-200 bg-violet-50 text-[10px] leading-tight text-violet-700 hover:bg-violet-100"
+          [title]="aksExpanded ? 'Hide cluster details' : 'Show cluster details'"
+          (mousedown)="stopEvent($event)"
+          (click)="toggleAksPanel($event)"
+        >
+          {{ aksExpanded ? 'Hide cluster' : 'Show cluster' }} ({{ aksInfo.nodePools.length }} pools)
+        </button>
+      }
+
+      @if (isVm) {
+        <button
+          type="button"
+          data-export-hide
+          class="mt-0.5 px-2 py-0.5 rounded border border-emerald-200 bg-emerald-50 text-[10px] leading-tight text-emerald-700 hover:bg-emerald-100"
+          [title]="vmExpanded ? 'Hide VM details' : 'Show VM details'"
+          (mousedown)="stopEvent($event)"
+          (click)="toggleVmPanel($event)"
+        >
+          {{ vmExpanded ? 'Hide details' : 'Show details' }}
+        </button>
+      }
+
+      @if (isPublicIpAddress) {
+        <app-node-toggle-button
+          [label]="(publicIpExpanded ? 'Hide details' : 'Show details') + ' (' + publicIpDetails.length + ')'"
+          [title]="publicIpExpanded ? 'Hide public IP details' : 'Show public IP details'"
+          buttonClass="mt-0.5 px-2 py-0.5 rounded border border-blue-200 bg-blue-50 text-[10px] leading-tight text-blue-700 hover:bg-blue-100"
+          (toggled)="togglePublicIpPanel($event)"
+        />
+      }
+
+      @if (isSchedule) {
+        <button
+          type="button"
+          data-export-hide
+          class="mt-0.5 px-2 py-0.5 rounded border border-amber-200 bg-amber-50 text-[10px] leading-tight text-amber-700 hover:bg-amber-100"
+          [title]="scheduleExpanded ? 'Hide schedule details' : 'Show schedule details'"
+          (mousedown)="stopEvent($event)"
+          (click)="toggleSchedulePanel($event)"
+        >
+          {{ scheduleExpanded ? 'Hide details' : 'Show details' }} ({{ scheduleDetails.length }})
+        </button>
+      }
+
+      @if (isDisk) {
+        <button
+          type="button"
+          data-export-hide
+          class="mt-0.5 px-2 py-0.5 rounded border border-lime-200 bg-lime-50 text-[10px] leading-tight text-lime-700 hover:bg-lime-100"
+          [title]="diskExpanded ? 'Hide disk details' : 'Show disk details'"
+          (mousedown)="stopEvent($event)"
+          (click)="toggleDiskPanel($event)"
+        >
+          {{ diskExpanded ? 'Hide details' : 'Show details' }} ({{ diskDetails.length }})
+        </button>
+      }
+
+      @if (isAzureFirewall) {
+        <button
+          type="button"
+          data-export-hide
+          class="mt-0.5 px-2 py-0.5 rounded border border-rose-200 bg-rose-50 text-[10px] leading-tight text-rose-700 hover:bg-rose-100"
+          [title]="azureFirewallExpanded ? 'Hide firewall details' : 'Show firewall details'"
+          (mousedown)="stopEvent($event)"
+          (click)="toggleAzureFirewallPanel($event)"
+        >
+          {{ azureFirewallExpanded ? 'Hide details' : 'Show details' }} ({{ azureFirewallDetails.length }})
+        </button>
+      }
+
+      @if (isApplicationGateway) {
+        <button
+          type="button"
+          data-export-hide
+          class="mt-0.5 px-2 py-0.5 rounded border border-slate-200 bg-slate-50 text-[10px] leading-tight text-slate-700 hover:bg-slate-100"
+          [title]="applicationGatewayExpanded ? 'Hide application gateway stats' : 'Show application gateway stats'"
+          (mousedown)="stopEvent($event)"
+          (click)="toggleApplicationGatewayPanel($event)"
+        >
+          {{ applicationGatewayExpanded ? 'Hide stats' : 'Show stats' }} ({{ applicationGatewayDetails.length }})
+        </button>
+      }
+
+      @if (isConnectionResource) {
+        <button
+          type="button"
+          data-export-hide
+          class="mt-0.5 px-2 py-0.5 rounded border border-cyan-200 bg-cyan-50 text-[10px] leading-tight text-cyan-700 hover:bg-cyan-100"
+          [title]="connectionExpanded ? 'Hide connection details' : 'Show connection details'"
+          (mousedown)="stopEvent($event)"
+          (click)="toggleConnectionPanel($event)"
+        >
+          {{ connectionExpanded ? 'Hide details' : 'Show details' }} ({{ connectionDetails.length }})
+        </button>
+      }
+
+      @if (node.custom?.description) {
+        <span class="text-[10px] leading-tight text-gray-500 text-center max-w-full px-1 truncate" [title]="node.custom?.description">
+          {{ node.custom?.description }}
+        </span>
+      }
+
+      @for (item of node.custom?.internalItems ?? []; track item.id) {
+        <div
+          class="absolute px-1 py-0.5 text-[10px] rounded bg-blue-50/90 border border-blue-200 text-blue-700 shadow-sm cursor-move max-w-[90px] truncate"
+          [style.left.px]="item.x"
+          [style.top.px]="item.y"
+          [title]="item.text"
+          (mousedown)="onInternalItemMouseDown($event, item)"
+        >
+          {{ item.text }}
+        </div>
+      }
+
+      <button
+        type="button"
+        data-export-hide
+        class="absolute -right-1 -bottom-1 w-3.5 h-3.5 rounded-sm border border-gray-300 bg-white shadow-sm cursor-se-resize hover:border-blue-400 hover:bg-blue-50 flex items-center justify-center"
+        title="Resize resource"
+        (mousedown)="onResizeMouseDown($event)"
+      >
+        <svg viewBox="0 0 16 16" class="w-2.5 h-2.5 text-gray-500" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round">
+          <path d="M6 10 L10 6" />
+          <path d="M8 12 L12 8" />
+          <path d="M10 14 L14 10" />
+        </svg>
+      </button>
+
+      @if (finOpsActive && node.costData) {
+        <app-cost-badge [costData]="node.costData" />
+      }
+
+      @if (node.driftStatus === 'missing') {
+        <span class="absolute -top-2 -left-2 text-xs bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center" title="Missing in Azure">!</span>
+      }
+      @if (node.driftStatus === 'unplanned') {
+        <span class="absolute -top-2 -left-2 text-xs bg-blue-500 text-white rounded-full w-4 h-4 flex items-center justify-center" title="New in Azure">+</span>
+      }
+
+      @if (isRouteTable && routesExpanded) {
+        <app-node-detail-list-panel
+          [sections]="routeSections"
+          emptyText="No routes found on this table."
+          containerClass="border border-cyan-200"
+          sectionTitleClass="text-cyan-600"
+          itemClass="border border-cyan-100 bg-cyan-50/40"
+        />
+      }
+
+      @if (isUserAssignedIdentity && uaiAssignmentsExpanded) {
+        <app-uai-assignments-panel
+          [assignments]="uaiRoleAssignments"
+          [loading]="uaiAssignmentsLoading"
+          [error]="uaiAssignmentsError"
+        />
+      }
+
+      @if (isHostingEnvironment && hostingEnvironmentStatsExpanded) {
+        <app-node-detail-kv-panel
+          [details]="hostingEnvironmentStats"
+          emptyText="No stats available for this hosting environment."
+          containerClass="border border-fuchsia-200"
+          rowClass="border-fuchsia-50"
+          valueClass=""
+        />
+      }
+
+      @if (isServerFarm && serverFarmStatsExpanded) {
+        <app-node-detail-kv-panel
+          [details]="serverFarmStats"
+          emptyText="No stats available for this server farm."
+          containerClass="border border-pink-200"
+          rowClass="border-pink-50"
+          valueClass=""
+        />
+      }
+
+      @if (isVirtualNetwork && subnetsExpanded) {
+        <app-node-detail-list-panel
+          [sections]="subnetSections"
+          emptyText="No subnets found on this virtual network."
+          containerClass="border border-indigo-200"
+          sectionTitleClass="text-indigo-600"
+          itemClass="border border-indigo-100 bg-indigo-50/40"
+        />
+      }
+
+      @if (isNsg && nsgRulesExpanded) {
+        <app-nsg-rules-panel [rules]="nsgRuleEntries" />
+      }
+
+      @if (isStorageAccount && storageDetailsExpanded) {
+        <app-storage-details-panel
+          [containers]="storageContainers"
+          [fileShares]="storageFileShares"
+          [tables]="storageTables"
+          [queues]="storageQueues"
+          [itemCount]="storageItemCount"
+          [loading]="storageDetailsLoading"
+          [error]="storageDetailsError"
+        />
+      }
+
+      @if (isAks && aksExpanded) {
+        <app-aks-details-panel [info]="aksInfo" />
+      }
+      @if (isVm && vmExpanded) {
+        <app-vm-details-panel [info]="vmInfo" />
+      }
+      @if (isPublicIpAddress && publicIpExpanded) {
+        <app-node-detail-kv-panel
+          [details]="publicIpDetails"
+          emptyText="No public IP details available."
+          containerClass="border border-blue-200"
+          rowClass="border-blue-50"
+          valueClass="max-w-[110px]"
+        />
+      }
+      @if (isSchedule && scheduleExpanded) {
+        <app-node-detail-kv-panel
+          [details]="scheduleDetails"
+          emptyText="No schedule details available."
+          containerClass="border border-amber-200"
+          rowClass="border-amber-50"
+          valueClass="max-w-[110px]"
+        />
+      }
+      @if (isDisk && diskExpanded) {
+        <app-node-detail-kv-panel
+          [details]="diskDetails"
+          emptyText="No disk details available."
+          containerClass="border border-lime-200"
+          rowClass="border-lime-50"
+          valueClass="max-w-[110px]"
+        />
+      }
+      @if (isAzureFirewall && azureFirewallExpanded) {
+        <app-node-detail-kv-panel
+          [details]="azureFirewallDetails"
+          [loading]="azureFirewallCountsLoading"
+          [error]="azureFirewallCountsError"
+          emptyText="No firewall details available."
+          containerClass="border border-rose-200"
+          rowClass="border-rose-50"
+          valueClass="max-w-[110px]"
+        />
+      }
+
+      @if (isApplicationGateway && applicationGatewayExpanded) {
+        <app-node-detail-kv-panel
+          [details]="applicationGatewayDetails"
+          emptyText="No application gateway stats available."
+          containerClass="border border-slate-200"
+          rowClass="border-slate-50"
+          valueClass="max-w-[120px]"
+        />
+      }
+
+      @if (isConnectionResource && connectionExpanded) {
+        <app-node-detail-kv-panel
+          [details]="connectionDetails"
+          emptyText="No connection details available."
+          containerClass="border border-cyan-200"
+          rowClass="border-cyan-50"
+          valueClass="max-w-[120px]"
+        />
+      }
+    </div>
+  

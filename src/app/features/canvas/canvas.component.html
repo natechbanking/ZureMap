@@ -73,6 +73,7 @@
           class="flex-1 relative overflow-auto bg-[#faf9f8]"
           style="background-image: radial-gradient(circle, #d2d0ce 1px, transparent 1px); background-size: 24px 24px;"
           (wheel)="onCanvasWheel($event)"
+          (mousedown)="onCanvasBackgroundMouseDown($event)"
         >
           <div
             class="relative"
@@ -815,6 +816,17 @@
               (editKeyDown)="onEditKeyDown($event)"
             />
 
+            @if (marqueeState) {
+              <div
+                class="absolute border border-blue-500 bg-blue-100/20 pointer-events-none"
+                style="z-index: 150;"
+                [style.left.px]="marqueeRect.x"
+                [style.top.px]="marqueeRect.y"
+                [style.width.px]="marqueeRect.w"
+                [style.height.px]="marqueeRect.h"
+              ></div>
+            }
+
             </div>
           </div>
 
@@ -918,7 +930,7 @@
       </div>
 
       <!-- Context menu (fixed, outside canvas zoom transform) -->
-      @if (contextMenu || rgContextMenu || annotationContextMenu) {
+      @if (contextMenu || rgContextMenu || annotationContextMenu || multiSelectContextMenu) {
         <div class="fixed inset-0 z-[190]" (click)="closeContextMenu()" (contextmenu)="$event.preventDefault(); closeContextMenu()"></div>
         @if (contextMenu) {
           <app-resource-context-menu
@@ -958,6 +970,17 @@
             (editText)="ctxAnnEditText()"
             (copyText)="ctxAnnCopyText()"
             (delete)="ctxAnnDelete()"
+          />
+        }
+        @if (multiSelectContextMenu) {
+          <app-multi-select-context-menu
+            [count]="store.selectedNodeIds().length"
+            [x]="multiSelectContextMenu.x"
+            [y]="multiSelectContextMenu.y"
+            (deleteAll)="ctxMultiDelete()"
+            (copyNames)="ctxMultiCopyNames()"
+            (detachAll)="ctxMultiDetachAll()"
+            (close)="closeContextMenu()"
           />
         }
       }

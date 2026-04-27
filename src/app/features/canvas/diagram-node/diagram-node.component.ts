@@ -111,6 +111,12 @@ export interface ApplicationGatewayExpansionRequest {
   detailCount: number;
 }
 
+export interface ConnectionExpansionRequest {
+  nodeId: string;
+  expanded: boolean;
+  detailCount: number;
+}
+
 interface AksNodePoolView {
   name: string;
   count: number;
@@ -404,6 +410,19 @@ interface PublicIpDetailView {
           (click)="toggleApplicationGatewayPanel($event)"
         >
           {{ applicationGatewayExpanded ? 'Hide stats' : 'Show stats' }} ({{ applicationGatewayDetails.length }})
+        </button>
+      }
+
+      @if (isConnectionResource) {
+        <button
+          type="button"
+          data-export-hide
+          class="mt-0.5 px-2 py-0.5 rounded border border-cyan-200 bg-cyan-50 text-[10px] leading-tight text-cyan-700 hover:bg-cyan-100"
+          [title]="connectionExpanded ? 'Hide connection details' : 'Show connection details'"
+          (mousedown)="stopEvent($event)"
+          (click)="toggleConnectionPanel($event)"
+        >
+          {{ connectionExpanded ? 'Hide details' : 'Show details' }} ({{ connectionDetails.length }})
         </button>
       }
 
@@ -857,6 +876,27 @@ interface PublicIpDetailView {
           }
         </div>
       }
+
+      @if (isConnectionResource && connectionExpanded) {
+        <div
+          class="w-full mt-1 rounded border border-cyan-200 bg-white shadow-sm overflow-hidden"
+          (mousedown)="stopEvent($event)"
+          (click)="stopEvent($event)"
+        >
+          @if (connectionDetails.length === 0) {
+            <p class="text-[10px] text-gray-400 px-2 py-1.5">No connection details available.</p>
+          } @else {
+            <div class="p-1.5">
+              @for (detail of connectionDetails; track detail.label) {
+                <div class="flex items-center justify-between gap-2 px-1.5 py-1 border-b border-cyan-50 last:border-b-0">
+                  <span class="text-[10px] text-gray-500 truncate" [title]="detail.label">{{ detail.label }}</span>
+                  <span class="text-[10px] font-semibold text-gray-800 shrink-0 truncate max-w-[120px] text-right" [title]="detail.value">{{ detail.value }}</span>
+                </div>
+              }
+            </div>
+          }
+        </div>
+      }
     </div>
   `,
 })
@@ -884,6 +924,7 @@ export class DiagramNodeComponent {
   @Output() diskExpansionChanged = new EventEmitter<DiskExpansionRequest>();
   @Output() azureFirewallExpansionChanged = new EventEmitter<AzureFirewallExpansionRequest>();
   @Output() applicationGatewayExpansionChanged = new EventEmitter<ApplicationGatewayExpansionRequest>();
+  @Output() connectionExpansionChanged = new EventEmitter<ConnectionExpansionRequest>();
 
   private costSvc = inject(CostService);
   private store = inject(DiagramStore);
@@ -914,6 +955,7 @@ export class DiagramNodeComponent {
   diskExpanded = false;
   azureFirewallExpanded = false;
   applicationGatewayExpanded = false;
+  connectionExpanded = false;
   azureFirewallCountsLoading = false;
   azureFirewallCountsLoaded = false;
   azureFirewallCountsError: string | null = null;
@@ -1023,6 +1065,10 @@ export class DiagramNodeComponent {
 
   get isApplicationGateway(): boolean {
     return this.node.resourceType.toLowerCase() === 'microsoft.network/applicationgateways';
+  }
+
+  get isConnectionResource(): boolean {
+    return this.node.resourceType.toLowerCase() === 'microsoft.network/connections';
   }
 
   get hostingEnvironmentStats(): HostingEnvironmentStatView[] {
@@ -1240,6 +1286,34 @@ export class DiagramNodeComponent {
       this.toTextStat('Trusted Root Certs', this.toArrayCountText(props['trustedRootCertificates'])),
       this.toTextStat('Rewrite Rule Sets', this.toArrayCountText(props['rewriteRuleSets'])),
       this.toTextStat('Web Application Firewall', this.pickText(props, ['webApplicationFirewallConfiguration.enabled'])),
+    ].filter((d): d is PublicIpDetailView => !!d);
+
+    return details;
+  }
+
+  get connectionDetails(): PublicIpDetailView[] {
+    const props = this.node.metadata?.properties ?? {};
+
+    const details: PublicIpDetailView[] = [
+      this.toTextStat('Connection Type', this.pickText(props, ['connectionType'])),
+      this.toTextStat('Connection Protocol', this.pickText(props, ['connectionProtocol'])),
+      this.toTextStat('Provisioning State', this.pickText(props, ['provisioningState'])),
+      this.toTextStat('Connection Status', this.pickText(props, ['connectionStatus'])),
+      this.toTextStat('Egress Bytes', this.pickText(props, ['egressBytesTransferred'])),
+      this.toTextStat('Ingress Bytes', this.pickText(props, ['ingressBytesTransferred'])),
+      this.toTextStat('Authorization Key', this.pickText(props, ['authorizationKey'])),
+      this.toTextStat('Enable BGP', this.toBoolText(props['enableBgp'])),
+      this.toTextStat('Use Policy-Based Selectors', this.toBoolText(props['usePolicyBasedTrafficSelectors'])),
+      this.toTextStat('Routing Weight', this.pickText(props, ['routingWeight'])),
+      this.toTextStat('ExpressRoute Gateway Bypass', this.toBoolText(props['expressRouteGatewayBypass'])),
+      this.toTextStat('DPD Timeout (s)', this.pickText(props, ['dpdTimeoutSeconds'])),
+      this.toTextStat('IPSec Policies', this.toArrayCountText(props['ipsecPolicies'])),
+      this.toTextStat('Traffic Selector Policies', this.toArrayCountText(props['trafficSelectorPolicies'])),
+      this.toTextStat('Shared Key (set)', this.toDisplayText(props['sharedKey']) ? 'Yes' : null),
+      this.toTextStat('Virtual Network Gateway 1', this.pickText(props, ['virtualNetworkGateway1.id'])),
+      this.toTextStat('Virtual Network Gateway 2', this.pickText(props, ['virtualNetworkGateway2.id'])),
+      this.toTextStat('Local Network Gateway 2', this.pickText(props, ['localNetworkGateway2.id'])),
+      this.toTextStat('Peer', this.pickText(props, ['peer.id'])),
     ].filter((d): d is PublicIpDetailView => !!d);
 
     return details;
@@ -1585,6 +1659,18 @@ export class DiagramNodeComponent {
       nodeId: this.node.id,
       expanded: this.applicationGatewayExpanded,
       detailCount: this.applicationGatewayDetails.length,
+    });
+  }
+
+  toggleConnectionPanel(event: MouseEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.clicked.emit(this.node.id);
+    this.connectionExpanded = !this.connectionExpanded;
+    this.connectionExpansionChanged.emit({
+      nodeId: this.node.id,
+      expanded: this.connectionExpanded,
+      detailCount: this.connectionDetails.length,
     });
   }
 

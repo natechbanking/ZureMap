@@ -120,6 +120,24 @@ export class ResourceMapperService {
       routeTableNode.children = Array.from(relatedIds);
     }
 
+    // Generic nested-resource parent/child mapping:
+    // any ARM child resource becomes detachable from its immediate ARM parent.
+    for (const resource of mappableResources) {
+      const parentId = this.resolveImmediateParentId(resource.id);
+      if (!parentId) continue;
+
+      const childNode = nodeById.get(resource.id.toLowerCase());
+      const parentNode = nodeById.get(parentId.toLowerCase());
+      if (!childNode || !parentNode) continue;
+      if (childNode.id.toLowerCase() === parentNode.id.toLowerCase()) continue;
+      if (childNode.metadata.subscriptionId !== parentNode.metadata.subscriptionId) continue;
+
+      const nextChildren = new Set(parentNode.children ?? []);
+      nextChildren.add(childNode.id);
+      parentNode.children = Array.from(nextChildren);
+      if (!childNode.parentId) childNode.parentId = parentNode.id;
+    }
+
     return nodes;
   }
 
@@ -161,6 +179,22 @@ export class ResourceMapperService {
       return subnets.map(s => s.id).filter(Boolean);
     }
     return undefined;
+  }
+
+  private resolveImmediateParentId(resourceId: string): string | null {
+    const parts = resourceId.split('/').filter(Boolean);
+    const providersIdx = parts.findIndex(p => p.toLowerCase() === 'providers');
+    if (providersIdx < 0) return null;
+
+    const providerTailLen = parts.length - (providersIdx + 1);
+    // providers/{namespace}/{type}/{name} is top-level (3 tail segments).
+    // Nested resources add another /{type}/{name} pair.
+    if (providerTailLen <= 3) return null;
+    if (providerTailLen % 2 === 0) return null;
+
+    const parentParts = parts.slice(0, parts.length - 2);
+    if (parentParts.length === 0) return null;
+    return `/${parentParts.join('/')}`;
   }
 
   private isVirtualMachineType(type: string): boolean {

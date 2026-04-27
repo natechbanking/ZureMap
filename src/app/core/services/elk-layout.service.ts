@@ -86,7 +86,7 @@ export class ELKLayoutService {
       if (vmChildIds.has(node.id)) continue;
       if (vmParentIds.has(node.id)) continue;
       const subId = node.metadata?.subscriptionId || '';
-      const rg = node.metadata?.resourceGroup || node.groupId || 'default';
+      const rg = this.nodeResourceGroup(node) || 'default';
       const key = `${subId}::${rg}`;
       if (!rgMap.has(key)) rgMap.set(key, []);
       rgMap.get(key)!.push(node);
@@ -97,7 +97,7 @@ export class ELKLayoutService {
     for (const [vmId, members] of vmGroups) {
       const vm = members[0];
       const subId = vm.metadata?.subscriptionId || '';
-      const rg = vm.metadata?.resourceGroup || vm.groupId || 'default';
+      const rg = this.nodeResourceGroup(vm) || 'default';
       const key = `${subId}::${rg}`;
       if (!vmGroupsByRg.has(key)) vmGroupsByRg.set(key, new Map());
       vmGroupsByRg.get(key)!.set(vmId, members);
@@ -225,6 +225,11 @@ export class ELKLayoutService {
       }
     }
     return { intraVmEdges, intraRgEdges, intraSubEdges, rootEdgeList };
+  }
+
+  private nodeResourceGroup(node: DiagramNode): string {
+    if (node.group !== 'resourceGroup') return '';
+    return node.groupId || node.metadata?.resourceGroup || '';
   }
 
   // BFS-cluster sort: orders standalone nodes within an RG so directly-connected

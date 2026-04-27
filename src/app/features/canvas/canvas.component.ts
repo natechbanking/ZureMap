@@ -1295,12 +1295,81 @@ export class CanvasComponent {
     this.store.detachNodeFromParent(childId, parentId);
   }
 
+  breakOutNode(nodeId: string, parentId: string | null): void {
+    this.store.pushUndo();
+    if (parentId) {
+      this.store.detachNodeFromParent(nodeId, parentId);
+      return;
+    }
+    this.store.detachNodeFromResourceGroup(nodeId);
+  }
+
+  canDetachFromResourceGroup(node: DiagramNode): boolean {
+    return node.group === 'resourceGroup';
+  }
+
+  parentLabelForNode(node: DiagramNode): string | null {
+    const parentId = this.childToParentMap().get(node.id);
+    if (parentId) return this.parentLabelById().get(parentId) ?? 'container';
+    if (this.canDetachFromResourceGroup(node)) return node.metadata?.resourceGroup || node.groupId || 'resource group';
+    return null;
+  }
+
+  breakOutTitle(node: DiagramNode, parentId: string | null): string {
+    if (parentId) return `Break out of ${this.parentLabelById().get(parentId) ?? 'container'}`;
+    return `Break out of ${this.parentLabelForNode(node) ?? 'resource group'}`;
+  }
+
+  private inferredImmediateParentId(resourceId: string): string | null {
+    const parts = resourceId.split('/').filter(Boolean);
+    const providersIdx = parts.findIndex(p => p.toLowerCase() === 'providers');
+    if (providersIdx < 0) return null;
+    const providerTailLen = parts.length - (providersIdx + 1);
+    if (providerTailLen <= 3 || providerTailLen % 2 === 0) return null;
+    return `/${parts.slice(0, parts.length - 2).join('/')}`;
+  }
+
+  resetParentIdForNode(node: DiagramNode): string | null {
+    if (this.childToParentMap().has(node.id)) return null;
+
+    const byId = new Set(this.store.nodes().map(n => n.id.toLowerCase()));
+    const preferred = [node.parentId, this.inferredImmediateParentId(node.id)];
+    for (const candidate of preferred) {
+      if (!candidate) continue;
+      if (byId.has(candidate.toLowerCase())) return candidate;
+    }
+    return null;
+  }
+
+  canResetBreakout(node: DiagramNode): boolean {
+    if (this.resetParentIdForNode(node)) return true;
+    return node.group === 'standalone' && !!(node.metadata?.resourceGroup || '').trim();
+  }
+
+  resetBreakoutLabel(node: DiagramNode): string {
+    const parentId = this.resetParentIdForNode(node);
+    if (parentId) return `Add back to ${this.parentLabelById().get(parentId) ?? 'container'}`;
+    const rg = node.metadata?.resourceGroup || 'resource group';
+    return `Add back to RG ${rg}`;
+  }
+
+  resetBreakout(node: DiagramNode): void {
+    this.store.pushUndo();
+    const parentId = this.resetParentIdForNode(node);
+    if (parentId) this.store.reattachNodeToParent(node.id, parentId);
+    if (node.group === 'standalone') this.store.reattachNodeToResourceGroup(node.id);
+  }
+
+  ctxResetBreakout(): void {
+    if (!this.contextMenu) return;
+    this.resetBreakout(this.contextMenu.node);
+    this.closeContextMenu();
+  }
+
   ctxDetachFromParent(): void {
     if (!this.contextMenu) return;
-    const parentId = this.childToParentMap().get(this.contextMenu.nodeId);
-    if (!parentId) return;
-    this.store.pushUndo();
-    this.store.detachNodeFromParent(this.contextMenu.nodeId, parentId);
+    const parentId = this.childToParentMap().get(this.contextMenu.nodeId) ?? null;
+    this.breakOutNode(this.contextMenu.nodeId, parentId);
     this.closeContextMenu();
   }
 

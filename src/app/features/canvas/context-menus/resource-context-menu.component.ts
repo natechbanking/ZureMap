@@ -57,11 +57,23 @@ import { DiagramNode } from '../../../core/models/diagram-node.model';
         <div class="border-t border-gray-100 py-0.5">
           <button type="button" class="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-left text-gray-700 hover:bg-gray-50" (click)="detachFromParent.emit()">
             <svg class="w-3.5 h-3.5 shrink-0 text-gray-400" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
-              <path d="M6 10l-2 2a2.828 2.828 0 1 1-4-4l2-2"/>
-              <path d="M10 6l2-2a2.828 2.828 0 1 1 4 4l-2 2"/>
-              <line x1="5" y1="11" x2="11" y2="5" stroke-dasharray="2 2"/>
+              <rect x="2.5" y="5.5" width="8" height="8" rx="1.5"/>
+              <path d="M8 2.5h5.5V8"/>
+              <path d="M13.5 2.5L7.5 8.5"/>
             </svg>
             Break out of {{ parentLabel }}
+          </button>
+        </div>
+      }
+      @if (showResetBreakout) {
+        <div class="border-t border-gray-100 py-0.5">
+          <button type="button" class="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-left text-blue-700 hover:bg-blue-50" (click)="resetBreakout.emit()">
+            <svg class="w-3.5 h-3.5 shrink-0 text-blue-700" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+              <rect x="5.5" y="2.5" width="8" height="8" rx="1.5"/>
+              <path d="M8 13.5H2.5V8"/>
+              <path d="M2.5 13.5L8.5 7.5"/>
+            </svg>
+            {{ resetBreakoutLabel || 'Reset breakout' }}
           </button>
         </div>
       }
@@ -81,12 +93,15 @@ export class ResourceContextMenuComponent {
   @Input({ required: true }) x!: number;
   @Input({ required: true }) y!: number;
   @Input() parentLabel: string | null = null;
+  @Input() showResetBreakout = false;
+  @Input() resetBreakoutLabel = '';
 
   @Output() focus = new EventEmitter<void>();
   @Output() copyName = new EventEmitter<void>();
   @Output() copyResourceId = new EventEmitter<void>();
   @Output() visualizeTags = new EventEmitter<void>();
   @Output() detachFromParent = new EventEmitter<void>();
+  @Output() resetBreakout = new EventEmitter<void>();
   @Output() delete = new EventEmitter<void>();
 
   get tagCount(): number {

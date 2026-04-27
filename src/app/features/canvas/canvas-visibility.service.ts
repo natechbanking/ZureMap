@@ -48,8 +48,9 @@ export class CanvasVisibilityService {
 
     const baseVisibleNodes = nodes.filter(n => {
       if (!isVisibleBySubscription(n)) return false;
-      const rg = n.metadata?.resourceGroup || n.groupId || '';
+      const rg = this.nodeResourceGroup(n);
       const subscriptionId = n.metadata?.subscriptionId || '';
+      if (!rg) return true;
       return !collapsedResourceGroups.has(`${subscriptionId}::${rg}`);
     });
 
@@ -99,7 +100,7 @@ export class CanvasVisibilityService {
     const PAD = 28; const LABEL_H = 28;
     const map = new Map<string, { subscriptionId: string; name: string; nodes: DiagramNode[] }>();
     for (const n of nodes) {
-      const rg = n.metadata?.resourceGroup || n.groupId || '';
+      const rg = this.nodeResourceGroup(n);
       const subscriptionId = n.metadata?.subscriptionId || '';
       if (!rg) continue;
       const id = `${subscriptionId}::${rg}`;
@@ -241,5 +242,10 @@ export class CanvasVisibilityService {
       });
     }
     return bounds;
+  }
+
+  private nodeResourceGroup(node: DiagramNode): string {
+    if (node.group !== 'resourceGroup') return '';
+    return node.groupId || node.metadata?.resourceGroup || '';
   }
 }

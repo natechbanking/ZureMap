@@ -199,10 +199,51 @@ export class DiagramStore {
 
   detachNodeFromParent(childId: string, parentId: string): void {
     this.nodes.update(current =>
-      current.map(n => n.id === parentId && n.children
-        ? { ...n, children: n.children.filter(c => c !== childId) }
+      current.map(n => {
+        if (n.id === parentId && n.children) {
+          return { ...n, children: n.children.filter(c => c !== childId) };
+        }
+        if (n.id === childId) {
+          return { ...n, parentId };
+        }
+        return n;
+      })
+    );
+  }
+
+  detachNodeFromResourceGroup(nodeId: string): void {
+    this.nodes.update(current =>
+      current.map(n => n.id === nodeId
+        ? { ...n, group: 'standalone', groupId: n.id }
         : n
       )
+    );
+  }
+
+  reattachNodeToParent(childId: string, parentId: string): void {
+    this.nodes.update(current =>
+      current.map(n => {
+        if (n.id === parentId) {
+          const nextChildren = new Set(n.children ?? []);
+          nextChildren.add(childId);
+          return { ...n, children: Array.from(nextChildren) };
+        }
+        if (n.id === childId) {
+          return { ...n, parentId };
+        }
+        return n;
+      })
+    );
+  }
+
+  reattachNodeToResourceGroup(nodeId: string): void {
+    this.nodes.update(current =>
+      current.map(n => {
+        if (n.id !== nodeId) return n;
+        const rg = n.metadata?.resourceGroup || '';
+        if (!rg) return n;
+        return { ...n, group: 'resourceGroup', groupId: rg };
+      })
     );
   }
 

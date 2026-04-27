@@ -20,6 +20,7 @@ import {
   PublicIpExpansionRequest,
   ScheduleExpansionRequest,
   DiskExpansionRequest,
+  AzureFirewallExpansionRequest,
 } from './diagram-node/diagram-node.component';
 import { SidebarComponent } from '../sidebar/sidebar.component';
 import { ToolbarComponent } from '../toolbar/toolbar.component';
@@ -250,6 +251,7 @@ export class CanvasComponent {
   private publicIpCollapsedHeights = new Map<string, number>();
   private scheduleCollapsedHeights = new Map<string, number>();
   private diskCollapsedHeights = new Map<string, number>();
+  private azureFirewallCollapsedHeights = new Map<string, number>();
   selectedEdgeId: string | null = null;
   edgeWaypointDragState: EdgeWaypointDragState | null = null;
   annWaypointDragState: AnnWaypointDragState | null = null;
@@ -1502,6 +1504,15 @@ export class CanvasComponent {
       req.expanded,
       req.detailCount === 0 ? 40 : req.detailCount * 24 + 20,
       this.diskCollapsedHeights,
+    );
+  }
+
+  onAzureFirewallExpansionChanged(req: AzureFirewallExpansionRequest): void {
+    this.applyNodePanelExpansion(
+      req.nodeId,
+      req.expanded,
+      req.detailCount === 0 ? 40 : req.detailCount * 24 + 20,
+      this.azureFirewallCollapsedHeights,
     );
   }
 

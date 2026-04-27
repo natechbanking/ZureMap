@@ -23,6 +23,7 @@ app.use('/api/az',  require('./routes/resources'));
 app.use('/api/az',  require('./routes/cost'));
 app.use('/api/az',  require('./routes/storage'));
 app.use('/api/az',  require('./routes/identity'));
+app.use('/api/az',  require('./routes/firewall'));
 app.use('/api',     require('./routes/diagram'));
 
 app.listen(PORT, () => {

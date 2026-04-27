@@ -7,6 +7,7 @@ import { CostService } from '../../../core/services/cost.service';
 import { DiagramStore } from '../../../core/store/diagram.store';
 import { StorageDetailsService, StorageDetails } from '../../../core/services/storage-details.service';
 import { UaiRoleAssignmentsService, UaiRoleAssignment } from '../../../core/services/uai-role-assignments.service';
+import { AzureFirewallDetailsService, AzureFirewallPolicyRuleCounts } from '../../../core/services/azure-firewall-details.service';
 
 export interface ContextMenuRequest {
   nodeId: string;
@@ -93,6 +94,12 @@ export interface ScheduleExpansionRequest {
 }
 
 export interface DiskExpansionRequest {
+  nodeId: string;
+  expanded: boolean;
+  detailCount: number;
+}
+
+export interface AzureFirewallExpansionRequest {
   nodeId: string;
   expanded: boolean;
   detailCount: number;
@@ -365,6 +372,19 @@ interface PublicIpDetailView {
           (click)="toggleDiskPanel($event)"
         >
           {{ diskExpanded ? 'Hide details' : 'Show details' }} ({{ diskDetails.length }})
+        </button>
+      }
+
+      @if (isAzureFirewall) {
+        <button
+          type="button"
+          data-export-hide
+          class="mt-0.5 px-2 py-0.5 rounded border border-rose-200 bg-rose-50 text-[10px] leading-tight text-rose-700 hover:bg-rose-100"
+          [title]="azureFirewallExpanded ? 'Hide firewall details' : 'Show firewall details'"
+          (mousedown)="stopEvent($event)"
+          (click)="toggleAzureFirewallPanel($event)"
+        >
+          {{ azureFirewallExpanded ? 'Hide details' : 'Show details' }} ({{ azureFirewallDetails.length }})
         </button>
       }
 
@@ -773,6 +793,30 @@ interface PublicIpDetailView {
           }
         </div>
       }
+      @if (isAzureFirewall && azureFirewallExpanded) {
+        <div
+          class="w-full mt-1 rounded border border-rose-200 bg-white shadow-sm overflow-hidden"
+          (mousedown)="stopEvent($event)"
+          (click)="stopEvent($event)"
+        >
+          @if (azureFirewallCountsLoading) {
+            <p class="text-[10px] text-gray-400 px-2 py-1.5 text-center">Loading...</p>
+          } @else if (azureFirewallCountsError) {
+            <p class="text-[10px] text-red-400 px-2 py-1.5">{{ azureFirewallCountsError }}</p>
+          } @else if (azureFirewallDetails.length === 0) {
+            <p class="text-[10px] text-gray-400 px-2 py-1.5">No firewall details available.</p>
+          } @else {
+            <div class="p-1.5">
+              @for (detail of azureFirewallDetails; track detail.label) {
+                <div class="flex items-center justify-between gap-2 px-1.5 py-1 border-b border-rose-50 last:border-b-0">
+                  <span class="text-[10px] text-gray-500 truncate" [title]="detail.label">{{ detail.label }}</span>
+                  <span class="text-[10px] font-semibold text-gray-800 shrink-0 truncate max-w-[110px] text-right" [title]="detail.value">{{ detail.value }}</span>
+                </div>
+              }
+            </div>
+          }
+        </div>
+      }
     </div>
   `,
 })
@@ -798,11 +842,13 @@ export class DiagramNodeComponent {
   @Output() publicIpExpansionChanged = new EventEmitter<PublicIpExpansionRequest>();
   @Output() scheduleExpansionChanged = new EventEmitter<ScheduleExpansionRequest>();
   @Output() diskExpansionChanged = new EventEmitter<DiskExpansionRequest>();
+  @Output() azureFirewallExpansionChanged = new EventEmitter<AzureFirewallExpansionRequest>();
 
   private costSvc = inject(CostService);
   private store = inject(DiagramStore);
   private storageDetailsSvc = inject(StorageDetailsService);
   private uaiRoleAssignmentsSvc = inject(UaiRoleAssignmentsService);
+  private azureFirewallDetailsSvc = inject(AzureFirewallDetailsService);
   private internalDrag: { itemId: string; startMouseX: number; startMouseY: number; startX: number; startY: number } | null = null;
   private resizeDrag: { startMouseX: number; startMouseY: number; startW: number; startH: number } | null = null;
   private _storageDetails: StorageDetails | null = null;
@@ -825,6 +871,11 @@ export class DiagramNodeComponent {
   publicIpExpanded = false;
   scheduleExpanded = false;
   diskExpanded = false;
+  azureFirewallExpanded = false;
+  azureFirewallCountsLoading = false;
+  azureFirewallCountsLoaded = false;
+  azureFirewallCountsError: string | null = null;
+  azureFirewallPolicyCounts: AzureFirewallPolicyRuleCounts | null = null;
 
   get typeLabel(): string {
     const parts = this.node.resourceType.split('/');
@@ -919,6 +970,10 @@ export class DiagramNodeComponent {
 
   get isDisk(): boolean {
     return this.node.resourceType.toLowerCase() === 'microsoft.compute/disks';
+  }
+
+  get isAzureFirewall(): boolean {
+    return this.node.resourceType.toLowerCase() === 'microsoft.network/azurefirewalls';
   }
 
   get hostingEnvironmentStats(): HostingEnvironmentStatView[] {
@@ -1077,6 +1132,33 @@ export class DiagramNodeComponent {
       this.toTextStat('Disk Encryption Set', this.toDisplayText(encryption.diskEncryptionSetId)),
       this.toTextStat('Source Resource ID', this.pickText(props, ['creationData.sourceResourceId'])),
     ].filter((d): d is PublicIpDetailView => !!d);
+    return details;
+  }
+
+  get azureFirewallDetails(): PublicIpDetailView[] {
+    const props = this.node.metadata?.properties ?? {};
+    const sku = this.node.metadata?.sku;
+    const applicationRuleCount = this.azureFirewallPolicyCounts?.applicationRules ?? this.countAzureFirewallRules('application', props);
+    const networkRuleCount = this.azureFirewallPolicyCounts?.networkRules ?? this.countAzureFirewallRules('network', props);
+    const natRuleCount = this.azureFirewallPolicyCounts?.natRules ?? this.countAzureFirewallRules('nat', props);
+
+    const details: PublicIpDetailView[] = [
+      this.toTextStat('Provisioning State', this.pickText(props, ['provisioningState'])),
+      this.toTextStat('Operational State', this.pickText(props, ['operationalState'])),
+      this.toTextStat('Threat Intel Mode', this.pickText(props, ['threatIntelMode'])),
+      this.toTextStat('Firewall Policy', this.pickText(props, ['firewallPolicy.id'])),
+      this.toTextStat('Management IP Config', this.pickText(props, ['managementIpConfiguration.name'])),
+      this.toTextStat('IP Config Count', this.toArrayCountText(props['ipConfigurations'])),
+      this.toTextStat('Public IP Count', this.toArrayCountText(props['publicIpAddresses'])),
+      this.toTextStat('Private Range Count', this.toArrayCountText(props['privateRanges'])),
+      this.toTextStat('Application Rules', applicationRuleCount === null ? null : applicationRuleCount.toString()),
+      this.toTextStat('Network Rules', networkRuleCount === null ? null : networkRuleCount.toString()),
+      this.toTextStat('NAT Rules', natRuleCount === null ? null : natRuleCount.toString()),
+      this.toTextStat('Additional Properties', this.toArrayCountText(props['additionalProperties'])),
+      this.toTextStat('SKU', sku?.name ?? null),
+      this.toTextStat('Tier', sku?.tier ?? null),
+    ].filter((d): d is PublicIpDetailView => !!d);
+
     return details;
   }
 
@@ -1378,6 +1460,39 @@ export class DiagramNodeComponent {
     });
   }
 
+  toggleAzureFirewallPanel(event: MouseEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.clicked.emit(this.node.id);
+    this.azureFirewallExpanded = !this.azureFirewallExpanded;
+    if (this.azureFirewallExpanded && !this.azureFirewallCountsLoaded && !this.azureFirewallCountsLoading) {
+      this.azureFirewallCountsLoading = true;
+      this.azureFirewallCountsError = null;
+      const firewallId = (this.node.metadata?.id as string | undefined) ?? this.node.id;
+      this.azureFirewallDetailsSvc.getPolicyRuleCounts(firewallId)
+        .then(counts => {
+          this.azureFirewallPolicyCounts = counts;
+          this.azureFirewallCountsLoaded = true;
+          this.azureFirewallCountsLoading = false;
+          this.azureFirewallExpansionChanged.emit({
+            nodeId: this.node.id,
+            expanded: true,
+            detailCount: this.azureFirewallDetails.length,
+          });
+        })
+        .catch(err => {
+          this.azureFirewallCountsLoading = false;
+          this.azureFirewallCountsError = 'Failed to load policy rule counts';
+          console.warn('[ZureMap] Azure Firewall policy rule count fetch failed:', err);
+        });
+    }
+    this.azureFirewallExpansionChanged.emit({
+      nodeId: this.node.id,
+      expanded: this.azureFirewallExpanded,
+      detailCount: this.azureFirewallDetails.length,
+    });
+  }
+
   toggleVmPanel(event: MouseEvent): void {
     event.preventDefault();
     event.stopPropagation();
@@ -1436,6 +1551,136 @@ export class DiagramNodeComponent {
     const trimmed = value.trim();
     if (!trimmed) return 0;
     return trimmed.split(',').map(v => v.trim()).filter(Boolean).length;
+  }
+
+  private toArrayCountText(value: unknown): string | null {
+    const count = this.toArrayCount(value);
+    return count === null ? null : count.toString();
+  }
+
+  private countAzureFirewallRules(kind: 'application' | 'network' | 'nat', props: Record<string, unknown>): number | null {
+    const key = kind === 'application' ? 'application' : kind === 'network' ? 'network' : 'nat';
+    const candidates = [
+      `${key}RuleCollections`,
+      `properties.${key}RuleCollections`,
+      `additionalProperties.${key}RuleCollections`,
+      `firewallPolicy.properties.ruleCollectionGroups`,
+      `ruleCollectionGroups`,
+      `ruleCollections`,
+    ];
+
+    let best: number | null = null;
+    for (const path of candidates) {
+      const value = this.getPath(props, path);
+      const count = this.estimateRuleCount(value, key, path);
+      if (count === null) continue;
+      if (best === null || count > best) best = count;
+    }
+
+    const policyId = this.pickText(props, ['firewallPolicy.id']);
+    const policyCount = this.countAzureFirewallPolicyRules(key, policyId);
+    if (policyCount !== null && (best === null || policyCount > best)) {
+      best = policyCount;
+    }
+
+    return best;
+  }
+
+  private countAzureFirewallPolicyRules(
+    kind: 'application' | 'network' | 'nat',
+    firewallPolicyId: string | null,
+  ): number | null {
+    if (!firewallPolicyId) return null;
+    const policyId = firewallPolicyId.toLowerCase();
+    const nodes = this.store.nodes();
+
+    const policyNode = nodes.find(n =>
+      n.resourceType.toLowerCase() === 'microsoft.network/firewallpolicies' &&
+      n.id.toLowerCase() === policyId,
+    );
+
+    const groupNodes = nodes.filter(n =>
+      n.resourceType.toLowerCase() === 'microsoft.network/firewallpolicies/rulecollectiongroups' &&
+      n.id.toLowerCase().startsWith(`${policyId}/rulecollectiongroups/`),
+    );
+
+    const counts: number[] = [];
+
+    if (policyNode) {
+      const policyGroups = this.getPath(policyNode.metadata?.properties ?? {}, 'ruleCollectionGroups');
+      const count = this.estimateRuleCount(policyGroups, kind, 'policy.ruleCollectionGroups');
+      if (count !== null) counts.push(count);
+    }
+
+    for (const groupNode of groupNodes) {
+      const ruleCollections = this.getPath(groupNode.metadata?.properties ?? {}, 'ruleCollections');
+      const count = this.estimateRuleCount(ruleCollections, kind, 'ruleCollectionGroups.ruleCollections');
+      if (count !== null) counts.push(count);
+    }
+
+    if (counts.length === 0) return null;
+    return Math.max(...counts);
+  }
+
+  private estimateRuleCount(
+    value: unknown,
+    kind: 'application' | 'network' | 'nat',
+    sourcePath: string,
+  ): number | null {
+    if (!Array.isArray(value)) return null;
+    if (value.length === 0) return 0;
+
+    let matchedCollections = 0;
+    let matchedRules = 0;
+
+    for (const raw of value) {
+      if (!raw || typeof raw !== 'object') continue;
+      const item = raw as Record<string, unknown>;
+      const props = (item['properties'] as Record<string, unknown> | undefined) ?? item;
+
+      const typeText = [
+        this.toDisplayText(item['ruleCollectionType']),
+        this.toDisplayText(props['ruleCollectionType']),
+        this.toDisplayText(item['type']),
+        this.toDisplayText(props['type']),
+        this.toDisplayText(item['name']),
+        this.toDisplayText(props['name']),
+      ].filter((t): t is string => !!t).join(' ').toLowerCase();
+
+      const matchesKind = typeText.includes(`${kind}rule`) || typeText.includes(kind);
+      const rules = (props['rules'] as unknown[] | undefined) ?? (item['rules'] as unknown[] | undefined) ?? [];
+      const ruleCount = Array.isArray(rules) ? rules.length : 0;
+      let matchedRulesByType = 0;
+      if (Array.isArray(rules)) {
+        for (const rawRule of rules) {
+          if (!rawRule || typeof rawRule !== 'object') continue;
+          const rule = rawRule as Record<string, unknown>;
+          const ruleTypeText = [
+            this.toDisplayText(rule['ruleType']),
+            this.toDisplayText(rule['type']),
+            this.toDisplayText(rule['name']),
+          ].filter((t): t is string => !!t).join(' ').toLowerCase();
+          if (ruleTypeText.includes(`${kind}rule`) || ruleTypeText.includes(kind)) {
+            matchedRulesByType += 1;
+          }
+        }
+      }
+
+      if (matchedRulesByType > 0) {
+        matchedCollections += 1;
+        matchedRules += matchedRulesByType;
+      } else if (matchesKind) {
+        matchedCollections += 1;
+        matchedRules += ruleCount;
+      } else if (sourcePath.toLowerCase().includes(`${kind}rule`)) {
+        // Collection path itself encodes the rule type (e.g. networkRuleCollections).
+        matchedCollections += 1;
+        matchedRules += ruleCount;
+      }
+    }
+
+    if (matchedCollections === 0) return null;
+    return matchedRules > 0 ? matchedRules : matchedCollections;
   }
 
   private toBoolText(value: unknown): string | null {

@@ -1126,6 +1126,7 @@ export class CanvasComponent {
     if (this.activeTool !== 'pointer') return;
     event.preventDefault();
     event.stopPropagation();
+    this.selectedAnnotationId = null;
     this.selectedEdgeId = null;
     this.store.pushUndo();
     this.nodeDragState = { id: node.id, lastX: event.clientX, lastY: event.clientY, hasMoved: false };

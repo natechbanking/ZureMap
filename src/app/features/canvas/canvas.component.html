@@ -747,6 +747,36 @@
 
             <!-- HTML overlays: text + sticky annotations -->
             @for (ann of store.annotations(); track ann.id) {
+              @if (ann.type === 'image' && ann.imageDataUrl) {
+                <div
+                  class="absolute select-none"
+                  [class.ring-2]="selectedAnnotationId === ann.id"
+                  [class.ring-blue-400]="selectedAnnotationId === ann.id"
+                  [style.left.px]="ann.x"
+                  [style.top.px]="ann.y"
+                  [style.width.px]="ann.width ?? 240"
+                  [style.height.px]="ann.height ?? 180"
+                  [style.pointer-events]="activeTool === 'pointer' ? 'auto' : 'none'"
+                  [style.cursor]="activeTool === 'pointer' ? 'move' : 'default'"
+                  (mousedown)="onAnnotationMouseDown($event, ann)"
+                  (contextmenu)="onAnnotationContextMenu($event, ann)"
+                >
+                  <img
+                    [src]="ann.imageDataUrl"
+                    alt=""
+                    class="w-full h-full object-contain rounded border border-gray-200"
+                    draggable="false"
+                  />
+                  @if (selectedAnnotationId === ann.id && activeTool === 'pointer') {
+                    <button
+                      type="button"
+                      data-export-hide
+                      class="absolute -right-1 -bottom-1 w-3.5 h-3.5 rounded-sm border border-blue-300 bg-white shadow-sm cursor-se-resize hover:border-blue-500 hover:bg-blue-50"
+                      (mousedown)="onImageResizeMouseDown($event, ann)"
+                    ></button>
+                  }
+                </div>
+              }
               @if (ann.type === 'text' || ann.type === 'sticky') {
                 <div
                   class="absolute select-none whitespace-pre-wrap break-words"

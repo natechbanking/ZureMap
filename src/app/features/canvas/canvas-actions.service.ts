@@ -226,18 +226,24 @@ export class CanvasActionsService {
       subscriptions: this.store.activeSubscriptions(),
       nodes: this.store.nodes(),
       edges: this.store.edges(),
+      annotations: this.store.annotations(),
     };
     await this.exportSvc.exportImage(exportRootRef, options, state);
   }
 
   exportJson(): void {
-    this.exportSvc.exportJSON(this.store.nodes(), this.store.edges(), this.store.activeSubscriptions());
+    this.exportSvc.exportJSON(this.store.nodes(), this.store.edges(), this.store.activeSubscriptions(), this.store.annotations());
   }
 
   async onImportFile(file: File): Promise<void> {
     try {
       const state = await this.exportSvc.importFile(file);
-      this.store.loadBaseline(state.nodes);
+      this.store.clearDiagram();
+      this.store.activeSubscriptions.set(state.subscriptions ?? []);
+      this.store.setNodes(state.nodes ?? []);
+      this.store.setEdges(state.edges ?? []);
+      this.store.annotations.set(state.annotations ?? []);
+      this.store.loadBaseline(state.nodes ?? []);
     } catch {
       console.error('Failed to import file');
     }

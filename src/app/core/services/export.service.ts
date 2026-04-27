@@ -4,6 +4,7 @@ import { toPng } from 'html-to-image';
 import { DiagramNode } from '../models/diagram-node.model';
 import { DiagramEdge } from '../models/diagram-edge.model';
 import { AzureSubscription } from '../models/azure-resource.model';
+import { Annotation } from '../models/annotation.model';
 
 export interface DiagramStateFile {
   version: '1.0';
@@ -11,6 +12,7 @@ export interface DiagramStateFile {
   subscriptions: AzureSubscription[];
   nodes: DiagramNode[];
   edges: DiagramEdge[];
+  annotations: Annotation[];
 }
 
 export interface ExportImageOptions {
@@ -65,13 +67,14 @@ export class ExportService {
     saveAs(blob, `zuremap-${this.timestamp()}.svg`);
   }
 
-  exportJSON(nodes: DiagramNode[], edges: DiagramEdge[], subscriptions: AzureSubscription[]): void {
+  exportJSON(nodes: DiagramNode[], edges: DiagramEdge[], subscriptions: AzureSubscription[], annotations: Annotation[]): void {
     const state: DiagramStateFile = {
       version: '1.0',
       exportedAt: new Date().toISOString(),
       subscriptions,
       nodes,
       edges,
+      annotations,
     };
     const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
     saveAs(blob, `zuremap-${this.timestamp()}.json`);
@@ -93,6 +96,7 @@ export class ExportService {
         try {
           const state = JSON.parse(e.target!.result as string) as DiagramStateFile;
           if (state.version !== '1.0') throw new Error('Unsupported version');
+          state.annotations = state.annotations ?? [];
           resolve(state);
         } catch (err) {
           reject(err);
@@ -129,7 +133,10 @@ export class ExportService {
               const b64 = new TextDecoder('latin1').decode(data.slice(nullIdx + 1));
               const json = decodeURIComponent(escape(atob(b64)));
               const state = JSON.parse(json) as DiagramStateFile;
-              if (state.version === '1.0') return state;
+              if (state.version === '1.0') {
+                state.annotations = state.annotations ?? [];
+                return state;
+              }
             } catch {
               return null;
             }

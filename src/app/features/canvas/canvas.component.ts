@@ -231,6 +231,7 @@ export class CanvasComponent {
   private annDragId: string | null = null;
   private annDragMouse = { x: 0, y: 0 };
   private annDragOrigin: { x: number; y: number; x2?: number; y2?: number } = { x: 0, y: 0 };
+  private imageResizeDrag: { annId: string; startX: number; startY: number; startWidth: number; startHeight: number; aspect: number } | null = null;
 
   // RG mouse drag (smooth, incremental)
   rgDragState: RgDragState | null = null;
@@ -342,6 +343,45 @@ export class CanvasComponent {
     }
   }
 
+  @HostListener('document:paste', ['$event'])
+  async onPaste(event: ClipboardEvent): Promise<void> {
+    if (this.activeTool !== 'pointer') return;
+    if ((event.target as HTMLElement | null)?.matches('input,textarea,[contenteditable=true]')) return;
+    const items = event.clipboardData?.items;
+    if (!items?.length) return;
+
+    const imageItem = Array.from(items).find(i => i.kind === 'file' && i.type.startsWith('image/'));
+    if (!imageItem) return;
+
+    event.preventDefault();
+    const file = imageItem.getAsFile();
+    if (!file) return;
+
+    try {
+      const processed = await this.normalizePastedImage(file);
+      const position = this.pasteTargetPosition(processed.width, processed.height);
+      const annotation: Annotation = {
+        id: `ann-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        type: 'image',
+        color: '#1e1e1e',
+        strokeWidth: 1,
+        fill: 'none',
+        x: position.x,
+        y: position.y,
+        width: processed.width,
+        height: processed.height,
+        imageDataUrl: processed.dataUrl,
+      };
+
+      this.store.pushUndo();
+      this.store.addAnnotation(annotation);
+      this.selectedAnnotationId = annotation.id;
+      this.syncToolbarFromAnnotation(annotation);
+    } catch (err) {
+      console.warn('[ZureMap] Failed to paste image annotation:', err);
+    }
+  }
+
   // ── Document-level mouse events (for drag completion outside SVG) ──────────
   @HostListener('document:mousemove', ['$event'])
   onDocMouseMove(e: MouseEvent): void {
@@ -397,6 +437,20 @@ export class CanvasComponent {
         wps[waypointIndex] = { x: wps[waypointIndex].x + dx, y: wps[waypointIndex].y + dy };
         this.store.updateAnnotation(annId, { waypoints: wps });
       }
+      return;
+    }
+
+    if (this.imageResizeDrag) {
+      const drag = this.imageResizeDrag;
+      const dx = (e.clientX - drag.startX) / this.zoomLevel;
+      const dy = (e.clientY - drag.startY) / this.zoomLevel;
+      const delta = Math.max(dx, dy * drag.aspect);
+      const nextWidth = Math.max(60, drag.startWidth + delta);
+      const nextHeight = Math.max(40, nextWidth / drag.aspect);
+      this.store.updateAnnotation(drag.annId, {
+        width: nextWidth,
+        height: nextHeight,
+      });
       return;
     }
 
@@ -457,6 +511,7 @@ export class CanvasComponent {
     this.annDragId = null;
     this.edgeWaypointDragState = null;
     this.annWaypointDragState = null;
+    this.imageResizeDrag = null;
   }
 
   // ── Tool management ────────────────────────────────────────────────────────
@@ -538,6 +593,7 @@ export class CanvasComponent {
   // ── Annotation interaction ─────────────────────────────────────────────────
   onAnnotationMouseDown(e: MouseEvent, ann: Annotation): void {
     if (this.activeTool !== 'pointer') return;
+    if (e.button !== 0) return;
     e.stopPropagation();
     this.annotationContextMenu = null;
     this.contextMenu = null;
@@ -549,6 +605,23 @@ export class CanvasComponent {
     this.annDragId = ann.id;
     this.annDragMouse = { x: pt.x, y: pt.y };
     this.annDragOrigin = { x: ann.x, y: ann.y, x2: ann.x2, y2: ann.y2 };
+  }
+
+  onImageResizeMouseDown(e: MouseEvent, ann: Annotation): void {
+    if (this.activeTool !== 'pointer') return;
+    e.preventDefault();
+    e.stopPropagation();
+    const width = Math.max(1, ann.width ?? 240);
+    const height = Math.max(1, ann.height ?? 180);
+    this.store.pushUndo();
+    this.imageResizeDrag = {
+      annId: ann.id,
+      startX: e.clientX,
+      startY: e.clientY,
+      startWidth: width,
+      startHeight: height,
+      aspect: width / height,
+    };
   }
 
   startEditAnnotation(ann: Annotation): void {
@@ -1933,16 +2006,120 @@ export class CanvasComponent {
 
   private annotationMaxX(ann: Annotation): number {
     if (ann.type === 'arrow' || ann.type === 'line') return Math.max(ann.x, ann.x2 ?? ann.x);
-    if (ann.type === 'rect' || ann.type === 'diamond' || ann.type === 'ellipse') return ann.x + (ann.width ?? 0);
+    if (ann.type === 'rect' || ann.type === 'diamond' || ann.type === 'ellipse' || ann.type === 'image') return ann.x + (ann.width ?? 0);
     if (ann.type === 'draw' && ann.pathData) return this.pathMax(ann.pathData).x;
     return ann.x + (ann.width ?? 200);
   }
 
   private annotationMaxY(ann: Annotation): number {
     if (ann.type === 'arrow' || ann.type === 'line') return Math.max(ann.y, ann.y2 ?? ann.y);
-    if (ann.type === 'rect' || ann.type === 'diamond' || ann.type === 'ellipse') return ann.y + (ann.height ?? 0);
+    if (ann.type === 'rect' || ann.type === 'diamond' || ann.type === 'ellipse' || ann.type === 'image') return ann.y + (ann.height ?? 0);
     if (ann.type === 'draw' && ann.pathData) return this.pathMax(ann.pathData).y;
     return ann.y + (ann.height ?? 80);
+  }
+
+  private pasteTargetPosition(width: number, height: number): { x: number; y: number } {
+    const host = this.canvasHostRef?.nativeElement as HTMLElement | undefined;
+    if (!host) return { x: 48, y: 48 };
+    const x = (host.scrollLeft + host.clientWidth / 2) / this.zoomLevel - width / 2;
+    const y = (host.scrollTop + host.clientHeight / 2) / this.zoomLevel - height / 2;
+    return { x: Math.max(0, x), y: Math.max(0, y) };
+  }
+
+  private dataUrlByteLength(dataUrl: string): number {
+    const base64 = dataUrl.split(',')[1] ?? '';
+    const padding = base64.endsWith('==') ? 2 : base64.endsWith('=') ? 1 : 0;
+    return Math.floor((base64.length * 3) / 4) - padding;
+  }
+
+  private loadImageFromBlob(blob: Blob): Promise<HTMLImageElement> {
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(blob);
+      const img = new Image();
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        resolve(img);
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        reject(new Error('Unable to load pasted image.'));
+      };
+      img.src = url;
+    });
+  }
+
+  private imageHasTransparency(img: HTMLImageElement): boolean {
+    const probeCanvas = document.createElement('canvas');
+    const probeCtx = probeCanvas.getContext('2d', { willReadFrequently: true });
+    if (!probeCtx) return false;
+
+    const maxProbe = 256;
+    const scale = Math.min(1, maxProbe / Math.max(img.naturalWidth || 1, img.naturalHeight || 1));
+    const w = Math.max(1, Math.round((img.naturalWidth || 1) * scale));
+    const h = Math.max(1, Math.round((img.naturalHeight || 1) * scale));
+
+    probeCanvas.width = w;
+    probeCanvas.height = h;
+    probeCtx.clearRect(0, 0, w, h);
+    probeCtx.drawImage(img, 0, 0, w, h);
+
+    const data = probeCtx.getImageData(0, 0, w, h).data;
+    for (let i = 3; i < data.length; i += 4) {
+      if (data[i] < 255) return true;
+    }
+    return false;
+  }
+
+  private renderCanvasToDataUrl(canvas: HTMLCanvasElement, mime: 'image/png' | 'image/jpeg', quality?: number): string {
+    return canvas.toDataURL(mime, quality);
+  }
+
+  private async normalizePastedImage(blob: Blob): Promise<{ dataUrl: string; width: number; height: number }> {
+    const MAX_DIMENSION = 1920;
+    const MAX_BYTES = 1_500_000;
+
+    const source = await this.loadImageFromBlob(blob);
+    const hasTransparency = this.imageHasTransparency(source);
+    let width = source.naturalWidth;
+    let height = source.naturalHeight;
+    const firstScale = Math.min(1, MAX_DIMENSION / Math.max(width, height));
+    width = Math.max(1, Math.round(width * firstScale));
+    height = Math.max(1, Math.round(height * firstScale));
+
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('Canvas context unavailable.');
+
+    let scale = 1;
+    let mime: 'image/png' | 'image/jpeg' = hasTransparency
+      ? 'image/png'
+      : (blob.type === 'image/png' ? 'image/png' : 'image/jpeg');
+    let quality = 0.9;
+
+    for (let i = 0; i < 8; i++) {
+      const w = Math.max(1, Math.round(width * scale));
+      const h = Math.max(1, Math.round(height * scale));
+      canvas.width = w;
+      canvas.height = h;
+      ctx.clearRect(0, 0, w, h);
+      ctx.drawImage(source, 0, 0, w, h);
+
+      const dataUrl = this.renderCanvasToDataUrl(canvas, mime, mime === 'image/jpeg' ? quality : undefined);
+      if (this.dataUrlByteLength(dataUrl) <= MAX_BYTES) {
+        return { dataUrl, width: w, height: h };
+      }
+
+      if (mime === 'image/png' && !hasTransparency) {
+        mime = 'image/jpeg';
+        quality = 0.9;
+      } else if (quality > 0.6) {
+        quality -= 0.1;
+      } else {
+        scale *= 0.85;
+      }
+    }
+
+    throw new Error('Pasted image is too large after compression.');
   }
 
   private previewMaxX(): number {

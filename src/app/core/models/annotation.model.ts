@@ -2,10 +2,11 @@ export type DrawingTool = 'pointer' | 'draw' | 'line' | 'arrow' | 'text' | 'rect
 export type StrokeStyle = 'solid' | 'dashed' | 'dotted';
 export type EdgeRouting = 'straight' | 'elbow';
 export type EdgeMode = 'none' | 'start' | 'end' | 'both';
+export type AnnotationType = Exclude<DrawingTool, 'pointer'> | 'image';
 
 export interface Annotation {
   id: string;
-  type: Exclude<DrawingTool, 'pointer'>;
+  type: AnnotationType;
   color: string;
   strokeWidth: number;
   strokeStyle?: StrokeStyle;
@@ -24,4 +25,5 @@ export interface Annotation {
   waypoints?: { x: number; y: number }[];
   text?: string;      // text / sticky content
   fontSize?: number;
+  imageDataUrl?: string;
 }

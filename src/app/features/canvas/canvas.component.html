@@ -202,6 +202,7 @@
                   [class.cursor-crosshair]="activeTool !== 'pointer'"
                   style="z-index: 20; height: 32px"
                   (mousedown)="onRgMouseDown($event, bound.id)"
+                  (contextmenu)="onRgContextMenu($event, bound)"
                   (click)="$event.stopPropagation()"
                 >
                   <img [src]="rgIconUrl" alt="" class="w-4 h-4 object-contain flex-shrink-0" (error)="$any($event.target).style.display='none'" />
@@ -887,7 +888,7 @@
       </div>
 
       <!-- Context menu (fixed, outside canvas zoom transform) -->
-      @if (contextMenu || annotationContextMenu) {
+      @if (contextMenu || rgContextMenu || annotationContextMenu) {
         <div class="fixed inset-0 z-[190]" (click)="closeContextMenu()" (contextmenu)="$event.preventDefault(); closeContextMenu()"></div>
         @if (contextMenu) {
           <app-resource-context-menu
@@ -904,6 +905,15 @@
             [resetBreakoutLabel]="resetBreakoutLabel(contextMenu.node)"
             (resetBreakout)="ctxResetBreakout()"
             (delete)="ctxDelete()"
+          />
+        }
+        @if (rgContextMenu) {
+          <app-rg-context-menu
+            [x]="rgContextMenu.x"
+            [y]="rgContextMenu.y"
+            [name]="rgContextMenu.name"
+            [busy]="relayoutBusy"
+            (autoLayout)="ctxRgAutoLayout()"
           />
         }
         @if (annotationContextMenu) {

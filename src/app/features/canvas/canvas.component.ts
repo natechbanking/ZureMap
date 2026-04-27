@@ -29,6 +29,7 @@ import { ToolbarComponent } from '../toolbar/toolbar.component';
 import { DrawingToolbarComponent } from './drawing-toolbar/drawing-toolbar.component';
 import { ResourceContextMenuComponent } from './context-menus/resource-context-menu.component';
 import { AnnotationContextMenuComponent } from './context-menus/annotation-context-menu.component';
+import { RgContextMenuComponent } from './context-menus/rg-context-menu.component';
 import { ResourceEditorModalComponent } from './resource-editor-modal.component';
 import { ExportDialogComponent } from './export-dialog.component';
 import { FinOpsInsightsPanelComponent } from './finops-insights-panel.component';
@@ -96,6 +97,7 @@ const ZERO_OFFSET: SizeOffset = { top: 0, right: 0, bottom: 0, left: 0 };
     DrawingToolbarComponent,
     ResourceContextMenuComponent,
     AnnotationContextMenuComponent,
+    RgContextMenuComponent,
     ResourceEditorModalComponent,
     ExportDialogComponent,
     FinOpsInsightsPanelComponent,
@@ -243,6 +245,7 @@ export class CanvasComponent {
 
   // Context menu
   contextMenu: (ContextMenuRequest & { node: DiagramNode }) | null = null;
+  rgContextMenu: { x: number; y: number; id: string; name: string } | null = null;
   annotationContextMenu: { x: number; y: number; annotationId: string } | null = null;
 
   // Container rename
@@ -1023,6 +1026,7 @@ export class CanvasComponent {
   // ── Node drag ──────────────────────────────────────────────────────────────
   onRgMouseDown(event: MouseEvent, rgId: string): void {
     if (this.activeTool !== 'pointer') return;
+    if (event.button !== 0) return;
     event.preventDefault();
     event.stopPropagation();
     this.store.pushUndo();
@@ -1248,8 +1252,18 @@ export class CanvasComponent {
   onContextMenuRequested(req: ContextMenuRequest): void {
     const node = this.store.nodes().find(n => n.id === req.nodeId);
     if (!node) return;
+    this.rgContextMenu = null;
     this.annotationContextMenu = null;
     this.contextMenu = { ...req, node };
+  }
+
+  onRgContextMenu(event: MouseEvent, rg: RgBound): void {
+    if (this.activeTool !== 'pointer') return;
+    event.preventDefault();
+    event.stopPropagation();
+    this.contextMenu = null;
+    this.annotationContextMenu = null;
+    this.rgContextMenu = { x: event.clientX, y: event.clientY, id: rg.id, name: rg.name };
   }
 
   onAnnotationContextMenu(event: MouseEvent, ann: Annotation): void {
@@ -1266,7 +1280,60 @@ export class CanvasComponent {
 
   closeContextMenu(): void {
     this.contextMenu = null;
+    this.rgContextMenu = null;
     this.annotationContextMenu = null;
+  }
+
+  private parseRgBoundId(id: string): { subscriptionId: string; rgName: string } | null {
+    const idx = id.indexOf('::');
+    if (idx < 0) return null;
+    return { subscriptionId: id.slice(0, idx), rgName: id.slice(idx + 2) };
+  }
+
+  private isNodeInsideRgContainer(node: DiagramNode, subscriptionId: string, rgName: string): boolean {
+    if (node.group !== 'resourceGroup') return false;
+    const nodeSub = node.metadata?.subscriptionId || '';
+    const nodeRg = node.groupId || node.metadata?.resourceGroup || '';
+    return nodeSub === subscriptionId && nodeRg === rgName;
+  }
+
+  async autoLayoutRgContainer(rgBoundId: string): Promise<void> {
+    if (this.relayoutBusy) return;
+    const parsed = this.parseRgBoundId(rgBoundId);
+    if (!parsed) return;
+
+    const allNodes = this.store.nodes();
+    const targetNodes = allNodes.filter(n => this.isNodeInsideRgContainer(n, parsed.subscriptionId, parsed.rgName));
+    if (targetNodes.length < 2) return;
+
+    const targetIds = new Set(targetNodes.map(n => n.id));
+    const targetEdges = this.store.edges().filter(e => targetIds.has(e.sourceId) && targetIds.has(e.targetId));
+
+    const oldMinX = Math.min(...targetNodes.map(n => n.position.x));
+    const oldMinY = Math.min(...targetNodes.map(n => n.position.y));
+
+    this.relayoutBusy = true;
+    try {
+      const laidOut = await this.elkLayout.layout(targetNodes, targetEdges);
+      const newMinX = Math.min(...laidOut.map(n => n.position.x));
+      const newMinY = Math.min(...laidOut.map(n => n.position.y));
+      const dx = oldMinX - newMinX;
+      const dy = oldMinY - newMinY;
+
+      const nextPos = new Map(laidOut.map(n => [n.id, { x: n.position.x + dx, y: n.position.y + dy }]));
+      this.store.pushUndo();
+      this.store.setNodes(
+        allNodes.map(n => nextPos.has(n.id) ? { ...n, position: nextPos.get(n.id)! } : n)
+      );
+    } finally {
+      this.relayoutBusy = false;
+    }
+  }
+
+  async ctxRgAutoLayout(): Promise<void> {
+    if (!this.rgContextMenu) return;
+    await this.autoLayoutRgContainer(this.rgContextMenu.id);
+    this.closeContextMenu();
   }
 
   ctxDelete(): void {

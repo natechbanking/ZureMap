@@ -245,7 +245,7 @@ export class CanvasVisibilityService {
   }
 
   private nodeResourceGroup(node: DiagramNode): string {
-    if (node.group !== 'resourceGroup') return '';
-    return node.groupId || node.metadata?.resourceGroup || '';
+    if (node.group === 'standalone') return '';
+    return node.metadata?.resourceGroup || node.groupId || '';
   }
 }

@@ -355,6 +355,11 @@ export class DiagramNodeComponent {
     }];
   }
 
+  onNodeClick(event: MouseEvent): void {
+    if (event.ctrlKey || event.metaKey) return;
+    this.clicked.emit(this.node.id);
+  }
+
   onContextMenu(event: MouseEvent): void {
     event.preventDefault();
     event.stopPropagation();

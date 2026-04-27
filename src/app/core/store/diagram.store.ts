@@ -197,6 +197,15 @@ export class DiagramStore {
     });
   }
 
+  detachNodeFromParent(childId: string, parentId: string): void {
+    this.nodes.update(current =>
+      current.map(n => n.id === parentId && n.children
+        ? { ...n, children: n.children.filter(c => c !== childId) }
+        : n
+      )
+    );
+  }
+
   deleteNode(nodeId: string): void {
     if (this.selectedNodeId() === nodeId) this.selectNode(null);
     this.nodes.update(current =>

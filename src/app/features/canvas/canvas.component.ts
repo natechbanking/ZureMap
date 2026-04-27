@@ -1,4 +1,4 @@
-import { Component, inject, effect, ViewChild, ElementRef, HostListener } from '@angular/core';
+import { Component, inject, effect, ViewChild, ElementRef, HostListener, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { DiagramStore } from '../../core/store/diagram.store';
 import { ELKLayoutService } from '../../core/services/elk-layout.service';
@@ -123,6 +123,20 @@ export class CanvasComponent {
   private tagVisualization = inject(CanvasTagVisualizationService);
   readonly rgIconUrl = inject(IconRegistryService).getIconUrl('microsoft.resources/resourcegroups');
   readonly subscriptionIconUrl = inject(IconRegistryService).getIconUrl('microsoft.resources/subscriptions');
+
+  readonly childToParentMap = computed(() => {
+    const map = new Map<string, string>();
+    for (const node of this.store.nodes()) {
+      for (const childId of node.children ?? []) {
+        map.set(childId, node.id);
+      }
+    }
+    return map;
+  });
+
+  readonly parentLabelById = computed(() =>
+    new Map(this.store.nodes().map(n => [n.id, n.label]))
+  );
 
   // ── Layout ─────────────────────────────────────────────────────────────────
   private readonly ZOOM_MIN = 0.4;
@@ -1273,6 +1287,20 @@ export class CanvasComponent {
   ctxFocus(): void {
     if (!this.contextMenu) return;
     this.store.selectNode(this.contextMenu.nodeId);
+    this.closeContextMenu();
+  }
+
+  detachFromParent(childId: string, parentId: string): void {
+    this.store.pushUndo();
+    this.store.detachNodeFromParent(childId, parentId);
+  }
+
+  ctxDetachFromParent(): void {
+    if (!this.contextMenu) return;
+    const parentId = this.childToParentMap().get(this.contextMenu.nodeId);
+    if (!parentId) return;
+    this.store.pushUndo();
+    this.store.detachNodeFromParent(this.contextMenu.nodeId, parentId);
     this.closeContextMenu();
   }
 

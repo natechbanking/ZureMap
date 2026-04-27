@@ -8,6 +8,7 @@ import { DiagramStore } from '../../../core/store/diagram.store';
 import { StorageDetailsService, StorageDetails } from '../../../core/services/storage-details.service';
 import { UaiRoleAssignmentsService, UaiRoleAssignment } from '../../../core/services/uai-role-assignments.service';
 import { AzureFirewallDetailsService, AzureFirewallPolicyRuleCounts } from '../../../core/services/azure-firewall-details.service';
+import { DnsRecordsService, DnsRecord } from '../../../core/services/dns-records.service';
 import {
   ContextMenuRequest,
   InternalItemMoveRequest,
@@ -27,6 +28,7 @@ import {
   AzureFirewallExpansionRequest,
   ApplicationGatewayExpansionRequest,
   ConnectionExpansionRequest,
+  DnsZoneExpansionRequest,
 } from './diagram-node.contracts';
 import {
   isAks as isAksKind,
@@ -44,6 +46,7 @@ import {
   isUserAssignedIdentity as isUserAssignedIdentityKind,
   isVirtualNetwork as isVirtualNetworkKind,
   isVm as isVmKind,
+  isDnsZoneKind,
 } from './diagram-node-kind.util';
 import { DetailKv, getPath, pickText, toDisplayText } from './diagram-node-format.util';
 import {
@@ -121,12 +124,14 @@ export class DiagramNodeComponent {
   @Output() azureFirewallExpansionChanged = new EventEmitter<AzureFirewallExpansionRequest>();
   @Output() applicationGatewayExpansionChanged = new EventEmitter<ApplicationGatewayExpansionRequest>();
   @Output() connectionExpansionChanged = new EventEmitter<ConnectionExpansionRequest>();
+  @Output() dnsZoneExpansionChanged = new EventEmitter<DnsZoneExpansionRequest>();
 
   private costSvc = inject(CostService);
   private store = inject(DiagramStore);
   private storageDetailsSvc = inject(StorageDetailsService);
   private uaiRoleAssignmentsSvc = inject(UaiRoleAssignmentsService);
   private azureFirewallDetailsSvc = inject(AzureFirewallDetailsService);
+  private dnsRecordsSvc = inject(DnsRecordsService);
   private internalDrag: { itemId: string; startMouseX: number; startMouseY: number; startX: number; startY: number } | null = null;
   private resizeDrag: { startMouseX: number; startMouseY: number; startW: number; startH: number } | null = null;
   private _storageDetails: StorageDetails | null = null;
@@ -152,6 +157,11 @@ export class DiagramNodeComponent {
   azureFirewallExpanded = false;
   applicationGatewayExpanded = false;
   connectionExpanded = false;
+  dnsRecordsExpanded = false;
+  dnsRecordsLoading = false;
+  dnsRecordsLoaded = false;
+  dnsRecordsError: string | null = null;
+  private _dnsRecords: DnsRecord[] = [];
   azureFirewallCountsLoading = false;
   azureFirewallCountsLoaded = false;
   azureFirewallCountsError: string | null = null;
@@ -611,6 +621,51 @@ export class DiagramNodeComponent {
       expanded: this.connectionExpanded,
       detailCount: this.connectionDetails.length,
     });
+  }
+
+  get isDnsZone(): boolean {
+    return isDnsZoneKind(this.node.resourceType);
+  }
+
+  get dnsRecords(): DnsRecord[] {
+    return this._dnsRecords;
+  }
+
+  toggleDnsRecordsPanel(event: MouseEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.clicked.emit(this.node.id);
+    this.dnsRecordsExpanded = !this.dnsRecordsExpanded;
+
+    if (this.dnsRecordsExpanded && !this.dnsRecordsLoaded && !this.dnsRecordsLoading) {
+      this.dnsRecordsLoading = true;
+      this.dnsRecordsError = null;
+      this.dnsZoneExpansionChanged.emit({ nodeId: this.node.id, expanded: true, recordCount: 2 });
+
+      const zoneId = (this.node.metadata?.id as string | undefined) ?? this.node.id;
+      this.dnsRecordsSvc.getRecords(zoneId)
+        .then(details => {
+          this._dnsRecords = details.records;
+          this.dnsRecordsLoaded = true;
+          this.dnsRecordsLoading = false;
+          this.dnsZoneExpansionChanged.emit({
+            nodeId: this.node.id,
+            expanded: true,
+            recordCount: this._dnsRecords.length,
+          });
+        })
+        .catch(err => {
+          this.dnsRecordsLoading = false;
+          this.dnsRecordsError = 'Failed to load DNS records';
+          console.warn('[ZureMap] DNS records fetch failed:', err);
+        });
+    } else {
+      this.dnsZoneExpansionChanged.emit({
+        nodeId: this.node.id,
+        expanded: this.dnsRecordsExpanded,
+        recordCount: this._dnsRecords.length,
+      });
+    }
   }
 
   toggleVmPanel(event: MouseEvent): void {

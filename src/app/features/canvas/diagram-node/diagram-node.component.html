@@ -218,6 +218,60 @@
         </button>
       }
 
+      @if (isDnsZone) {
+        <button
+          type="button"
+          data-export-hide
+          class="mt-0.5 px-2 py-0.5 rounded border border-sky-200 bg-sky-50 text-[10px] leading-tight text-sky-700 hover:bg-sky-100"
+          [title]="dnsRecordsExpanded ? 'Hide DNS records' : 'View DNS records'"
+          (mousedown)="stopEvent($event)"
+          (click)="toggleDnsRecordsPanel($event)"
+        >
+          @if (dnsRecordsExpanded) {
+            Hide records
+          } @else if (!dnsRecordsLoaded) {
+            View records
+          } @else {
+            View records ({{ dnsRecords.length }})
+          }
+        </button>
+      }
+
+      @if (isDnsZone && dnsRecordsExpanded) {
+        <div
+          class="w-full mt-1 rounded border border-sky-200 bg-white text-[10px] overflow-hidden"
+          data-export-hide
+        >
+          @if (dnsRecordsLoading) {
+            <div class="flex items-center gap-1.5 px-2 py-2 text-sky-600">
+              <span class="w-3 h-3 border border-sky-400 border-t-transparent rounded-full animate-spin flex-shrink-0"></span>
+              <span>Loading records…</span>
+            </div>
+          } @else if (dnsRecordsError) {
+            <p class="px-2 py-2 text-red-500">{{ dnsRecordsError }}</p>
+          } @else if (dnsRecords.length === 0) {
+            <p class="px-2 py-2 text-gray-400 italic">No record sets found.</p>
+          } @else {
+            <div class="divide-y divide-sky-100">
+              @for (rec of dnsRecords; track rec.name + rec.type) {
+                <div class="px-2 py-1 flex items-start gap-1.5">
+                  <span class="inline-flex items-center justify-center px-1 rounded bg-sky-100 text-sky-700 font-mono font-semibold text-[9px] flex-shrink-0 mt-0.5 min-w-[28px]">{{ rec.type }}</span>
+                  <div class="min-w-0 flex-1">
+                    <p class="font-medium text-gray-800 truncate" [title]="rec.name">{{ rec.name }}</p>
+                    @if (rec.values.length > 0) {
+                      <p class="text-gray-500 truncate" [title]="rec.values.join(', ')">{{ rec.values.join(', ') }}</p>
+                    }
+                    @if (rec.ttl !== null) {
+                      <p class="text-gray-400">TTL {{ rec.ttl }}s</p>
+                    }
+                  </div>
+                </div>
+              }
+            </div>
+          }
+        </div>
+      }
+
       @if (node.custom?.description) {
         <span class="text-[10px] leading-tight text-gray-500 text-center max-w-full px-1 truncate" [title]="node.custom?.description">
           {{ node.custom?.description }}

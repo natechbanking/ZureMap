@@ -59,6 +59,18 @@ export function isConnectionResource(resourceType: string): boolean {
   return normalizeType(resourceType) === 'microsoft.network/connections';
 }
 
+export function isDnsZone(resourceType: string): boolean {
+  return normalizeType(resourceType) === 'microsoft.network/dnszones';
+}
+
+export function isPrivateDnsZone(resourceType: string): boolean {
+  return normalizeType(resourceType) === 'microsoft.network/privatednszones';
+}
+
+export function isDnsZoneKind(resourceType: string): boolean {
+  return isDnsZone(resourceType) || isPrivateDnsZone(resourceType);
+}
+
 function normalizeType(resourceType: string): string {
   return resourceType.toLowerCase();
 }

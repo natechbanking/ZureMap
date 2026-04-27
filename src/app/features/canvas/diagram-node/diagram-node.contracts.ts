@@ -105,3 +105,9 @@ export interface ConnectionExpansionRequest {
   expanded: boolean;
   detailCount: number;
 }
+
+export interface DnsZoneExpansionRequest {
+  nodeId: string;
+  expanded: boolean;
+  recordCount: number;
+}

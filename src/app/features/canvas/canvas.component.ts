@@ -22,6 +22,7 @@ import {
   AzureFirewallExpansionRequest,
   ApplicationGatewayExpansionRequest,
   ConnectionExpansionRequest,
+  DnsZoneExpansionRequest,
 } from './diagram-node/diagram-node.contracts';
 import { DiagramNodeComponent } from './diagram-node/diagram-node.component';
 import { SidebarComponent } from '../sidebar/sidebar.component';
@@ -291,6 +292,7 @@ export class CanvasComponent {
   private azureFirewallCollapsedHeights = new Map<string, number>();
   private applicationGatewayCollapsedHeights = new Map<string, number>();
   private connectionCollapsedHeights = new Map<string, number>();
+  private dnsZoneCollapsedHeights = new Map<string, number>();
   selectedEdgeId: string | null = null;
   edgeWaypointDragState: EdgeWaypointDragState | null = null;
   annWaypointDragState: AnnWaypointDragState | null = null;
@@ -1895,6 +1897,15 @@ export class CanvasComponent {
       req.expanded,
       req.detailCount === 0 ? 40 : req.detailCount * 24 + 20,
       this.connectionCollapsedHeights,
+    );
+  }
+
+  onDnsZoneExpansionChanged(req: DnsZoneExpansionRequest): void {
+    this.applyNodePanelExpansion(
+      req.nodeId,
+      req.expanded,
+      req.recordCount === 0 ? 40 : req.recordCount * 44 + 16,
+      this.dnsZoneCollapsedHeights,
     );
   }
 

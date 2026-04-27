@@ -105,6 +105,12 @@ export interface AzureFirewallExpansionRequest {
   detailCount: number;
 }
 
+export interface ApplicationGatewayExpansionRequest {
+  nodeId: string;
+  expanded: boolean;
+  detailCount: number;
+}
+
 interface AksNodePoolView {
   name: string;
   count: number;
@@ -385,6 +391,19 @@ interface PublicIpDetailView {
           (click)="toggleAzureFirewallPanel($event)"
         >
           {{ azureFirewallExpanded ? 'Hide details' : 'Show details' }} ({{ azureFirewallDetails.length }})
+        </button>
+      }
+
+      @if (isApplicationGateway) {
+        <button
+          type="button"
+          data-export-hide
+          class="mt-0.5 px-2 py-0.5 rounded border border-slate-200 bg-slate-50 text-[10px] leading-tight text-slate-700 hover:bg-slate-100"
+          [title]="applicationGatewayExpanded ? 'Hide application gateway stats' : 'Show application gateway stats'"
+          (mousedown)="stopEvent($event)"
+          (click)="toggleApplicationGatewayPanel($event)"
+        >
+          {{ applicationGatewayExpanded ? 'Hide stats' : 'Show stats' }} ({{ applicationGatewayDetails.length }})
         </button>
       }
 
@@ -817,6 +836,27 @@ interface PublicIpDetailView {
           }
         </div>
       }
+
+      @if (isApplicationGateway && applicationGatewayExpanded) {
+        <div
+          class="w-full mt-1 rounded border border-slate-200 bg-white shadow-sm overflow-hidden"
+          (mousedown)="stopEvent($event)"
+          (click)="stopEvent($event)"
+        >
+          @if (applicationGatewayDetails.length === 0) {
+            <p class="text-[10px] text-gray-400 px-2 py-1.5">No application gateway stats available.</p>
+          } @else {
+            <div class="p-1.5">
+              @for (detail of applicationGatewayDetails; track detail.label) {
+                <div class="flex items-center justify-between gap-2 px-1.5 py-1 border-b border-slate-50 last:border-b-0">
+                  <span class="text-[10px] text-gray-500 truncate" [title]="detail.label">{{ detail.label }}</span>
+                  <span class="text-[10px] font-semibold text-gray-800 shrink-0 truncate max-w-[120px] text-right" [title]="detail.value">{{ detail.value }}</span>
+                </div>
+              }
+            </div>
+          }
+        </div>
+      }
     </div>
   `,
 })
@@ -843,6 +883,7 @@ export class DiagramNodeComponent {
   @Output() scheduleExpansionChanged = new EventEmitter<ScheduleExpansionRequest>();
   @Output() diskExpansionChanged = new EventEmitter<DiskExpansionRequest>();
   @Output() azureFirewallExpansionChanged = new EventEmitter<AzureFirewallExpansionRequest>();
+  @Output() applicationGatewayExpansionChanged = new EventEmitter<ApplicationGatewayExpansionRequest>();
 
   private costSvc = inject(CostService);
   private store = inject(DiagramStore);
@@ -872,6 +913,7 @@ export class DiagramNodeComponent {
   scheduleExpanded = false;
   diskExpanded = false;
   azureFirewallExpanded = false;
+  applicationGatewayExpanded = false;
   azureFirewallCountsLoading = false;
   azureFirewallCountsLoaded = false;
   azureFirewallCountsError: string | null = null;
@@ -977,6 +1019,10 @@ export class DiagramNodeComponent {
 
   get isAzureFirewall(): boolean {
     return this.node.resourceType.toLowerCase() === 'microsoft.network/azurefirewalls';
+  }
+
+  get isApplicationGateway(): boolean {
+    return this.node.resourceType.toLowerCase() === 'microsoft.network/applicationgateways';
   }
 
   get hostingEnvironmentStats(): HostingEnvironmentStatView[] {
@@ -1160,6 +1206,40 @@ export class DiagramNodeComponent {
       this.toTextStat('Additional Properties', this.toArrayCountText(props['additionalProperties'])),
       this.toTextStat('SKU', sku?.name ?? null),
       this.toTextStat('Tier', sku?.tier ?? null),
+    ].filter((d): d is PublicIpDetailView => !!d);
+
+    return details;
+  }
+
+  get applicationGatewayDetails(): PublicIpDetailView[] {
+    const props = this.node.metadata?.properties ?? {};
+    const sku = this.node.metadata?.sku;
+    const autoscale = (props['autoscaleConfiguration'] as {
+      minCapacity?: number | string;
+      maxCapacity?: number | string;
+    } | undefined) ?? {};
+
+    const details: PublicIpDetailView[] = [
+      this.toTextStat('Provisioning State', this.pickText(props, ['provisioningState'])),
+      this.toTextStat('Operational State', this.pickText(props, ['operationalState'])),
+      this.toTextStat('SKU', sku?.name ?? null),
+      this.toTextStat('Tier', sku?.tier ?? null),
+      this.toTextStat('Capacity', this.pickText(props, ['sku.capacity']) ?? this.toDisplayText(sku?.capacity)),
+      this.toTextStat('Autoscale Min', this.toDisplayText(autoscale.minCapacity)),
+      this.toTextStat('Autoscale Max', this.toDisplayText(autoscale.maxCapacity)),
+      this.toTextStat('Gateway IP Configs', this.toArrayCountText(props['gatewayIPConfigurations'])),
+      this.toTextStat('Frontend IP Configs', this.toArrayCountText(props['frontendIPConfigurations'])),
+      this.toTextStat('Frontend Ports', this.toArrayCountText(props['frontendPorts'])),
+      this.toTextStat('HTTP Listeners', this.toArrayCountText(props['httpListeners'])),
+      this.toTextStat('Backend Pools', this.toArrayCountText(props['backendAddressPools'])),
+      this.toTextStat('Backend HTTP Settings', this.toArrayCountText(props['backendHttpSettingsCollection'])),
+      this.toTextStat('Routing Rules', this.toArrayCountText(props['requestRoutingRules'])),
+      this.toTextStat('URL Path Maps', this.toArrayCountText(props['urlPathMaps'])),
+      this.toTextStat('Probes', this.toArrayCountText(props['probes'])),
+      this.toTextStat('SSL Certificates', this.toArrayCountText(props['sslCertificates'])),
+      this.toTextStat('Trusted Root Certs', this.toArrayCountText(props['trustedRootCertificates'])),
+      this.toTextStat('Rewrite Rule Sets', this.toArrayCountText(props['rewriteRuleSets'])),
+      this.toTextStat('Web Application Firewall', this.pickText(props, ['webApplicationFirewallConfiguration.enabled'])),
     ].filter((d): d is PublicIpDetailView => !!d);
 
     return details;
@@ -1493,6 +1573,18 @@ export class DiagramNodeComponent {
       nodeId: this.node.id,
       expanded: this.azureFirewallExpanded,
       detailCount: this.azureFirewallDetails.length,
+    });
+  }
+
+  toggleApplicationGatewayPanel(event: MouseEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.clicked.emit(this.node.id);
+    this.applicationGatewayExpanded = !this.applicationGatewayExpanded;
+    this.applicationGatewayExpansionChanged.emit({
+      nodeId: this.node.id,
+      expanded: this.applicationGatewayExpanded,
+      detailCount: this.applicationGatewayDetails.length,
     });
   }
 

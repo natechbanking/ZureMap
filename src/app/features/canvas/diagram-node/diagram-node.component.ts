@@ -952,7 +952,7 @@ export class DiagramNodeComponent {
 
   get scheduleDetails(): PublicIpDetailView[] {
     const props = this.node.metadata?.properties ?? {};
-    const advanced = (props['advancedSchedule'] as {
+    const advanced = (this.getPath(props, 'advancedSchedule') as {
       weekDays?: unknown[];
       monthDays?: unknown[];
       monthlyOccurrences?: Array<{ day?: unknown; occurrence?: unknown }>;
@@ -963,18 +963,46 @@ export class DiagramNodeComponent {
         .join(' #'))
       .filter(Boolean)
       .join(', ');
-    const details: PublicIpDetailView[] = [
-      this.toTextStat('State', this.toDisplayText(props['state'])),
-      this.toTextStat('Frequency', this.toDisplayText(props['frequency'])),
-      this.toTextStat('Interval', this.toDisplayText(props['interval'])),
-      this.toTextStat('Time Zone', this.toDisplayText(props['timeZone'])),
-      this.toTextStat('Start Time', this.toDisplayText(props['startTime'])),
-      this.toTextStat('Expiry Time', this.toDisplayText(props['expiryTime'])),
-      this.toTextStat('Next Run', this.toDisplayText(props['nextRun'])),
-      this.toTextStat('Week Days', this.toListText(advanced.weekDays)),
-      this.toTextStat('Month Days', this.toListText(advanced.monthDays)),
-      this.toTextStat('Monthly Occurrences', monthlyOccurrences || null),
-    ].filter((d): d is PublicIpDetailView => !!d);
+
+    const details: PublicIpDetailView[] = [];
+    const add = (label: string, value: string | null): void => {
+      if (!value) return;
+      if (details.some(d => d.label === label && d.value === value)) return;
+      details.push({ label, value });
+    };
+
+    // Automation + DevTest Lab schedules with tolerant path lookups.
+    add('State', this.pickText(props, ['state', 'status']));
+    add('Task Type', this.pickText(props, ['taskType']));
+    add('Frequency', this.pickText(props, ['frequency', 'dailyRecurrence.time']));
+    add('Interval', this.pickText(props, ['interval', 'hourlyRecurrence.interval']));
+    add('Time Zone', this.pickText(props, ['timeZone', 'timeZoneId']));
+    add('Start Time', this.pickText(props, ['startTime', 'creationTime']));
+    add('Expiry Time', this.pickText(props, ['expiryTime']));
+    add('Next Run', this.pickText(props, ['nextRun', 'nextExecutionTime']));
+    add('Notification Time', this.pickText(props, ['notificationSettings.timeInMinutes']));
+    add('Week Days', this.pickListText(props, ['advancedSchedule.weekDays', 'weeklyRecurrence.weekDays']));
+    add('Month Days', this.pickListText(props, ['advancedSchedule.monthDays']));
+    add('Monthly Occurrences', monthlyOccurrences || null);
+    add('Target Resource ID', this.pickText(props, ['targetResourceId']));
+    add('Provisioning State', this.pickText(props, ['provisioningState']));
+
+    // Fallback when schedule-specific fields are absent.
+    if (details.length === 0) {
+      add('Name', this.toDisplayText(this.node.metadata?.name));
+      add('Type', this.toDisplayText(this.node.metadata?.type));
+      add('Location', this.toDisplayText(this.node.metadata?.location));
+      add('Resource Group', this.toDisplayText(this.node.metadata?.resourceGroup));
+      add('Subscription', this.toDisplayText(this.node.metadata?.subscriptionId));
+
+      const scalarEntries = Object.entries(props)
+        .filter(([_, value]) => this.toDisplayText(value))
+        .slice(0, 6);
+      for (const [key, value] of scalarEntries) {
+        add(this.toTitleLabel(key), this.toDisplayText(value));
+      }
+    }
+
     return details;
   }
 
@@ -1345,6 +1373,41 @@ export class DiagramNodeComponent {
       .map(v => this.toDisplayText(v))
       .filter((v): v is string => !!v);
     return items.length > 0 ? items.join(', ') : null;
+  }
+
+  private getPath(obj: unknown, path: string): unknown {
+    if (!obj || typeof obj !== 'object') return undefined;
+    let current: unknown = obj;
+    for (const segment of path.split('.')) {
+      if (!current || typeof current !== 'object') return undefined;
+      current = (current as Record<string, unknown>)[segment];
+    }
+    return current;
+  }
+
+  private pickText(obj: unknown, paths: string[]): string | null {
+    for (const path of paths) {
+      const text = this.toDisplayText(this.getPath(obj, path));
+      if (text) return text;
+    }
+    return null;
+  }
+
+  private pickListText(obj: unknown, paths: string[]): string | null {
+    for (const path of paths) {
+      const list = this.toListText(this.getPath(obj, path));
+      if (list) return list;
+    }
+    return null;
+  }
+
+  private toTitleLabel(raw: string): string {
+    const spaced = raw
+      .replace(/([a-z])([A-Z])/g, '$1 $2')
+      .replace(/[_-]+/g, ' ')
+      .trim();
+    if (!spaced) return raw;
+    return spaced.charAt(0).toUpperCase() + spaced.slice(1);
   }
 
   stopEvent(event: MouseEvent): void {

@@ -16,7 +16,7 @@ import { CommonModule } from '@angular/common';
         </span>
         @if (totalCost > 0) {
           <span class="text-xs text-white/60">·</span>
-          <span class="text-xs text-white/80 font-medium">{{ formatCost(totalCost) }}</span>
+          <span class="text-xs text-white/80 font-medium">{{ formatCost(totalCost, totalCostCurrency) }}</span>
         }
         @if (comparisonMode && driftSummary) {
           <div class="flex items-center gap-1.5 ml-2">
@@ -36,7 +36,7 @@ import { CommonModule } from '@angular/common';
         <button
           (click)="toggleFinOps.emit()"
           [class]="finOpsActive ? 'px-3 py-1 rounded text-xs transition-colors bg-amber-500 text-white' : 'px-3 py-1 rounded text-xs transition-colors text-white/70 hover:bg-white/10'"
-          title="Toggle FinOps cost overlay"
+          title="Open/close FinOps drawer"
         >💰 FinOps</button>
 
         <button
@@ -82,6 +82,7 @@ export class ToolbarComponent {
   @Input() nodeCount = 0;
   @Input() edgeCount = 0;
   @Input() totalCost = 0;
+  @Input() totalCostCurrency = 'EUR';
   @Input() finOpsActive = false;
   @Input() comparisonMode = false;
   @Input() driftSummary: { matched: number; missing: number; unplanned: number } | null = null;
@@ -101,7 +102,7 @@ export class ToolbarComponent {
     if (file) this.importJson.emit(file);
   }
 
-  formatCost(usd: number): string {
-    return `$${Math.round(usd).toLocaleString()}/mo`;
+  formatCost(value: number, currency: string): string {
+    return `${new Intl.NumberFormat('en-US', { style: 'currency', currency, maximumFractionDigits: 0 }).format(value)}/period`;
   }
 }

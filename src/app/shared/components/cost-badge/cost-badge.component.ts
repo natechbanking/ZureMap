@@ -11,7 +11,7 @@ import { NodeCostData } from '../../../core/models/cost-data.model';
       <span
         class="absolute -top-2 -right-2 text-[10px] font-semibold px-1.5 py-0.5 rounded-full text-white leading-none"
         [style.background-color]="tierColor"
-        [title]="'Monthly cost: ' + costData.currency + costData.monthlyCostUsd.toFixed(2)"
+        [title]="'Cost for selected period: ' + costData.currency + ' ' + costData.monthlyCostUsd.toFixed(2)"
       >
         {{ formatCost(costData.monthlyCostUsd) }}
       </span>

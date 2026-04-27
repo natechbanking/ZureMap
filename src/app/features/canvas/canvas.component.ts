@@ -1595,32 +1595,61 @@ export class CanvasComponent {
   }
 
   async toggleFinOps(): Promise<void> {
-    await this.actions.toggleFinOps();
+    await this.actions.toggleFinOpsDrawer();
   }
 
-  get finOpsCostedNodeCount(): number {
-    return this.actions.finOpsCostedNodeCount;
+  async refreshFinOps(): Promise<void> {
+    await this.actions.applyFinOpsFilters();
   }
 
-  get finOpsTopNodes(): Array<{ id: string; label: string; cost: number }> {
-    return this.actions.finOpsTopNodes;
+  onFinOpsPeriodChange(period: 'mtd' | 'last30'): void {
+    this.actions.setFinOpsPeriodPreset(period);
   }
 
+  onFinOpsSubscriptionChange(subscriptionIds: string[]): void {
+    this.actions.setSelectedSubscriptionIds(subscriptionIds);
+  }
+
+  onFinOpsResourceGroupChange(resourceGroups: string[]): void {
+    this.actions.setSelectedResourceGroups(resourceGroups);
+  }
+
+  onFinOpsResourceTypeChange(resourceTypes: string[]): void {
+    this.actions.setSelectedResourceTypes(resourceTypes);
+  }
+
+  get finOpsCostedNodeCount(): number { return this.actions.finOpsCostedNodeCount; }
+  get finOpsTopNodes(): Array<{ id: string; label: string; cost: number }> { return this.actions.finOpsTopNodes; }
   get finOpsTopNodesView(): Array<{ id: string; label: string; costText: string }> {
-    return this.finOpsTopNodes.map(n => ({ id: n.id, label: n.label, costText: this.formatUsd(n.cost) }));
+    return this.finOpsTopNodes.map(n => ({ id: n.id, label: n.label, costText: this.formatCurrency(n.cost) }));
   }
+  get finOpsState(): 'idle' | 'loading' | 'success' | 'partial' | 'error' { return this.actions.finOpsState; }
+  get finOpsStale(): boolean { return this.actions.finOpsStale; }
+  get finOpsDrawerOpen(): boolean { return this.actions.finOpsDrawerOpen; }
+  get finOpsPayload() { return this.actions.finOpsPayload; }
+  get finOpsPeriodPreset(): 'mtd' | 'last30' { return this.actions.finOpsPeriodPreset; }
+  get finOpsBaseCurrency(): string { return this.actions.finOpsBaseCurrency; }
+  get finOpsSubscriptionOptions(): Array<{ id: string; label: string }> { return this.actions.finOpsSubscriptionOptions; }
+  get finOpsResourceGroupOptions(): string[] { return this.actions.finOpsResourceGroupOptions; }
+  get finOpsResourceTypeOptions(): string[] { return this.actions.finOpsResourceTypeOptions; }
+  get finOpsSelectedSubscriptionIds(): string[] { return this.actions.selectedSubscriptionIds; }
+  get finOpsSelectedResourceGroups(): string[] { return this.actions.selectedResourceGroups; }
+  get finOpsSelectedResourceTypes(): string[] { return this.actions.selectedResourceTypes; }
+  get finOpsByResourceGroup() { return this.actions.finOpsPayload?.byResourceGroup ?? []; }
+  get finOpsByResourceType() { return this.actions.finOpsPayload?.byResourceType ?? []; }
+  get finOpsLoadedSubscriptions(): number { return this.actions.finOpsPayload?.loadedSubscriptionCount ?? 0; }
+  get finOpsFailedSubscriptions(): number { return this.actions.finOpsPayload?.failedSubscriptionCount ?? 0; }
 
-  formatUsd(value: number): string {
-    return this.actions.formatUsd(value);
+  formatCurrency(value: number): string {
+    return this.actions.formatCurrency(value, this.finOpsBaseCurrency);
   }
 
   toggleDrift(): void {
     this.actions.toggleDrift();
   }
 
-  get finOpsLoading(): boolean { return this.actions.finOpsLoading; }
+  get finOpsLoading(): boolean { return this.actions.finOpsState === 'loading'; }
   get finOpsError(): string | null { return this.actions.finOpsError; }
-  get finOpsLoadedSubscriptions(): number { return this.actions.finOpsLoadedSubscriptions; }
 
   openExportDialog(): void { this.exportDialogOpen = true; }
   closeExportDialog(): void { this.exportDialogOpen = false; }

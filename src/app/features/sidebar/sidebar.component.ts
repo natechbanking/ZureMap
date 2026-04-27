@@ -61,10 +61,10 @@ import { IconRegistryService } from '../../core/services/icon-registry.service';
 
           @if (node.costData) {
             <section>
-              <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Cost (Month to Date)</h3>
+              <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Cost</h3>
               <div class="bg-gray-50 rounded-lg p-3">
                 <p class="text-2xl font-bold text-gray-900">
-                  {{ node.costData.currency }}{{ node.costData.monthlyCostUsd.toFixed(2) }}
+                  {{ formatCurrency(node.costData.monthlyCostUsd, node.costData.currency) }}
                 </p>
                 <p class="text-xs text-gray-500 mt-1">{{ node.costData.period }}</p>
               </div>
@@ -141,5 +141,13 @@ export class SidebarComponent {
     if (active) return active;
     const available = this.store.availableSubscriptions().find(s => s.subscriptionId === subscriptionId)?.name;
     return available ?? subscriptionId;
+  }
+
+  formatCurrency(value: number, currency: string): string {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: currency || 'EUR',
+      maximumFractionDigits: 2,
+    }).format(value);
   }
 }

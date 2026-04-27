@@ -891,6 +891,9 @@ export class DiagramNodeComponent {
       const s = this.costSvc.getCostBorderStyle(this.node.costData.monthlyCostUsd);
       return `${s.borderWidth} solid ${s.borderColor}`;
     }
+    if (this.finOpsActive && !this.node.costData) {
+      return '1px dashed #605e5c';
+    }
     return '1px solid #d2d0ce';
   }
 

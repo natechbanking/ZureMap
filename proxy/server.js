@@ -3,7 +3,8 @@ const cors = require('cors');
 const { log, dim, green, yellow, red, cyan } = require('./lib/logger');
 
 const app = express();
-const PORT = 3001;
+const PORT = Number(process.env.PORT || 3001);
+const HOST = process.env.HOST || '127.0.0.1';
 
 app.use((req, res, next) => {
   const start = Date.now();
@@ -26,6 +27,25 @@ app.use('/api/az',  require('./routes/identity'));
 app.use('/api/az',  require('./routes/firewall'));
 app.use('/api',     require('./routes/diagram'));
 
-app.listen(PORT, () => {
-  log('info', `ZureMap proxy running on http://localhost:${PORT}`);
+const server = app.listen(PORT, HOST, () => {
+  log('info', `ZureMap proxy running on http://${HOST}:${PORT}`);
+});
+
+// Keep the server handle referenced explicitly.
+server.ref();
+
+server.on('error', (err) => {
+  log('error', `Proxy server error: ${err.message}`);
+});
+
+server.on('close', () => {
+  log('warn', 'Proxy server closed.');
+});
+
+process.on('uncaughtException', (err) => {
+  log('error', `Uncaught exception: ${err.message}`);
+});
+
+process.on('unhandledRejection', (reason) => {
+  log('error', `Unhandled rejection: ${String(reason)}`);
 });

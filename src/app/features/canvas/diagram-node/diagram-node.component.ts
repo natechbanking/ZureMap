@@ -385,7 +385,6 @@ export class DiagramNodeComponent {
   toggleRoutesPanel(event: MouseEvent): void {
     event.preventDefault();
     event.stopPropagation();
-    this.clicked.emit(this.node.id);
     this.routesExpanded = !this.routesExpanded;
     this.routeTableExpansionChanged.emit({
       nodeId: this.node.id,
@@ -397,7 +396,6 @@ export class DiagramNodeComponent {
   toggleSubnetsPanel(event: MouseEvent): void {
     event.preventDefault();
     event.stopPropagation();
-    this.clicked.emit(this.node.id);
     this.subnetsExpanded = !this.subnetsExpanded;
     this.virtualNetworkExpansionChanged.emit({
       nodeId: this.node.id,
@@ -413,7 +411,6 @@ export class DiagramNodeComponent {
   toggleNsgRulesPanel(event: MouseEvent): void {
     event.preventDefault();
     event.stopPropagation();
-    this.clicked.emit(this.node.id);
     this.nsgRulesExpanded = !this.nsgRulesExpanded;
     this.nsgExpansionChanged.emit({
       nodeId: this.node.id,
@@ -425,7 +422,6 @@ export class DiagramNodeComponent {
   toggleStorageDetailsPanel(event: MouseEvent): void {
     event.preventDefault();
     event.stopPropagation();
-    this.clicked.emit(this.node.id);
     this.storageDetailsExpanded = !this.storageDetailsExpanded;
 
     if (this.storageDetailsExpanded && !this.storageDetailsLoaded && !this.storageDetailsLoading) {
@@ -461,7 +457,6 @@ export class DiagramNodeComponent {
   async toggleUaiRoleAssignmentsPanel(event: MouseEvent): Promise<void> {
     event.preventDefault();
     event.stopPropagation();
-    this.clicked.emit(this.node.id);
     this.uaiAssignmentsExpanded = !this.uaiAssignmentsExpanded;
 
     if (this.uaiAssignmentsExpanded && !this.uaiAssignmentsLoaded && !this.uaiAssignmentsLoading) {
@@ -509,7 +504,6 @@ export class DiagramNodeComponent {
   toggleHostingEnvironmentStatsPanel(event: MouseEvent): void {
     event.preventDefault();
     event.stopPropagation();
-    this.clicked.emit(this.node.id);
     this.hostingEnvironmentStatsExpanded = !this.hostingEnvironmentStatsExpanded;
     this.hostingEnvironmentExpansionChanged.emit({
       nodeId: this.node.id,
@@ -521,7 +515,6 @@ export class DiagramNodeComponent {
   toggleServerFarmStatsPanel(event: MouseEvent): void {
     event.preventDefault();
     event.stopPropagation();
-    this.clicked.emit(this.node.id);
     this.serverFarmStatsExpanded = !this.serverFarmStatsExpanded;
     this.serverFarmExpansionChanged.emit({
       nodeId: this.node.id,
@@ -533,7 +526,6 @@ export class DiagramNodeComponent {
   togglePublicIpPanel(event: MouseEvent): void {
     event.preventDefault();
     event.stopPropagation();
-    this.clicked.emit(this.node.id);
     this.publicIpExpanded = !this.publicIpExpanded;
     this.publicIpExpansionChanged.emit({
       nodeId: this.node.id,
@@ -545,7 +537,6 @@ export class DiagramNodeComponent {
   toggleSchedulePanel(event: MouseEvent): void {
     event.preventDefault();
     event.stopPropagation();
-    this.clicked.emit(this.node.id);
     this.scheduleExpanded = !this.scheduleExpanded;
     this.scheduleExpansionChanged.emit({
       nodeId: this.node.id,
@@ -557,7 +548,6 @@ export class DiagramNodeComponent {
   toggleDiskPanel(event: MouseEvent): void {
     event.preventDefault();
     event.stopPropagation();
-    this.clicked.emit(this.node.id);
     this.diskExpanded = !this.diskExpanded;
     this.diskExpansionChanged.emit({
       nodeId: this.node.id,
@@ -569,7 +559,6 @@ export class DiagramNodeComponent {
   toggleAzureFirewallPanel(event: MouseEvent): void {
     event.preventDefault();
     event.stopPropagation();
-    this.clicked.emit(this.node.id);
     this.azureFirewallExpanded = !this.azureFirewallExpanded;
     if (this.azureFirewallExpanded && !this.azureFirewallCountsLoaded && !this.azureFirewallCountsLoading) {
       this.azureFirewallCountsLoading = true;
@@ -602,7 +591,6 @@ export class DiagramNodeComponent {
   toggleApplicationGatewayPanel(event: MouseEvent): void {
     event.preventDefault();
     event.stopPropagation();
-    this.clicked.emit(this.node.id);
     this.applicationGatewayExpanded = !this.applicationGatewayExpanded;
     this.applicationGatewayExpansionChanged.emit({
       nodeId: this.node.id,
@@ -614,7 +602,6 @@ export class DiagramNodeComponent {
   toggleConnectionPanel(event: MouseEvent): void {
     event.preventDefault();
     event.stopPropagation();
-    this.clicked.emit(this.node.id);
     this.connectionExpanded = !this.connectionExpanded;
     this.connectionExpansionChanged.emit({
       nodeId: this.node.id,
@@ -634,7 +621,6 @@ export class DiagramNodeComponent {
   toggleDnsRecordsPanel(event: MouseEvent): void {
     event.preventDefault();
     event.stopPropagation();
-    this.clicked.emit(this.node.id);
     this.dnsRecordsExpanded = !this.dnsRecordsExpanded;
 
     if (this.dnsRecordsExpanded && !this.dnsRecordsLoaded && !this.dnsRecordsLoading) {
@@ -671,7 +657,6 @@ export class DiagramNodeComponent {
   toggleVmPanel(event: MouseEvent): void {
     event.preventDefault();
     event.stopPropagation();
-    this.clicked.emit(this.node.id);
     this.vmExpanded = !this.vmExpanded;
     this.vmExpansionChanged.emit({ nodeId: this.node.id, expanded: this.vmExpanded });
   }
@@ -679,7 +664,6 @@ export class DiagramNodeComponent {
   toggleAksPanel(event: MouseEvent): void {
     event.preventDefault();
     event.stopPropagation();
-    this.clicked.emit(this.node.id);
     this.aksExpanded = !this.aksExpanded;
     this.aksExpansionChanged.emit({
       nodeId: this.node.id,

@@ -1743,7 +1743,7 @@ export class CanvasComponent {
 
   onNodeResized(req: NodeResizeRequest): void {
     this.store.pushUndo();
-    this.store.setNodes(this.store.nodes().map(n => {
+    let nodes = this.store.nodes().map(n => {
       if (n.id !== req.nodeId) return n;
       const width = Math.max(100, req.width);
       const height = Math.max(70, req.height);
@@ -1757,7 +1757,79 @@ export class CanvasComponent {
         size: { width, height },
         custom: n.custom ? { ...n.custom, internalItems: items } : n.custom,
       };
-    }));
+    });
+    nodes = this.pushSiblings(nodes, req.nodeId);
+    this.store.setNodes(nodes);
+  }
+
+  private getSiblings(nodes: DiagramNode[], node: DiagramNode): DiagramNode[] {
+    if (node.parentId) {
+      return nodes.filter(n => n.id !== node.id && n.parentId === node.parentId);
+    }
+    return nodes.filter(n => n.id !== node.id && n.groupId === node.groupId && !n.parentId);
+  }
+
+  private pushSiblings(nodes: DiagramNode[], resizedNodeId: string): DiagramNode[] {
+    const PUSH_GAP = 16;
+    const MAX_PASSES = 20;
+
+    const nodeMap = new Map(nodes.map(n => [n.id, { ...n }]));
+    const resized = nodeMap.get(resizedNodeId);
+    if (!resized) return nodes;
+
+    const allSiblingIds = new Set(this.getSiblings(nodes, resized).map(s => s.id));
+    if (allSiblingIds.size === 0) return nodes;
+
+    // movers: nodes whose new position may be pushing others
+    let movers = [resizedNodeId];
+
+    for (let pass = 0; pass < MAX_PASSES; pass++) {
+      const nextMovers: string[] = [];
+      let anyMoved = false;
+
+      for (const moverId of movers) {
+        const mover = nodeMap.get(moverId)!;
+        const moverRight = mover.position.x + mover.size.width;
+        const moverBottom = mover.position.y + mover.size.height;
+
+        const candidateIds = moverId === resizedNodeId
+          ? allSiblingIds
+          : new Set(this.getSiblings([...nodeMap.values()], mover).map(s => s.id));
+
+        for (const sibId of candidateIds) {
+          const sib = nodeMap.get(sibId);
+          if (!sib) continue;
+
+          const overlapX = moverRight + PUSH_GAP > sib.position.x && mover.position.x < sib.position.x + sib.size.width;
+          const overlapY = moverBottom + PUSH_GAP > sib.position.y && mover.position.y < sib.position.y + sib.size.height;
+          if (!overlapX || !overlapY) continue;
+
+          const sibCenterX = sib.position.x + sib.size.width / 2;
+          const sibCenterY = sib.position.y + sib.size.height / 2;
+          const moverCenterX = mover.position.x + mover.size.width / 2;
+          const moverCenterY = mover.position.y + mover.size.height / 2;
+
+          const dx = sibCenterX - moverCenterX;
+          const dy = sibCenterY - moverCenterY;
+
+          const updatedSib = { ...sib };
+          if (Math.abs(dx) >= Math.abs(dy)) {
+            updatedSib.position = { ...sib.position, x: moverRight + PUSH_GAP };
+          } else {
+            updatedSib.position = { ...sib.position, y: moverBottom + PUSH_GAP };
+          }
+
+          nodeMap.set(sibId, updatedSib);
+          nextMovers.push(sibId);
+          anyMoved = true;
+        }
+      }
+
+      if (!anyMoved) break;
+      movers = nextMovers;
+    }
+
+    return nodes.map(n => nodeMap.get(n.id) ?? n);
   }
 
   onRouteTableExpansionChanged(req: RouteTableExpansionRequest): void {

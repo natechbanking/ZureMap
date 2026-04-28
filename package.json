@@ -39,7 +39,7 @@
     "@angular-devkit/build-angular": "^19.2.13",
     "@angular/cli": "^19.2.13",
     "@angular/compiler-cli": "^19.2.0",
-    "@tailwindcss/postcss": "^4.2.2",
+    "@tailwindcss/postcss": "^4.2.4",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/file-saver": "^2.0.7",
@@ -54,7 +54,7 @@
     "karma-coverage": "~2.2.0",
     "karma-jasmine": "~5.1.0",
     "karma-jasmine-html-reporter": "~2.1.0",
-    "postcss": "^8.5.10",
+    "postcss": "^8.5.12",
     "tailwindcss": "^4.2.2",
     "typescript": "~5.7.2",
     "typescript-eslint": "8.46.4"

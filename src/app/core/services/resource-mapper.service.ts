@@ -1,11 +1,12 @@
-import { Injectable } from '@angular/core';
+import { Injectable, inject } from '@angular/core';
 import { AzureResource } from '../models/azure-resource.model';
 import { DiagramNode, LayoutGroup } from '../models/diagram-node.model';
 import { IconRegistryService } from './icon-registry.service';
 
 @Injectable({ providedIn: 'root' })
 export class ResourceMapperService {
-  constructor(private icons: IconRegistryService) {}
+  private icons = inject(IconRegistryService);
+
 
   mapResources(resources: AzureResource[]): DiagramNode[] {
     // ── Storage: absorb sub-resources into parent before mapping ──────────────

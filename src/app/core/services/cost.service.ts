@@ -1,4 +1,4 @@
-import { Injectable } from '@angular/core';
+import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Observable, catchError, of } from 'rxjs';
 import { DiagramNode } from '../models/diagram-node.model';
@@ -11,7 +11,8 @@ import {
 
 @Injectable({ providedIn: 'root' })
 export class CostService {
-  constructor(private http: HttpClient) {}
+  private http = inject(HttpClient);
+
 
   getSubscriptionCosts(subscriptionId: string): Observable<SubscriptionCostSummary | null> {
     return this.http.post<SubscriptionCostSummary>('/api/az/cost', { subscriptionId }).pipe(

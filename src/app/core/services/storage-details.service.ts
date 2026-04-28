@@ -1,4 +1,4 @@
-import { Injectable } from '@angular/core';
+import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 
@@ -11,9 +11,9 @@ export interface StorageDetails {
 
 @Injectable({ providedIn: 'root' })
 export class StorageDetailsService {
-  private readonly base = '/api/az';
+  private http = inject(HttpClient);
 
-  constructor(private http: HttpClient) {}
+  private readonly base = '/api/az';
 
   async getDetails(storageAccountId: string): Promise<StorageDetails> {
     return firstValueFrom(

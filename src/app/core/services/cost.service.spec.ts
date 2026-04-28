@@ -1,6 +1,8 @@
 import { CostService } from './cost.service';
 import { DiagramNode } from '../models/diagram-node.model';
-import { FinOpsV2Response } from '../models/cost-data.model';
+import { FinOpsV2Response, FinOpsDiagnostics } from '../models/cost-data.model';
+import { AzureResource } from '../models/azure-resource.model';
+import { HttpClient } from '@angular/common/http';
 
 const RID = '/subscriptions/sub1/resourceGroups/rg1/providers/Microsoft.Compute/virtualMachines/vm1';
 
@@ -15,7 +17,7 @@ function mkNode(id: string): DiagramNode {
     position: { x: 0, y: 0 },
     size: { width: 140, height: 92 },
     status: 'unknown',
-    metadata: {} as any,
+    metadata: {} as AzureResource,
     selected: false,
     highlighted: false,
   };
@@ -34,7 +36,7 @@ function mkV2Payload(preset: 'mtd' | 'last30', resourceIds: string[]): FinOpsV2R
     byResourceGroup: [],
     byResourceType: [],
     trend: [],
-    diagnostics: {} as any,
+    diagnostics: {} as FinOpsDiagnostics,
     warnings: [],
     conversion: { source: '', asOf: '', ratesToBase: {} },
     resources: resourceIds.map(resourceId => ({
@@ -52,7 +54,7 @@ function mkV2Payload(preset: 'mtd' | 'last30', resourceIds: string[]): FinOpsV2R
 
 describe('CostService', () => {
   let svc: CostService;
-  beforeEach(() => { svc = new CostService(null as any); });
+  beforeEach(() => { svc = new CostService(null as unknown as HttpClient); });
 
   describe('normalizeResourceId', () => {
     it('lowercases', () =>

@@ -1,4 +1,4 @@
-import { Injectable } from '@angular/core';
+import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 
@@ -12,9 +12,9 @@ export interface UaiRoleAssignment {
 
 @Injectable({ providedIn: 'root' })
 export class UaiRoleAssignmentsService {
-  private readonly base = '/api/az';
+  private http = inject(HttpClient);
 
-  constructor(private http: HttpClient) {}
+  private readonly base = '/api/az';
 
   async getAssignments(principalId: string, subscriptionId: string): Promise<UaiRoleAssignment[]> {
     return firstValueFrom(

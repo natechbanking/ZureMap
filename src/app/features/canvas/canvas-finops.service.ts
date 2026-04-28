@@ -1,4 +1,4 @@
-import { Injectable } from '@angular/core';
+import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { DiagramNode } from '../../core/models/diagram-node.model';
 import { FinOpsRequestParams, FinOpsV2Response } from '../../core/models/cost-data.model';
@@ -6,7 +6,8 @@ import { CostService } from '../../core/services/cost.service';
 
 @Injectable({ providedIn: 'root' })
 export class CanvasFinopsService {
-  constructor(private costSvc: CostService) {}
+  private costSvc = inject(CostService);
+
 
   async loadFinOps(
     nodes: DiagramNode[],

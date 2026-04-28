@@ -27,7 +27,7 @@ function node(id: string): DiagramNode {
     position: { x: 0, y: 0 },
     size: { width: 140, height: 92 },
     status: 'unknown',
-    metadata: {} as any,
+    metadata: {} as AzureResource,
     selected: false,
     highlighted: false,
   };

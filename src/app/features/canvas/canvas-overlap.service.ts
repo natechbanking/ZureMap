@@ -1,4 +1,4 @@
-import { Injectable } from '@angular/core';
+import { Injectable, inject } from '@angular/core';
 import { DiagramNode } from '../../core/models/diagram-node.model';
 import { AzureSubscription } from '../../core/models/azure-resource.model';
 import { CanvasVisibilityService } from './canvas-visibility.service';
@@ -17,9 +17,9 @@ interface ResolveParams {
 
 @Injectable({ providedIn: 'root' })
 export class CanvasOverlapService {
-  private isResolvingSubscriptionOverlaps = false;
+  private visibilitySvc = inject(CanvasVisibilityService);
 
-  constructor(private visibilitySvc: CanvasVisibilityService) {}
+  private isResolvingSubscriptionOverlaps = false;
 
   resolveSubscriptionContainerOverlaps(params: ResolveParams): void {
     const { bounds } = params;

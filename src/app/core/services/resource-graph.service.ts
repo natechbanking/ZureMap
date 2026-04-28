@@ -1,4 +1,4 @@
-import { Injectable } from '@angular/core';
+import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, Subject, from } from 'rxjs';
 import { AzureResource } from '../models/azure-resource.model';
@@ -60,9 +60,9 @@ interface ResourceGraphResponse {
 
 @Injectable({ providedIn: 'root' })
 export class ResourceGraphService {
-  private readonly base = '/api/az';
+  private http = inject(HttpClient);
 
-  constructor(private http: HttpClient) {}
+  private readonly base = '/api/az';
 
   queryAllResources(subscriptionIds: string[]): Observable<AzureResource[]> {
     return this.queryPaginated(

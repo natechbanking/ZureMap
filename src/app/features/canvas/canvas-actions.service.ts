@@ -1,4 +1,4 @@
-import { ElementRef, Injectable } from '@angular/core';
+import { ElementRef, Injectable, inject } from '@angular/core';
 import { Router } from '@angular/router';
 import { DriftService } from '../../core/services/drift.service';
 import { ExportService, ExportImageOptions } from '../../core/services/export.service';
@@ -10,6 +10,12 @@ export type FinOpsLoadState = 'idle' | 'loading' | 'success' | 'partial' | 'erro
 
 @Injectable({ providedIn: 'root' })
 export class CanvasActionsService {
+  private store = inject(DiagramStore);
+  private driftSvc = inject(DriftService);
+  private exportSvc = inject(ExportService);
+  private finops = inject(CanvasFinopsService);
+  private router = inject(Router);
+
   finOpsDrawerOpen = false;
   finOpsState: FinOpsLoadState = 'idle';
   finOpsStale = false;
@@ -27,14 +33,6 @@ export class CanvasActionsService {
     baseCurrency: 'EUR',
     resourceIds: [],
   };
-
-  constructor(
-    private store: DiagramStore,
-    private driftSvc: DriftService,
-    private exportSvc: ExportService,
-    private finops: CanvasFinopsService,
-    private router: Router,
-  ) {}
 
   async toggleFinOpsDrawer(): Promise<void> {
     this.finOpsDrawerOpen = !this.finOpsDrawerOpen;

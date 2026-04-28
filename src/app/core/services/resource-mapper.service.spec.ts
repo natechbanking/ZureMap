@@ -1,7 +1,7 @@
+import { TestBed } from '@angular/core/testing';
 import { ResourceMapperService } from './resource-mapper.service';
 import { AzureResource } from '../models/azure-resource.model';
-
-const mockIcons = { getIconUrl: (_type: string) => 'icon.svg' };
+import { IconRegistryService } from './icon-registry.service';
 
 function res(
   id: string,
@@ -31,7 +31,15 @@ const SQL_DB  = `${SQL_SRV}/databases/db1`;
 
 describe('ResourceMapperService', () => {
   let svc: ResourceMapperService;
-  beforeEach(() => { svc = new ResourceMapperService(mockIcons as any); });
+  beforeEach(() => {
+    TestBed.configureTestingModule({
+      providers: [
+        ResourceMapperService,
+        { provide: IconRegistryService, useValue: { getIconUrl: () => 'icon.svg' } },
+      ],
+    });
+    svc = TestBed.inject(ResourceMapperService);
+  });
 
   // ── resolveGroup ─────────────────────────────────────────────────────────────
 

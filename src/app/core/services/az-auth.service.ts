@@ -1,4 +1,4 @@
-import { Injectable } from '@angular/core';
+import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Observable, catchError, throwError } from 'rxjs';
 import { AzureAccount, AzureSubscription } from '../models/azure-resource.model';
@@ -13,9 +13,9 @@ function liftAzError(httpErr: HttpErrorResponse): Observable<never> {
 
 @Injectable({ providedIn: 'root' })
 export class AzAuthService {
-  private readonly base = '/api/az';
+  private http = inject(HttpClient);
 
-  constructor(private http: HttpClient) {}
+  private readonly base = '/api/az';
 
   checkLoginStatus(): Observable<{ loggedIn: boolean; account?: AzureAccount }> {
     return this.http.get<{ loggedIn: boolean; account?: AzureAccount }>(

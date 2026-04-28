@@ -31,12 +31,12 @@ const SUB_GAP = 120;
 const CANVAS_MARGIN_X = 72;
 const CANVAS_MARGIN_Y = 96;
 
-type ClassifiedEdges = {
+interface ClassifiedEdges {
   intraVmEdges: Map<string, DiagramEdge[]>;
   intraRgEdges: Map<string, DiagramEdge[]>;
   intraSubEdges: Map<string, DiagramEdge[]>;
   rootEdgeList: DiagramEdge[];
-};
+}
 
 @Injectable({ providedIn: 'root' })
 export class ELKLayoutService {
@@ -297,7 +297,7 @@ export class ELKLayoutService {
     void edges;
     const nodeById = new Map(nodes.map(n => [n.id, n]));
     const allRgKeys = new Set([...rgMap.keys(), ...vmGroupsByRg.keys()]);
-    const { intraVmEdges, intraRgEdges, intraSubEdges, rootEdgeList } = classified;
+    const { intraVmEdges: _intraVmEdges, intraRgEdges, intraSubEdges, rootEdgeList } = classified;
 
     // ── Build leaf / VNet compound nodes ─────────────────────────────────────
     const buildLayoutNode = (node: DiagramNode): object => {

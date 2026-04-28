@@ -164,7 +164,7 @@ export class CanvasActionsService {
     return [...new Set(this.store.activeSubscriptions().map(s => s.subscriptionId))];
   }
 
-  get finOpsSubscriptionOptions(): Array<{ id: string; label: string }> {
+  get finOpsSubscriptionOptions(): { id: string; label: string }[] {
     return this.store.activeSubscriptions().map(s => ({ id: s.subscriptionId, label: s.name || s.subscriptionId }));
   }
 
@@ -182,7 +182,7 @@ export class CanvasActionsService {
     return this.store.nodes().filter(n => n.costData !== undefined).length;
   }
 
-  get finOpsTopNodes(): Array<{ id: string; label: string; cost: number }> {
+  get finOpsTopNodes(): { id: string; label: string; cost: number }[] {
     return this.store.nodes()
       .filter(n => n.costData !== undefined)
       .sort((a, b) => (b.costData?.monthlyCostUsd ?? 0) - (a.costData?.monthlyCostUsd ?? 0))
@@ -190,7 +190,7 @@ export class CanvasActionsService {
       .map(n => ({ id: n.id, label: n.label, cost: n.costData?.monthlyCostUsd ?? 0 }));
   }
 
-  get finOpsLegend(): Array<{ label: string; color: string }> {
+  get finOpsLegend(): { label: string; color: string }[] {
     return [
       { label: 'Unknown / not mapped', color: '#605e5c' },
       { label: '< 10', color: '#107c10' },

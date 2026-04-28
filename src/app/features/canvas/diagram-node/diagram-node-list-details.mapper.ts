@@ -45,13 +45,13 @@ export interface NsgRuleView {
 }
 
 export function mapAksInfo(properties: Record<string, unknown>): AksInfoView {
-  const pools = (properties['agentPoolProfiles'] as Array<{
+  const pools = (properties['agentPoolProfiles'] as {
     name?: string;
     count?: number;
     vmSize?: string;
     mode?: string;
     osType?: string;
-  }> | undefined) ?? [];
+  }[] | undefined) ?? [];
   const netProfile = properties['networkProfile'] as { networkPlugin?: string } | undefined;
   return {
     kubernetesVersion: (properties['kubernetesVersion'] as string | undefined) ?? 'Unknown',

@@ -16,7 +16,7 @@ export class CanvasTagVisualizationService {
     const maxTags = 40;
     const visibleEntries = entries.slice(0, maxTags);
     const hiddenCount = entries.length - visibleEntries.length;
-    const compactEntries: Array<[string, string]> = hiddenCount > 0
+    const compactEntries: [string, string][] = hiddenCount > 0
       ? [...visibleEntries, ['_more', `+${hiddenCount} more`] as [string, string]]
       : visibleEntries;
 
@@ -57,10 +57,10 @@ export class CanvasTagVisualizationService {
   }
 
   private layoutTagItems(
-    entries: Array<[string, string]>,
+    entries: [string, string][],
     nodeWidth: number,
     prefix: string,
-  ): Array<{ id: string; text: string; x: number; y: number }> {
+  ): { id: string; text: string; x: number; y: number }[] {
     const startX = 8;
     const startY = 56;
     const colGap = 6;

@@ -64,7 +64,7 @@ export interface ResourceEditorDraft {
   resourceGroup: string;
   status: 'running' | 'stopped' | 'failed' | 'unknown';
   description: string;
-  internalItems: Array<{ id: string; text: string; x: number; y: number }>;
+  internalItems: { id: string; text: string; x: number; y: number }[];
 }
 
 export interface ToolbarDragState {

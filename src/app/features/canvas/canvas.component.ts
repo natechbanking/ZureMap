@@ -78,7 +78,7 @@ import {
 } from './canvas-geometry.util';
 import { DrawingRuntimeState, DrawingStyleState, onDrawEnd, onDrawMove, onDrawStart, resetDrawingRuntime } from './canvas-drawing.util';
 
-type SizeOffset = { top: number; right: number; bottom: number; left: number };
+interface SizeOffset { top: number; right: number; bottom: number; left: number }
 interface TagHighlightInfo {
   ruleId: string;
   borderColor: string;
@@ -227,7 +227,7 @@ export class CanvasComponent {
 
   // Internal drawing state
   private isDrawing = false;
-  private drawPoints: Array<[number, number]> = [];
+  private drawPoints: [number, number][] = [];
   private shapeStart: { x: number; y: number } | null = null;
 
   // Annotation drag state
@@ -2056,8 +2056,8 @@ export class CanvasComponent {
   }
 
   get finOpsCostedNodeCount(): number { return this.actions.finOpsCostedNodeCount; }
-  get finOpsTopNodes(): Array<{ id: string; label: string; cost: number }> { return this.actions.finOpsTopNodes; }
-  get finOpsTopNodesView(): Array<{ id: string; label: string; costText: string }> {
+  get finOpsTopNodes(): { id: string; label: string; cost: number }[] { return this.actions.finOpsTopNodes; }
+  get finOpsTopNodesView(): { id: string; label: string; costText: string }[] {
     return this.finOpsTopNodes.map(n => ({ id: n.id, label: n.label, costText: this.formatCurrency(n.cost) }));
   }
   get finOpsState(): 'idle' | 'loading' | 'success' | 'partial' | 'error' { return this.actions.finOpsState; }
@@ -2066,7 +2066,7 @@ export class CanvasComponent {
   get finOpsPayload() { return this.actions.finOpsPayload; }
   get finOpsPeriodPreset(): 'mtd' | 'last30' { return this.actions.finOpsPeriodPreset; }
   get finOpsBaseCurrency(): string { return this.actions.finOpsBaseCurrency; }
-  get finOpsSubscriptionOptions(): Array<{ id: string; label: string }> { return this.actions.finOpsSubscriptionOptions; }
+  get finOpsSubscriptionOptions(): { id: string; label: string }[] { return this.actions.finOpsSubscriptionOptions; }
   get finOpsResourceGroupOptions(): string[] { return this.actions.finOpsResourceGroupOptions; }
   get finOpsResourceTypeOptions(): string[] { return this.actions.finOpsResourceTypeOptions; }
   get finOpsSelectedSubscriptionIds(): string[] { return this.actions.selectedSubscriptionIds; }

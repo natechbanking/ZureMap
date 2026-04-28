@@ -212,7 +212,7 @@ export class FinOpsInsightsPanelComponent {
 
   @Input({ required: true }) periodPreset!: FinOpsPeriodPreset;
   @Input({ required: true }) baseCurrency!: string;
-  @Input({ required: true }) subscriptionOptions!: Array<{ id: string; label: string }>;
+  @Input({ required: true }) subscriptionOptions!: { id: string; label: string }[];
   @Input({ required: true }) resourceGroupOptions!: string[];
   @Input({ required: true }) resourceTypeOptions!: string[];
   @Input({ required: true }) selectedSubscriptionIds!: string[];
@@ -223,7 +223,7 @@ export class FinOpsInsightsPanelComponent {
   @Input({ required: true }) costedNodeCount!: number;
   @Input({ required: true }) loadedSubscriptions!: number;
   @Input({ required: true }) failedSubscriptions!: number;
-  @Input({ required: true }) topNodes!: Array<{ id: string; label: string; costText: string }>;
+  @Input({ required: true }) topNodes!: { id: string; label: string; costText: string }[];
   @Input({ required: true }) byResourceGroup!: FinOpsBreakdownRow[];
   @Input({ required: true }) byResourceType!: FinOpsBreakdownRow[];
 

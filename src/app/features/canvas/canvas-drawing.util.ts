@@ -2,7 +2,7 @@ import { Annotation, DrawingTool, EdgeMode, EdgeRouting, StrokeStyle } from '../
 
 export interface DrawingRuntimeState {
   isDrawing: boolean;
-  drawPoints: Array<[number, number]>;
+  drawPoints: [number, number][];
   shapeStart: { x: number; y: number } | null;
   previewPath: string;
   previewArrow: { x1: number; y1: number; x2: number; y2: number } | null;
@@ -136,7 +136,7 @@ function createAnnotation(style: DrawingStyleState, type: Annotation['type'], x:
   };
 }
 
-function buildSmoothPath(pts: Array<[number, number]>): string {
+function buildSmoothPath(pts: [number, number][]): string {
   if (pts.length < 2) return pts.length === 1 ? `M ${pts[0][0]} ${pts[0][1]}` : '';
   let d = `M ${pts[0][0]} ${pts[0][1]}`;
   for (let i = 1; i < pts.length - 1; i++) {

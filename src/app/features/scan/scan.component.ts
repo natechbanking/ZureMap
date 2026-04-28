@@ -431,7 +431,7 @@ export class ScanComponent implements OnInit {
   optionsUserAssignedIdentityEdges = false;
   optionsIncludeVirtualNetworkLinks = false;
   progressLog = signal<string[]>([]);
-  scanSteps = signal<Array<{ name: string; status: 'pending' | 'active' | 'done' }>>([]);
+  scanSteps = signal<{ name: string; status: 'pending' | 'active' | 'done' }[]>([]);
   private scanError = signal<{ code: string; detail: string } | null>(null);
 
   private static readonly ERROR_TITLES: Record<string, string> = {

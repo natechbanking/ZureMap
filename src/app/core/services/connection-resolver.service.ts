@@ -24,9 +24,9 @@ export class ConnectionResolverService {
 
     for (const r of resources) {
       if (r.type.toLowerCase() !== 'microsoft.network/privateendpoints') continue;
-      const conns = (r.properties['privateLinkServiceConnections'] as Array<{
+      const conns = (r.properties['privateLinkServiceConnections'] as {
         properties: { privateLinkServiceId: string };
-      }>) ?? [];
+      }[]) ?? [];
       for (const conn of conns) {
         const targetId = conn.properties?.privateLinkServiceId;
         if (targetId && nodeIds.has(targetId)) {
@@ -43,7 +43,7 @@ export class ConnectionResolverService {
 
     for (const r of resources) {
       if (r.type.toLowerCase() !== 'microsoft.network/virtualnetworks') continue;
-      const subnets = (r.properties['subnets'] as Array<{ id: string }>) ?? [];
+      const subnets = (r.properties['subnets'] as { id: string }[]) ?? [];
       for (const subnet of subnets) {
         if (subnet.id && nodeIds.has(subnet.id)) {
           edges.push(this.createEdge(r.id, subnet.id, 'subnetMembership', false));
@@ -60,9 +60,9 @@ export class ConnectionResolverService {
 
     for (const r of resources) {
       if (r.type.toLowerCase() !== 'microsoft.network/virtualnetworks') continue;
-      const peerings = (r.properties['virtualNetworkPeerings'] as Array<{
+      const peerings = (r.properties['virtualNetworkPeerings'] as {
         properties: { remoteVirtualNetwork: { id: string } };
-      }>) ?? [];
+      }[]) ?? [];
       for (const p of peerings) {
         const remoteId = p.properties?.remoteVirtualNetwork?.id;
         if (!remoteId || !nodeIds.has(remoteId)) continue;

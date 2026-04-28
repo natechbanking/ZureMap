@@ -102,7 +102,7 @@ export class SubscriptionSelectorComponent {
   selected: AzureSubscription[] = [];
   searchQuery = '';
 
-  get groupedSubscriptions(): Array<{ tenantId: string; tenantName?: string; subscriptions: AzureSubscription[] }> {
+  get groupedSubscriptions(): { tenantId: string; tenantName?: string; subscriptions: AzureSubscription[] }[] {
     const q = this.searchQuery.toLowerCase();
     const filtered = this.subscriptions.filter(s => 
       s.name.toLowerCase().includes(q) || 

@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable, Subject, from, EMPTY } from 'rxjs';
+import { Observable, Subject, from } from 'rxjs';
 import { AzureResource } from '../models/azure-resource.model';
 
 const ALL_RESOURCES_KQL = `

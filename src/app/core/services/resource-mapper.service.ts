@@ -175,7 +175,7 @@ export class ResourceMapperService {
   private resolveChildren(resource: AzureResource): string[] | undefined {
     const type = resource.type.toLowerCase();
     if (type === 'microsoft.network/virtualnetworks') {
-      const subnets = (resource.properties['subnets'] as Array<{ id: string }>) ?? [];
+      const subnets = (resource.properties['subnets'] as { id: string }[]) ?? [];
       return subnets.map(s => s.id).filter(Boolean);
     }
     return undefined;
@@ -209,14 +209,14 @@ export class ResourceMapperService {
     const ids = new Set<string>();
     const vmIdLower = vm.id.toLowerCase();
 
-    const networkInterfaces = (vm.properties['networkProfile'] as { networkInterfaces?: Array<{ id?: string }> } | undefined)?.networkInterfaces ?? [];
+    const networkInterfaces = (vm.properties['networkProfile'] as { networkInterfaces?: { id?: string }[] } | undefined)?.networkInterfaces ?? [];
     for (const nic of networkInterfaces) {
       if (nic.id) ids.add(nic.id);
     }
 
     const storageProfile = vm.properties['storageProfile'] as {
       osDisk?: { managedDisk?: { id?: string } };
-      dataDisks?: Array<{ managedDisk?: { id?: string } }>;
+      dataDisks?: { managedDisk?: { id?: string } }[];
     } | undefined;
 
     const osDiskId = storageProfile?.osDisk?.managedDisk?.id;
@@ -242,7 +242,7 @@ export class ResourceMapperService {
     const ids = new Set<string>();
     const routeTableIdLower = routeTable.id.toLowerCase();
 
-    const routes = (routeTable.properties['routes'] as Array<{ id?: string }> | undefined) ?? [];
+    const routes = (routeTable.properties['routes'] as { id?: string }[] | undefined) ?? [];
     for (const route of routes) {
       if (route.id) ids.add(route.id);
     }

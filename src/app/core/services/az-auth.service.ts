@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
-import { Observable, from, map, catchError, throwError } from 'rxjs';
+import { Observable, catchError, throwError } from 'rxjs';
 import { AzureAccount, AzureSubscription } from '../models/azure-resource.model';
 
 function liftAzError(httpErr: HttpErrorResponse): Observable<never> {

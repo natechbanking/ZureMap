@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
-import { Observable, catchError, map, of } from 'rxjs';
+import { Observable, catchError, of } from 'rxjs';
 import { DiagramNode } from '../models/diagram-node.model';
 import {
   CostQueryResponse,
@@ -112,7 +112,7 @@ export class CostService {
     return                   '0 0 16px 4px rgba(209,52,56,0.8)';
   }
 
-  getOverlayLegend(): Array<{ label: string; color: string }> {
+  getOverlayLegend(): { label: string; color: string }[] {
     return [
       { label: 'Unknown / not mapped', color: '#605e5c' },
       { label: '< 10', color: '#107c10' },
@@ -122,7 +122,7 @@ export class CostService {
     ];
   }
 
-  toTopNodes(payload: FinOpsV2Response): Array<{ id: string; label: string; cost: number }> {
+  toTopNodes(payload: FinOpsV2Response): { id: string; label: string; cost: number }[] {
     return payload.topResources.map(r => ({
       id: r.resourceId,
       label: r.resourceId.split('/').pop() || r.resourceId,

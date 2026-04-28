@@ -1,11 +1,11 @@
 import { DetailKv, getPath, pickListText, pickText, toArrayCount, toArrayCountText, toBoolText, toCsvCount, toDisplayText, toNumber, toNumberStat, toTextStat, toTitleLabel } from './diagram-node-format.util';
 
 export function mapHostingEnvironmentStats(properties: Record<string, unknown>): DetailKv[] {
-  const workerPools = (properties['workerPools'] as Array<{
+  const workerPools = (properties['workerPools'] as {
     workerCount?: number | string;
     instanceCount?: number | string;
     numberOfWorkers?: number | string;
-  }> | undefined) ?? [];
+  }[] | undefined) ?? [];
 
   const totalWorkers = workerPools.reduce((sum, pool) => {
     const workers = toNumber(pool.workerCount) ?? toNumber(pool.instanceCount) ?? toNumber(pool.numberOfWorkers) ?? 0;
@@ -41,7 +41,7 @@ export function mapServerFarmStats(properties: Record<string, unknown>, sku: { n
 
 export function mapPublicIpDetails(properties: Record<string, unknown>, sku: { name?: string; tier?: string } | undefined): DetailKv[] {
   const dns = properties['dnsSettings'] as { fqdn?: string; domainNameLabel?: string } | undefined;
-  const ipTags = (properties['ipTags'] as Array<{ ipTagType?: string; tag?: string }> | undefined) ?? [];
+  const ipTags = (properties['ipTags'] as { ipTagType?: string; tag?: string }[] | undefined) ?? [];
   const ipTagSummary = ipTags.length > 0
     ? ipTags.map(t => [t.ipTagType, t.tag].filter(Boolean).join(':')).filter(Boolean).join(', ')
     : null;
@@ -73,7 +73,7 @@ export function mapScheduleDetails(
   const advanced = (getPath(properties, 'advancedSchedule') as {
     weekDays?: unknown[];
     monthDays?: unknown[];
-    monthlyOccurrences?: Array<{ day?: unknown; occurrence?: unknown }>;
+    monthlyOccurrences?: { day?: unknown; occurrence?: unknown }[];
   } | undefined) ?? {};
 
   const monthlyOccurrences = (advanced.monthlyOccurrences ?? [])

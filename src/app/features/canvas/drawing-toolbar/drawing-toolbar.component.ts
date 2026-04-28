@@ -803,7 +803,7 @@ export class DrawingToolbarComponent {
   @Input() hasSelection = false;
   @Input() annotationCount = 0;
   @Input() tagRules: TagRule[] = [];
-  @Input() availableTags: Map<string, Set<string>> = new Map();
+  @Input() availableTags = new Map<string, Set<string>>();
 
   @Output() tagRulesChange = new EventEmitter<TagRule[]>();
 

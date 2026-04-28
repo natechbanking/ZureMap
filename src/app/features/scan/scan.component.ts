@@ -25,7 +25,7 @@ interface ConnectionType {
       <div class="bg-white rounded-xl shadow-lg w-full max-w-xl p-8">
 
         <div class="flex items-center gap-3 mb-8">
-          <img src="assets/zuremap-logo.svg" alt="ZureMap" class="w-10 h-10" onerror="this.style.display='none'" />
+          <img src="logo.png" alt="ZureMap" class="h-10 w-auto" />
           <div>
             <h1 class="text-2xl font-bold text-gray-900">ZureMap</h1>
             <p class="text-sm text-gray-500">Azure Architecture Diagram Generator</p>

@@ -9,6 +9,7 @@ import { CommonModule } from '@angular/common';
     <header class="h-12 bg-azure-dark text-white flex items-center justify-between px-4 gap-4 flex-shrink-0">
 
       <div class="flex items-center gap-3">
+        <img src="logo.png" alt="ZureMap" class="h-7 w-auto" />
         <span class="font-bold text-lg tracking-tight">ZureMap</span>
         <div class="h-4 w-px bg-white/20"></div>
         <span class="text-xs text-white/60">

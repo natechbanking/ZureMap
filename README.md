@@ -21,6 +21,38 @@ ZureMap is an intelligent Azure Architecture Diagram Generator built with Angula
 - **Export Options:** Export diagrams to images (with customizable backgrounds) or save/load JSON configurations.
 - **DNS Zone Management:** View and manage DNS zones and their records within your subscription.
 
+## Screenshots
+
+<table>
+  <tr>
+    <td align="center" width="50%">
+      <img src="public/demo_1.png" alt="Generated architecture diagram" /><br/>
+      <sub>Auto-generated Azure architecture diagram</sub>
+    </td>
+    <td align="center" width="50%">
+      <img src="public/demo_2.png" alt="Highlight by tag" /><br/>
+      <sub>Highlight resources by tag</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="50%">
+      <img src="public/demo_3.png" alt="FinOps cost insights" /><br/>
+      <sub>FinOps &amp; cost insights panel</sub>
+    </td>
+    <td align="center" width="50%">
+      <img src="public/demo_4.png" alt="Subscription selection" /><br/>
+      <sub>Subscription selection</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="50%">
+      <img src="public/demo_5.png" alt="Diagram configuration options" /><br/>
+      <sub>Step 2: Configure diagram options</sub>
+    </td>
+    <td></td>
+  </tr>
+</table>
+
 ## Prerequisites
 
 - [Node.js](https://nodejs.org/) (v18 or higher)

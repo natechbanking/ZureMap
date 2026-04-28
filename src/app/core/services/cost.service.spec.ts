@@ -1,8 +1,9 @@
+import { TestBed } from '@angular/core/testing';
+import { provideHttpClient } from '@angular/common/http';
 import { CostService } from './cost.service';
 import { DiagramNode } from '../models/diagram-node.model';
 import { FinOpsV2Response, FinOpsDiagnostics } from '../models/cost-data.model';
 import { AzureResource } from '../models/azure-resource.model';
-import { HttpClient } from '@angular/common/http';
 
 const RID = '/subscriptions/sub1/resourceGroups/rg1/providers/Microsoft.Compute/virtualMachines/vm1';
 
@@ -54,7 +55,10 @@ function mkV2Payload(preset: 'mtd' | 'last30', resourceIds: string[]): FinOpsV2R
 
 describe('CostService', () => {
   let svc: CostService;
-  beforeEach(() => { svc = new CostService(null as unknown as HttpClient); });
+  beforeEach(() => {
+    TestBed.configureTestingModule({ providers: [CostService, provideHttpClient()] });
+    svc = TestBed.inject(CostService);
+  });
 
   describe('normalizeResourceId', () => {
     it('lowercases', () =>

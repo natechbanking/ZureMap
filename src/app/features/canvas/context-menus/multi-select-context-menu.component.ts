@@ -49,5 +49,5 @@ export class MultiSelectContextMenuComponent {
   @Output() deleteAll = new EventEmitter<void>();
   @Output() copyNames = new EventEmitter<void>();
   @Output() detachAll = new EventEmitter<void>();
-  @Output() close = new EventEmitter<void>();
+  @Output() closed = new EventEmitter<void>();
 }

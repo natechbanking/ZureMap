@@ -58,7 +58,7 @@ export class ExportDialogComponent {
   @Input({ required: true }) embed!: boolean;
   @Input({ required: true }) busy!: boolean;
 
-  @Output() close = new EventEmitter<void>();
+  @Output() closed = new EventEmitter<void>();
   @Output() export = new EventEmitter<void>();
   @Output() bgChange = new EventEmitter<'white' | 'black' | 'transparent'>();
   @Output() embedChange = new EventEmitter<boolean>();

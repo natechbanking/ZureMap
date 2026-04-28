@@ -96,7 +96,7 @@ export class ResourceContextMenuComponent {
   @Input() showResetBreakout = false;
   @Input() resetBreakoutLabel = '';
 
-  @Output() focus = new EventEmitter<void>();
+  @Output() nodeFocused = new EventEmitter<void>();
   @Output() copyName = new EventEmitter<void>();
   @Output() copyResourceId = new EventEmitter<void>();
   @Output() visualizeTags = new EventEmitter<void>();

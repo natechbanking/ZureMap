@@ -864,7 +864,7 @@
             [topNodes]="finOpsTopNodesView"
             [byResourceGroup]="finOpsByResourceGroup"
             [byResourceType]="finOpsByResourceType"
-            (close)="toggleFinOps()"
+            (closed)="toggleFinOps()"
             (refresh)="refreshFinOps()"
             (periodChange)="onFinOpsPeriodChange($event)"
             (subscriptionChange)="onFinOpsSubscriptionChange($event)"
@@ -891,20 +891,20 @@
             [edge]="selectedEdge"
             [right]="store.sidebarOpen() ? 336 : 16"
             [dashStyle]="dashStyleValue(selectedEdge.style)"
-            (close)="selectedEdgeId = null"
+            (closed)="selectedEdgeId = null"
             (strokeColorChange)="updateSelectedEdgeStyle({ strokeColor: $event })"
             (strokeWidthChange)="updateSelectedEdgeStyle({ strokeWidth: $event })"
             (dashStyleChange)="setSelectedEdgeDashStyle($event)"
             (markerChange)="setSelectedEdgeMarker($event)"
             (animatedChange)="setSelectedEdgeAnimated($event)"
-            (reset)="resetSelectedEdgeStyle()"
+            (styleReset)="resetSelectedEdgeStyle()"
           />
         }
 
         @if (resourceEditorOpen && resourceEditorDraft) {
           <app-resource-editor-modal
             [draft]="resourceEditorDraft"
-            (close)="closeResourceEditor()"
+            (closed)="closeResourceEditor()"
             (save)="saveResourceEditor()"
             (draftChange)="resourceEditorDraft = $event"
             (addInternalItem)="addInternalItem()"
@@ -918,7 +918,7 @@
             [bg]="exportBg"
             [embed]="exportEmbed"
             [busy]="exportBusy"
-            (close)="closeExportDialog()"
+            (closed)="closeExportDialog()"
             (export)="doExport()"
             (bgChange)="exportBg = $event"
             (embedChange)="exportEmbed = $event"
@@ -939,7 +939,7 @@
             [x]="contextMenu.x"
             [y]="contextMenu.y"
             [parentLabel]="parentLabelForNode(contextMenu.node)"
-            (focus)="ctxFocus()"
+            (nodeFocused)="ctxFocus()"
             (copyName)="ctxCopyName()"
             (copyResourceId)="ctxCopyResourceId()"
             (visualizeTags)="ctxVisualizeTags()"
@@ -981,7 +981,7 @@
             (deleteAll)="ctxMultiDelete()"
             (copyNames)="ctxMultiCopyNames()"
             (detachAll)="ctxMultiDetachAll()"
-            (close)="closeContextMenu()"
+            (closed)="closeContextMenu()"
           />
         }
       }

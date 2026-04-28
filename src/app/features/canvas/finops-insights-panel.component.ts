@@ -227,7 +227,7 @@ export class FinOpsInsightsPanelComponent {
   @Input({ required: true }) byResourceGroup!: FinOpsBreakdownRow[];
   @Input({ required: true }) byResourceType!: FinOpsBreakdownRow[];
 
-  @Output() close = new EventEmitter<void>();
+  @Output() closed = new EventEmitter<void>();
   @Output() refresh = new EventEmitter<void>();
   @Output() periodChange = new EventEmitter<FinOpsPeriodPreset>();
   @Output() subscriptionChange = new EventEmitter<string[]>();

@@ -67,7 +67,7 @@ import { ResourceEditorDraft } from './canvas.types';
 export class ResourceEditorModalComponent {
   @Input({ required: true }) draft!: ResourceEditorDraft;
 
-  @Output() close = new EventEmitter<void>();
+  @Output() closed = new EventEmitter<void>();
   @Output() save = new EventEmitter<void>();
   @Output() draftChange = new EventEmitter<ResourceEditorDraft>();
   @Output() addInternalItem = new EventEmitter<void>();

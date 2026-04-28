@@ -89,13 +89,13 @@ export class EdgeStylePanelComponent {
   @Input({ required: true }) right!: number;
   @Input({ required: true }) dashStyle!: string;
 
-  @Output() close = new EventEmitter<void>();
+  @Output() closed = new EventEmitter<void>();
   @Output() strokeColorChange = new EventEmitter<string>();
   @Output() strokeWidthChange = new EventEmitter<number>();
   @Output() dashStyleChange = new EventEmitter<string>();
   @Output() markerChange = new EventEmitter<string>();
   @Output() animatedChange = new EventEmitter<boolean>();
-  @Output() reset = new EventEmitter<void>();
+  @Output() styleReset = new EventEmitter<void>();
 
   colorValue(event: Event): string {
     return (event.target as HTMLInputElement).value || '#605e5c';

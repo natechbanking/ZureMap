@@ -30,7 +30,7 @@
     "express": "^5.2.1",
     "file-saver": "^2.0.5",
     "html-to-image": "^1.11.13",
-    "ng-diagram": "^1.1.2",
+    "ng-diagram": "^1.2.1",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0",
     "zone.js": "~0.15.0"

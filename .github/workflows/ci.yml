@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main]
   pull_request:
     branches: [main]
 
@@ -17,6 +17,8 @@ jobs:
           cache: 'npm'
       - run: npm ci
       - run: npm test -- --watch=false --browsers=ChromeHeadless
+        env:
+          CHROMIUM_FLAGS: "--no-sandbox --disable-gpu --disable-dev-shm-usage"
       - run: npm run build
 
   lint:
@@ -28,4 +30,4 @@ jobs:
           node-version: '22'
           cache: 'npm'
       - run: npm ci
-      - run: npx ng lint --no-eslintrc || true
+      - run: npx ng lint

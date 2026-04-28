@@ -1,0 +1,46 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: "Europe/London"
+    open-pull-requests-limit: 10
+    groups:
+      angular:
+        patterns:
+          - "@angular*"
+          - "@angular-devkit*"
+          - "angular-eslint"
+      typescript-eslint:
+        patterns:
+          - "typescript-eslint"
+          - "eslint*"
+          - "@typescript-eslint*"
+      tailwind:
+        patterns:
+          - "tailwindcss"
+          - "@tailwindcss*"
+          - "postcss*"
+          - "autoprefixer"
+    ignore:
+      - dependency-name: "zone.js"
+        update-types: ["version-update:semver-major"]
+    labels:
+      - "dependencies"
+    commit-message:
+      prefix: "chore(deps)"
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: "Europe/London"
+    labels:
+      - "dependencies"
+    commit-message:
+      prefix: "chore(deps)"

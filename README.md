@@ -58,7 +58,7 @@ ZureMap is an intelligent Azure Architecture Diagram Generator built with Angula
 - [Node.js](https://nodejs.org/) (v18 or higher)
 - [Azure CLI](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli) — required for authentication (`az login`)
 - [Angular CLI](https://github.com/angular/angular-cli) v19.2+
-- [Docker](https://www.docker.com/) _(optional, for containerized usage)_
+- [Docker](https://www.docker.com/) _(required for the pre-built image path; optional for local dev)_
 
 ## Getting Started
 
@@ -84,9 +84,56 @@ ZureMap is an intelligent Azure Architecture Diagram Generator built with Angula
    ```
    Open `http://localhost:4200/`. The app hot-reloads on file changes.
 
-### Docker
+### Docker (pre-built image)
 
-Run ZureMap in a container (the image includes Azure CLI):
+The easiest way to run ZureMap is to pull the published image from the GitHub Container Registry — no build step required.
+
+```bash
+docker pull ghcr.io/natechsa/zuremap:latest
+```
+
+ZureMap talks to Azure through its local proxy server, which calls the Azure CLI inside the container. You need to pass your Azure credentials in at start-up. The recommended approach is to mount your local `~/.azure` directory (populated by `az login` on your host):
+
+```bash
+docker run -d \
+  --name zuremap \
+  -p 3001:3001 \
+  -v "$HOME/.azure:/root/.azure:ro" \
+  ghcr.io/natechsa/zuremap:latest
+```
+
+Then open [http://localhost:3001](http://localhost:3001) in your browser.
+
+> **First time?** Run `az login` on your host machine first so the credentials directory exists before mounting it.
+
+#### Pin to a specific version
+
+```bash
+docker pull ghcr.io/natechsa/zuremap:0.1.0
+```
+
+Available tags: `latest` (current `main`), semver releases (e.g. `0.1.0`), and per-commit `sha-<short>` tags for exact reproducibility. See all tags at [ghcr.io/natechsa/zuremap](https://github.com/natechsa/zuremap/pkgs/container/zuremap).
+
+#### Using Docker Compose
+
+```yaml
+services:
+  zuremap:
+    image: ghcr.io/natechsa/zuremap:latest
+    ports:
+      - "3001:3001"
+    volumes:
+      - $HOME/.azure:/root/.azure:ro
+    restart: unless-stopped
+```
+
+```bash
+docker compose up -d
+```
+
+### Docker (build locally)
+
+Run ZureMap in a container built from source (the image includes Azure CLI):
 
 ```bash
 # Build and start
@@ -99,7 +146,7 @@ make docker-down
 make docker-logs
 ```
 
-The container serves the app on port `3001`. You will need to mount your Azure credentials or run `az login` inside the container.
+The container serves the app on port `3001`.
 
 ## Available Commands
 

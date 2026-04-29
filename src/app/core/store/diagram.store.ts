@@ -11,6 +11,7 @@ interface DiagramSnapshot {
   annotations: Annotation[];
   customNames: [string, string][];
   tagRules: TagRule[];
+  canvasSessionMode: 'scanned' | 'empty' | null;
 }
 
 export type ScanPhase =
@@ -125,6 +126,7 @@ export class DiagramStore {
       annotations: this.annotations(),
       customNames: [...this.customContainerNames()],
       tagRules: this.tagRules(),
+      canvasSessionMode: this.canvasSessionMode(),
     };
   }
 
@@ -134,6 +136,7 @@ export class DiagramStore {
     this.annotations.set(s.annotations);
     this.customContainerNames.set(new Map(s.customNames));
     this.tagRules.set(s.tagRules);
+    this.canvasSessionMode.set(s.canvasSessionMode);
   }
 
   addAnnotation(a: Annotation): void { this.annotations.update(list => [...list, a]); }

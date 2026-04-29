@@ -974,7 +974,7 @@
             [resourceLabel]="iconRegistryService.getTypeLabel(activeResourceType)"
             [iconUrl]="iconRegistryService.getIconUrl(activeResourceType)"
             (confirm)="onCreateResourceConfirm($event)"
-            (cancel)="onCreateResourceCancel()"
+            (dismissed)="onCreateResourceCancel()"
           />
         }
 

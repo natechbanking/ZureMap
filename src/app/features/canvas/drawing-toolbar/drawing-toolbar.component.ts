@@ -1,4 +1,4 @@
-import { Component, Input, Output, EventEmitter, HostListener, OnInit } from '@angular/core';
+import { Component, Input, Output, EventEmitter, HostListener, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { DrawingTool, StrokeStyle, EdgeRouting, EdgeMode } from '../../../core/models/annotation.model';
@@ -878,7 +878,7 @@ const EDGE_MODES: EdgeMode[] = ['none', 'start', 'end', 'both'];
   `,
 })
 export class DrawingToolbarComponent implements OnInit {
-  constructor(private readonly iconRegistry: IconRegistryService) {}
+  private readonly iconRegistry = inject(IconRegistryService);
 
   @Input() activeTool: DrawingTool = 'pointer';
   @Input() activeColor = '#1e1e1e';

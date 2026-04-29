@@ -29,14 +29,28 @@ const AZURE_REGIONS = [
   standalone: true,
   imports: [CommonModule, FormsModule],
   template: `
-    <div class="fixed inset-0 z-[500] flex items-center justify-center p-4">
-      <!-- Backdrop -->
-      <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" (click)="onBackdropClick($event)"></div>
+    <div
+      class="fixed inset-0 z-[500] flex items-center justify-center p-4"
+      role="presentation"
+      (keydown.escape)="dismissed.emit()"
+    >
+      <!-- Backdrop — catches pointer and keyboard dismiss -->
+      <div
+        class="absolute inset-0 bg-black/40 backdrop-blur-sm"
+        tabindex="0"
+        (click)="dismissed.emit()"
+        (keydown.enter)="dismissed.emit()"
+        (keydown.space)="dismissed.emit()"
+      ></div>
 
       <!-- Modal -->
       <div
         class="relative bg-white rounded-2xl shadow-2xl border border-gray-200 w-full max-w-lg max-h-[90vh] flex flex-col"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Add Azure Resource"
         (click)="$event.stopPropagation()"
+        (keydown)="$event.stopPropagation()"
       >
         <!-- Header -->
         <div class="flex items-center gap-3 px-5 py-4 border-b border-gray-100 flex-shrink-0">
@@ -56,7 +70,7 @@ const AZURE_REGIONS = [
           </div>
           <button
             class="w-8 h-8 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-all flex items-center justify-center"
-            (click)="cancel.emit()"
+            (click)="dismissed.emit()"
           >
             <svg viewBox="0 0 20 20" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
               <path d="M4 4 L16 16 M16 4 L4 16" />
@@ -69,8 +83,9 @@ const AZURE_REGIONS = [
 
           <!-- Name -->
           <div>
-            <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Name <span class="text-red-400">*</span></label>
+            <label for="cr-name" class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Name <span class="text-red-400">*</span></label>
             <input
+              id="cr-name"
               type="text"
               class="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition"
               placeholder="my-keyvault-01"
@@ -81,8 +96,9 @@ const AZURE_REGIONS = [
           <!-- Location + Resource Group -->
           <div class="grid grid-cols-2 gap-3">
             <div>
-              <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Location</label>
+              <label for="cr-location" class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Location</label>
               <input
+                id="cr-location"
                 type="text"
                 list="azure-regions-list"
                 class="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition"
@@ -96,8 +112,9 @@ const AZURE_REGIONS = [
               </datalist>
             </div>
             <div>
-              <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Resource Group</label>
+              <label for="cr-rg" class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Resource Group</label>
               <input
+                id="cr-rg"
                 type="text"
                 class="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition"
                 placeholder="my-rg"
@@ -108,7 +125,7 @@ const AZURE_REGIONS = [
 
           <!-- Status -->
           <div>
-            <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Status</label>
+            <span class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Status</span>
             <div class="flex gap-2">
               @for (s of statuses; track s.value) {
                 <button
@@ -127,8 +144,9 @@ const AZURE_REGIONS = [
 
           <!-- Description -->
           <div>
-            <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Description</label>
+            <label for="cr-description" class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Description</label>
             <textarea
+              id="cr-description"
               class="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition resize-none"
               rows="2"
               placeholder="Optional notes about this resource..."
@@ -139,7 +157,7 @@ const AZURE_REGIONS = [
           <!-- Tags -->
           <div>
             <div class="flex items-center justify-between mb-1.5">
-              <label class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Tags</label>
+              <span class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Tags</span>
               <button
                 class="text-xs text-blue-500 hover:text-blue-600 font-medium transition-colors"
                 (click)="addTag()"
@@ -181,7 +199,7 @@ const AZURE_REGIONS = [
           <!-- Internal Labels -->
           <div>
             <div class="flex items-center justify-between mb-1.5">
-              <label class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Internal Labels</label>
+              <span class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Internal Labels</span>
               <button
                 class="text-xs text-blue-500 hover:text-blue-600 font-medium transition-colors"
                 (click)="addLabel()"
@@ -223,7 +241,7 @@ const AZURE_REGIONS = [
           <div class="flex gap-2">
             <button
               class="px-4 py-2 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100 transition-colors"
-              (click)="cancel.emit()"
+              (click)="dismissed.emit()"
             >Cancel</button>
             <button
               class="px-4 py-2 rounded-lg text-sm font-semibold transition-all"
@@ -249,7 +267,7 @@ export class CreateResourceModalComponent implements OnInit {
   @Input() iconUrl = '';
 
   @Output() confirm = new EventEmitter<ResourceCreationData>();
-  @Output() cancel = new EventEmitter<void>();
+  @Output() dismissed = new EventEmitter<void>();
 
   readonly regions = AZURE_REGIONS;
 
@@ -304,6 +322,6 @@ export class CreateResourceModalComponent implements OnInit {
   }
 
   onBackdropClick(e: MouseEvent): void {
-    if (e.target === e.currentTarget) this.cancel.emit();
+    if (e.target === e.currentTarget) this.dismissed.emit();
   }
 }

@@ -8,6 +8,17 @@ import { DiagramNode } from '../../core/models/diagram-node.model';
 const MINI_W = 200;
 const MINI_H = 130;
 
+const GROUP_FILL: Record<string, string> = {
+  resourceGroup: 'rgba(16,185,129,0.08)',
+  vnet: 'rgba(99,102,241,0.08)',
+  subnet: 'rgba(139,92,246,0.06)',
+};
+const GROUP_STROKE: Record<string, string> = {
+  resourceGroup: '#10b981',
+  vnet: '#6366f1',
+  subnet: '#8b5cf6',
+};
+
 interface PanEvent { scrollLeft: number; scrollTop: number; }
 
 @Component({
@@ -116,16 +127,19 @@ export class MinimapComponent {
   private ws(size: number): number { return Math.max(2, size * this.scale); }
 
   get groupRects(): { id: string; x: number; y: number; w: number; h: number; fill: string; stroke: string }[] {
-    const seen = new Set<string>();
-    const out: { id: string; x: number; y: number; w: number; h: number; fill: string; stroke: string }[] = [];
-
+    // Single pass: bucket nodes by group key
+    const groups = new Map<string, DiagramNode[]>();
     for (const n of this.nodes) {
       if (n.group === 'standalone') continue;
       const key = `${n.group}::${n.groupId}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
+      const bucket = groups.get(key);
+      if (bucket) bucket.push(n);
+      else groups.set(key, [n]);
+    }
 
-      const peers = this.nodes.filter(p => p.group === n.group && p.groupId === n.groupId);
+    // One pass per bucket to compute bounding box
+    const out: { id: string; x: number; y: number; w: number; h: number; fill: string; stroke: string }[] = [];
+    for (const [key, peers] of groups) {
       let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
       for (const p of peers) {
         minX = Math.min(minX, p.position.x - 12);
@@ -133,24 +147,13 @@ export class MinimapComponent {
         maxX = Math.max(maxX, p.position.x + p.size.width + 12);
         maxY = Math.max(maxY, p.position.y + p.size.height + 12);
       }
-
-      const fillMap: Record<string, string> = {
-        resourceGroup: 'rgba(16,185,129,0.08)',
-        vnet: 'rgba(99,102,241,0.08)',
-        subnet: 'rgba(139,92,246,0.06)',
-      };
-      const strokeMap: Record<string, string> = {
-        resourceGroup: '#10b981',
-        vnet: '#6366f1',
-        subnet: '#8b5cf6',
-      };
-
+      const group = peers[0].group;
       out.push({
         id: key,
         x: this.wx(minX), y: this.wy(minY),
         w: this.ws(maxX - minX), h: this.ws(maxY - minY),
-        fill: fillMap[n.group] ?? 'rgba(107,114,128,0.06)',
-        stroke: strokeMap[n.group] ?? '#9ca3af',
+        fill: GROUP_FILL[group] ?? 'rgba(107,114,128,0.06)',
+        stroke: GROUP_STROKE[group] ?? '#9ca3af',
       });
     }
     return out;

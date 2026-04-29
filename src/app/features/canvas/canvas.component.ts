@@ -321,22 +321,7 @@ export class CanvasComponent implements AfterViewInit {
 
   // Node HTML5 drag
   private dragOffset = { x: 0, y: 0 };
-  private routeTableCollapsedHeights = new Map<string, number>();
-  private virtualNetworkCollapsedHeights = new Map<string, number>();
-  private nsgCollapsedHeights = new Map<string, number>();
-  private storageAccountCollapsedHeights = new Map<string, number>();
-  private aksCollapsedHeights = new Map<string, number>();
-  private vmDetailCollapsedHeights = new Map<string, number>();
-  private uaiCollapsedHeights = new Map<string, number>();
-  private hostingEnvironmentCollapsedHeights = new Map<string, number>();
-  private serverFarmCollapsedHeights = new Map<string, number>();
-  private publicIpCollapsedHeights = new Map<string, number>();
-  private scheduleCollapsedHeights = new Map<string, number>();
-  private diskCollapsedHeights = new Map<string, number>();
-  private azureFirewallCollapsedHeights = new Map<string, number>();
-  private applicationGatewayCollapsedHeights = new Map<string, number>();
-  private connectionCollapsedHeights = new Map<string, number>();
-  private dnsZoneCollapsedHeights = new Map<string, number>();
+  private collapsedHeights = new Map<string, number>();
   selectedEdgeId: string | null = null;
   edgeWaypointDragState: EdgeWaypointDragState | null = null;
   annWaypointDragState: AnnWaypointDragState | null = null;
@@ -2005,7 +1990,7 @@ export class CanvasComponent implements AfterViewInit {
       req.nodeId,
       req.expanded,
       req.routeCount === 0 ? 48 : req.routeCount * 52 + 28,
-      this.routeTableCollapsedHeights,
+      this.collapsedHeights,
     );
   }
 
@@ -2015,7 +2000,7 @@ export class CanvasComponent implements AfterViewInit {
       req.nodeId,
       req.expanded,
       req.subnetCount === 0 ? 40 : req.subnetCount * 40 + 24,
-      this.virtualNetworkCollapsedHeights,
+      this.collapsedHeights,
     );
   }
 
@@ -2025,7 +2010,7 @@ export class CanvasComponent implements AfterViewInit {
       req.nodeId,
       req.expanded,
       req.ruleCount === 0 ? 40 : req.ruleCount * 52 + 24,
-      this.nsgCollapsedHeights,
+      this.collapsedHeights,
     );
   }
 
@@ -2035,13 +2020,13 @@ export class CanvasComponent implements AfterViewInit {
       req.nodeId,
       req.expanded,
       req.itemCount === 0 ? 32 : req.itemCount * 24 + 64,
-      this.storageAccountCollapsedHeights,
+      this.collapsedHeights,
     );
   }
 
   onVmExpansionChanged(req: VmExpansionRequest): void {
     // Header badges row ~28px + up to 3 detail rows ~18px each + panel chrome 20px.
-    this.applyNodePanelExpansion(req.nodeId, req.expanded, 28 + 3 * 18 + 20, this.vmDetailCollapsedHeights);
+    this.applyNodePanelExpansion(req.nodeId, req.expanded, 28 + 3 * 18 + 20, this.collapsedHeights);
   }
 
   onAksExpansionChanged(req: AksExpansionRequest): void {
@@ -2050,7 +2035,7 @@ export class CanvasComponent implements AfterViewInit {
       req.nodeId,
       req.expanded,
       req.nodePoolCount === 0 ? 48 : req.nodePoolCount * 52 + 48,
-      this.aksCollapsedHeights,
+      this.collapsedHeights,
     );
   }
 
@@ -2060,7 +2045,7 @@ export class CanvasComponent implements AfterViewInit {
       req.nodeId,
       req.expanded,
       req.assignmentCount === 0 ? 48 : req.assignmentCount * 64 + 24,
-      this.uaiCollapsedHeights,
+      this.collapsedHeights,
     );
   }
 
@@ -2070,7 +2055,7 @@ export class CanvasComponent implements AfterViewInit {
       req.nodeId,
       req.expanded,
       req.statCount === 0 ? 40 : req.statCount * 26 + 20,
-      this.hostingEnvironmentCollapsedHeights,
+      this.collapsedHeights,
     );
   }
 
@@ -2079,7 +2064,7 @@ export class CanvasComponent implements AfterViewInit {
       req.nodeId,
       req.expanded,
       req.statCount === 0 ? 40 : req.statCount * 26 + 20,
-      this.serverFarmCollapsedHeights,
+      this.collapsedHeights,
     );
   }
 
@@ -2089,7 +2074,7 @@ export class CanvasComponent implements AfterViewInit {
       req.nodeId,
       req.expanded,
       req.detailCount === 0 ? 40 : req.detailCount * 24 + 20,
-      this.publicIpCollapsedHeights,
+      this.collapsedHeights,
     );
   }
 
@@ -2098,7 +2083,7 @@ export class CanvasComponent implements AfterViewInit {
       req.nodeId,
       req.expanded,
       req.detailCount === 0 ? 40 : req.detailCount * 24 + 20,
-      this.scheduleCollapsedHeights,
+      this.collapsedHeights,
     );
   }
 
@@ -2107,7 +2092,7 @@ export class CanvasComponent implements AfterViewInit {
       req.nodeId,
       req.expanded,
       req.detailCount === 0 ? 40 : req.detailCount * 24 + 20,
-      this.diskCollapsedHeights,
+      this.collapsedHeights,
     );
   }
 
@@ -2116,7 +2101,7 @@ export class CanvasComponent implements AfterViewInit {
       req.nodeId,
       req.expanded,
       req.detailCount === 0 ? 40 : req.detailCount * 24 + 20,
-      this.azureFirewallCollapsedHeights,
+      this.collapsedHeights,
     );
   }
 
@@ -2125,7 +2110,7 @@ export class CanvasComponent implements AfterViewInit {
       req.nodeId,
       req.expanded,
       req.detailCount === 0 ? 40 : req.detailCount * 24 + 20,
-      this.applicationGatewayCollapsedHeights,
+      this.collapsedHeights,
     );
   }
 
@@ -2134,7 +2119,7 @@ export class CanvasComponent implements AfterViewInit {
       req.nodeId,
       req.expanded,
       req.detailCount === 0 ? 40 : req.detailCount * 24 + 20,
-      this.connectionCollapsedHeights,
+      this.collapsedHeights,
     );
   }
 
@@ -2143,7 +2128,7 @@ export class CanvasComponent implements AfterViewInit {
       req.nodeId,
       req.expanded,
       req.recordCount === 0 ? 40 : req.recordCount * 44 + 16,
-      this.dnsZoneCollapsedHeights,
+      this.collapsedHeights,
     );
   }
 
@@ -2226,10 +2211,10 @@ export class CanvasComponent implements AfterViewInit {
   get finOpsTopNodesView(): { id: string; label: string; costText: string }[] {
     return this.finOpsTopNodes.map(n => ({ id: n.id, label: n.label, costText: this.formatCurrency(n.cost) }));
   }
-  get finOpsState(): 'idle' | 'loading' | 'success' | 'partial' | 'error' { return this.actions.finOpsState; }
-  get finOpsStale(): boolean { return this.actions.finOpsStale; }
-  get finOpsDrawerOpen(): boolean { return this.actions.finOpsDrawerOpen; }
-  get finOpsPayload() { return this.actions.finOpsPayload; }
+  get finOpsState(): 'idle' | 'loading' | 'success' | 'partial' | 'error' { return this.actions.finOpsState(); }
+  get finOpsStale(): boolean { return this.actions.finOpsStale(); }
+  get finOpsDrawerOpen(): boolean { return this.actions.finOpsDrawerOpen(); }
+  get finOpsPayload() { return this.actions.finOpsPayload(); }
   get finOpsPeriodPreset(): 'mtd' | 'last30' { return this.actions.finOpsPeriodPreset; }
   get finOpsBaseCurrency(): string { return this.actions.finOpsBaseCurrency; }
   get finOpsSubscriptionOptions(): { id: string; label: string }[] { return this.actions.finOpsSubscriptionOptions; }
@@ -2238,17 +2223,17 @@ export class CanvasComponent implements AfterViewInit {
   get finOpsSelectedSubscriptionIds(): string[] { return this.actions.selectedSubscriptionIds; }
   get finOpsSelectedResourceGroups(): string[] { return this.actions.selectedResourceGroups; }
   get finOpsSelectedResourceTypes(): string[] { return this.actions.selectedResourceTypes; }
-  get finOpsByResourceGroup() { return this.actions.finOpsPayload?.byResourceGroup ?? []; }
-  get finOpsByResourceType() { return this.actions.finOpsPayload?.byResourceType ?? []; }
-  get finOpsLoadedSubscriptions(): number { return this.actions.finOpsPayload?.loadedSubscriptionCount ?? 0; }
-  get finOpsFailedSubscriptions(): number { return this.actions.finOpsPayload?.failedSubscriptionCount ?? 0; }
+  get finOpsByResourceGroup() { return this.actions.finOpsPayload()?.byResourceGroup ?? []; }
+  get finOpsByResourceType() { return this.actions.finOpsPayload()?.byResourceType ?? []; }
+  get finOpsLoadedSubscriptions(): number { return this.actions.finOpsPayload()?.loadedSubscriptionCount ?? 0; }
+  get finOpsFailedSubscriptions(): number { return this.actions.finOpsPayload()?.failedSubscriptionCount ?? 0; }
 
   formatCurrency(value: number): string {
     return this.actions.formatCurrency(value, this.finOpsBaseCurrency);
   }
 
-  get finOpsLoading(): boolean { return this.actions.finOpsState === 'loading'; }
-  get finOpsError(): string | null { return this.actions.finOpsError; }
+  get finOpsLoading(): boolean { return this.actions.finOpsState() === 'loading'; }
+  get finOpsError(): string | null { return this.actions.finOpsError(); }
 
   openExportDialog(): void { this.exportDialogOpen = true; }
   closeExportDialog(): void { this.exportDialogOpen = false; }
@@ -2281,25 +2266,9 @@ export class CanvasComponent implements AfterViewInit {
       const currentNodes = this.store.nodes();
 
       // Run ELK with collapsed node heights so expanded panels don't distort spacing.
-      // All collapsed-height maps track the pre-expansion height for each node type.
-      const collapsedMaps = [
-        this.routeTableCollapsedHeights,
-        this.virtualNetworkCollapsedHeights,
-        this.nsgCollapsedHeights,
-        this.storageAccountCollapsedHeights,
-        this.aksCollapsedHeights,
-        this.vmDetailCollapsedHeights,
-        this.uaiCollapsedHeights,
-        this.hostingEnvironmentCollapsedHeights,
-        this.serverFarmCollapsedHeights,
-      ];
-
       const layoutNodes = currentNodes.map(node => {
-        for (const map of collapsedMaps) {
-          const h = map.get(node.id);
-          if (h !== undefined) return { ...node, size: { ...node.size, height: h } };
-        }
-        return node;
+        const h = this.collapsedHeights.get(node.id);
+        return h !== undefined ? { ...node, size: { ...node.size, height: h } } : node;
       });
 
       const laid = await this.elkLayout.layout(layoutNodes, this.store.edges());

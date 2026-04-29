@@ -10,6 +10,7 @@ interface DiagramSnapshot {
   edges: DiagramEdge[];
   annotations: Annotation[];
   customNames: [string, string][];
+  tagRules: TagRule[];
 }
 
 export type ScanPhase =
@@ -123,6 +124,7 @@ export class DiagramStore {
       edges: this.edges(),
       annotations: this.annotations(),
       customNames: [...this.customContainerNames()],
+      tagRules: this.tagRules(),
     };
   }
 
@@ -131,6 +133,7 @@ export class DiagramStore {
     this.edges.set(s.edges);
     this.annotations.set(s.annotations);
     this.customContainerNames.set(new Map(s.customNames));
+    this.tagRules.set(s.tagRules);
   }
 
   addAnnotation(a: Annotation): void { this.annotations.update(list => [...list, a]); }
@@ -297,21 +300,19 @@ export class DiagramStore {
   }
 
   deleteSelectedNodes(): void {
-    const ids = this.selectedNodeIds();
+    const ids = new Set(this.selectedNodeIds());
     this.selectNodes([]);
-    for (const id of ids) {
-      this.nodes.update(current =>
-        current
-          .filter(n => n.id !== id)
-          .map(n => n.children?.includes(id)
-            ? { ...n, children: n.children.filter(c => c !== id) }
-            : n
-          )
-      );
-      this.edges.update(current =>
-        current.filter(e => e.sourceId !== id && e.targetId !== id)
-      );
-    }
+    this.nodes.update(current =>
+      current
+        .filter(n => !ids.has(n.id))
+        .map(n => n.children?.some(c => ids.has(c))
+          ? { ...n, children: n.children.filter(c => !ids.has(c)) }
+          : n
+        )
+    );
+    this.edges.update(current =>
+      current.filter(e => !ids.has(e.sourceId) && !ids.has(e.targetId))
+    );
   }
 
   loadBaseline(nodes: DiagramNode[]): void {

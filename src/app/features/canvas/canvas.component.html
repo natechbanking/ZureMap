@@ -872,15 +872,18 @@
           [viewportWidth]="minimapViewportWidth"
           [viewportHeight]="minimapViewportHeight"
           [right]="store.sidebarOpen() ? 336 : 16"
+          [visible]="minimapOpen"
           (panTo)="onMinimapPan($event)"
         />
 
         <app-zoom-controls
           [zoomPercent]="zoomPercent"
           [right]="store.sidebarOpen() ? 336 : 16"
+          [minimapOpen]="minimapOpen"
           (zoomIn)="zoomIn()"
           (zoomOut)="zoomOut()"
           (resetZoom)="resetZoom()"
+          (toggleMinimap)="minimapOpen = !minimapOpen"
         />
 
         @if (finOpsDrawerOpen) {

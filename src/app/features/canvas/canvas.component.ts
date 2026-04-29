@@ -226,7 +226,8 @@ export class CanvasComponent implements AfterViewInit {
   activeFill = 'none';
   activeFillOpacity = 0.2;
 
-  // ── Minimap scroll tracking ────────────────────────────────────────────────
+  // ── Minimap state ──────────────────────────────────────────────────────────
+  minimapOpen = false;
   minimapScrollLeft = 0;
   minimapScrollTop = 0;
   minimapViewportWidth = 0;

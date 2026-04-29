@@ -6,6 +6,7 @@ import { ResourceGraphService } from '../../core/services/resource-graph.service
 import { ResourceMapperService } from '../../core/services/resource-mapper.service';
 import { ConnectionResolverService } from '../../core/services/connection-resolver.service';
 import { ELKLayoutService } from '../../core/services/elk-layout.service';
+import { ExportService } from '../../core/services/export.service';
 import { DiagramStore } from '../../core/store/diagram.store';
 import { AzureResource, AzureSubscription } from '../../core/models/azure-resource.model';
 import { SubscriptionSelectorComponent } from './subscription-selector/subscription-selector.component';
@@ -24,12 +25,21 @@ interface ConnectionType {
     <div class="min-h-screen bg-azure-neutral flex items-center justify-center p-8">
       <div class="bg-white rounded-xl shadow-lg w-full max-w-xl p-8">
 
-        <div class="flex items-center gap-3 mb-8">
-          <img src="logo.png" alt="ZureMap" class="h-10 w-auto" />
-          <div>
-            <h1 class="text-2xl font-bold text-gray-900">ZureMap</h1>
-            <p class="text-sm text-gray-500">Azure Architecture Diagram Generator</p>
+        <div class="flex items-start justify-between gap-3 mb-8">
+          <div class="flex items-center gap-3">
+            <img src="logo.png" alt="ZureMap" class="h-10 w-auto" />
+            <div>
+              <h1 class="text-2xl font-bold text-gray-900">ZureMap</h1>
+              <p class="text-sm text-gray-500">Azure Architecture Diagram Generator</p>
+            </div>
           </div>
+          <label
+            class="px-3 py-1.5 rounded-lg text-xs font-medium text-gray-600 hover:bg-gray-100 border border-gray-200 cursor-pointer transition-colors"
+            title="Import ZureMap JSON or embedded PNG"
+          >
+            ↑ Import
+            <input type="file" accept=".json,application/json,.png,image/png" class="sr-only" (change)="onImportFileChange($event)" />
+          </label>
         </div>
 
         @switch (store.scanPhase()) {
@@ -420,6 +430,7 @@ export class ScanComponent implements OnInit {
   private mapper = inject(ResourceMapperService);
   private connectionResolver = inject(ConnectionResolverService);
   private elkLayout = inject(ELKLayoutService);
+  private exportSvc = inject(ExportService);
   private router = inject(Router);
   private zone = inject(NgZone);
 
@@ -540,6 +551,28 @@ export class ScanComponent implements OnInit {
   confirmOptions(): void {
     const subIds = this.store.activeSubscriptions().map(s => s.subscriptionId);
     this.runScan(subIds);
+  }
+
+  async onImportFileChange(event: Event): Promise<void> {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+    try {
+      const state = await this.exportSvc.importFile(file);
+      this.store.clearDiagram();
+      this.store.activeSubscriptions.set(state.subscriptions ?? []);
+      this.store.setNodes(state.nodes ?? []);
+      this.store.setEdges(state.edges ?? []);
+      this.store.annotations.set(state.annotations ?? []);
+      this.store.loadBaseline(state.nodes ?? []);
+      input.value = '';
+      this.router.navigate(['/canvas']);
+    } catch {
+      input.value = '';
+      this.store.scanPhase.set('error');
+      this.store.errorMessage.set('Failed to import file. Please use a valid ZureMap JSON or embedded PNG.');
+      this.scanError.set({ code: 'SERVER_ERROR', detail: 'Invalid or unsupported import file.' });
+    }
   }
 
   private async runScan(subscriptionIds: string[]): Promise<void> {

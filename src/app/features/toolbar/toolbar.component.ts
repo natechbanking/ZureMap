@@ -78,8 +78,10 @@ export class ToolbarComponent {
   @Output() relayout = new EventEmitter<void>();
 
   onFileChange(event: Event): void {
-    const file = (event.target as HTMLInputElement).files?.[0];
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
     if (file) this.importJson.emit(file);
+    input.value = '';
   }
 
   formatCost(value: number, currency: string): string {

@@ -9,18 +9,40 @@ if (!fs.existsSync(statsPath)) {
 }
 
 const stats = JSON.parse(fs.readFileSync(statsPath, 'utf8'));
-const chunks = Array.isArray(stats.chunks) ? stats.chunks : [];
-const assets = Array.isArray(stats.assets) ? stats.assets : [];
+const outputs = stats.outputs && typeof stats.outputs === 'object' ? stats.outputs : {};
 
-const chunkById = new Map(chunks.map(c => [c.id, c]));
-const chunkInitial = new Map(chunks.map(c => [c.id, !!c.initial]));
+const jsEntries = Object.entries(outputs).filter(([name]) => name.endsWith('.js'));
 
-const jsAssets = assets.filter(a => typeof a.name === 'string' && a.name.endsWith('.js'));
-const initialBytes = jsAssets
-  .filter(a => Array.isArray(a.chunks) && a.chunks.some(id => chunkInitial.get(id)))
-  .reduce((sum, a) => sum + (a.size || 0), 0);
+const nonDynamicGraph = new Map();
+for (const [name, meta] of jsEntries) {
+  const imports = Array.isArray(meta.imports) ? meta.imports : [];
+  nonDynamicGraph.set(
+    name,
+    imports
+      .filter(i => i && i.path && i.kind !== 'dynamic-import')
+      .map(i => i.path)
+      .filter(p => typeof p === 'string' && p.endsWith('.js'))
+  );
+}
 
-const elkAssets = jsAssets.filter(a => /elk-bundled/i.test(a.name));
+const rootJs = jsEntries
+  .filter(([, meta]) => typeof meta.entryPoint === 'string' &&
+    (meta.entryPoint === 'src/main.ts' || String(meta.entryPoint).startsWith('angular:polyfills')))
+  .map(([name]) => name);
+
+const visited = new Set();
+const stack = [...rootJs];
+while (stack.length) {
+  const cur = stack.pop();
+  if (!cur || visited.has(cur)) continue;
+  visited.add(cur);
+  for (const dep of nonDynamicGraph.get(cur) || []) stack.push(dep);
+}
+
+const initialBytes = [...visited].reduce((sum, name) => sum + (outputs[name]?.bytes || 0), 0);
+const elkAssets = jsEntries
+  .filter(([, meta]) => String(meta.entryPoint || '').includes('node_modules/elkjs/'))
+  .map(([name, meta]) => ({ name, size: meta.bytes || 0 }));
 
 const MB = 1024 * 1024;
 const maxInitialBytes = 420 * 1024;

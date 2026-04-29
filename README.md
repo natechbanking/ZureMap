@@ -194,14 +194,6 @@ make map-icons
 
 This normalizes filenames, copies them to `assets/azure-icons/`, and regenerates `icon-manifest.json`.
 
-## Building for Production
-
-```bash
-make build
-```
-
-Build artifacts are stored in `dist/`.
-
 ## Testing
 
 ```bash

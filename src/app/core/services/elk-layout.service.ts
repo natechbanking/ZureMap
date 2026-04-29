@@ -129,14 +129,10 @@ export class ELKLayoutService {
         nodes, edges, opts, rgMap, childNodeIds, vmGroupsByRg,
         nodeToRg, classified, multiSub,
       );
-      let result: unknown;
-      if (this.worker) {
-        result = await this.runInWorker(elkGraph);
-      } else {
-        const ELKConstructor = (await import('elkjs/lib/elk.bundled.js' as string)).default as new () => { layout(g: unknown): Promise<unknown> };
-        const elk = new ELKConstructor();
-        result = await elk.layout(elkGraph);
-      }
+      // Keep ELK execution worker-only to avoid duplicating the heavy ELK bundle
+      // in both worker and main-thread chunks.
+      if (!this.worker) throw new Error('ELK worker unavailable');
+      const result = await this.runInWorker(elkGraph);
 
       const positions = new Map<string, { x: number; y: number }>();
       this.extractPositions(result as ElkNode, positions, 0, 0);

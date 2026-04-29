@@ -58,8 +58,13 @@
               "budgets": [
                 {
                   "type": "initial",
-                  "maximumWarning": "500kB",
-                  "maximumError": "1MB"
+                  "maximumWarning": "400kB",
+                  "maximumError": "700kB"
+                },
+                {
+                  "type": "anyScript",
+                  "maximumWarning": "1300kB",
+                  "maximumError": "1700kB"
                 },
                 {
                   "type": "anyComponentStyle",
@@ -67,7 +72,8 @@
                   "maximumError": "8kB"
                 }
               ],
-              "outputHashing": "all"
+              "outputHashing": "all",
+              "sourceMap": false
             },
             "development": {
               "optimization": false,

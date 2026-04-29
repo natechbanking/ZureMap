@@ -6,6 +6,8 @@
     "start": "ng serve",
     "dev": "concurrently \"node proxy/server.js\" \"ng serve --proxy-config proxy.conf.json\"",
     "build": "ng build",
+    "build:stats": "ng build --stats-json",
+    "build:ci": "npm run build:stats && node scripts/check-bundle-stats.js",
     "watch": "ng build --watch --configuration development",
     "test": "CHROME_BIN=$(find $HOME/.cache/puppeteer -name chrome -type f 2>/dev/null | head -1) CHROMIUM_FLAGS='--no-sandbox --disable-gpu --disable-dev-shm-usage' ng test",
     "map-icons": "node scripts/map-icons.js",

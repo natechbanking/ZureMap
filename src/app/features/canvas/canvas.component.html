@@ -73,6 +73,7 @@
           style="background-image: radial-gradient(circle, #d2d0ce 1px, transparent 1px); background-size: 24px 24px;"
           (wheel)="onCanvasWheel($event)"
           (mousedown)="onCanvasBackgroundMouseDown($event)"
+          (scroll)="onCanvasScroll()"
         >
           <div
             class="relative"
@@ -860,6 +861,19 @@
           </div>
 
         </div>
+
+        <app-minimap
+          [nodes]="store.nodes()"
+          [canvasWidth]="canvasWidth"
+          [canvasHeight]="canvasHeight"
+          [scrollLeft]="minimapScrollLeft"
+          [scrollTop]="minimapScrollTop"
+          [zoomLevel]="zoomLevel"
+          [viewportWidth]="minimapViewportWidth"
+          [viewportHeight]="minimapViewportHeight"
+          [right]="store.sidebarOpen() ? 336 : 16"
+          (panTo)="onMinimapPan($event)"
+        />
 
         <app-zoom-controls
           [zoomPercent]="zoomPercent"

@@ -1,4 +1,4 @@
-import { Component, inject, effect, ViewChild, ElementRef, HostListener, computed } from '@angular/core';
+import { Component, inject, effect, ViewChild, ElementRef, HostListener, computed, AfterViewInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { DiagramStore } from '../../core/store/diagram.store';
 import { ELKLayoutService } from '../../core/services/elk-layout.service';
@@ -38,6 +38,7 @@ import { ExportDialogComponent } from './export-dialog.component';
 import { FinOpsInsightsPanelComponent } from './finops-insights-panel.component';
 import { EdgeStylePanelComponent } from './edge-style-panel.component';
 import { ZoomControlsComponent } from './zoom-controls.component';
+import { MinimapComponent } from './minimap.component';
 import { AnnotationEditOverlayComponent } from './annotation-edit-overlay.component';
 import { DiagramNode } from '../../core/models/diagram-node.model';
 import { Annotation, DrawingTool, StrokeStyle, EdgeRouting, EdgeMode } from '../../core/models/annotation.model';
@@ -108,12 +109,13 @@ const ZERO_OFFSET: SizeOffset = { top: 0, right: 0, bottom: 0, left: 0 };
     FinOpsInsightsPanelComponent,
     EdgeStylePanelComponent,
     ZoomControlsComponent,
+    MinimapComponent,
     AnnotationEditOverlayComponent,
   ],
   templateUrl: "./canvas.component.html",
   styleUrl: "./canvas.component.scss",
 })
-export class CanvasComponent {
+export class CanvasComponent implements AfterViewInit {
   @ViewChild('canvasHost', { read: ElementRef }) canvasHostRef!: ElementRef;
   @ViewChild('exportRoot', { read: ElementRef }) exportRootRef!: ElementRef;
   @ViewChild('renameInput') renameInputRef?: ElementRef;
@@ -205,6 +207,14 @@ export class CanvasComponent {
     });
   }
 
+  ngAfterViewInit(): void {
+    const host = this.canvasHostRef?.nativeElement as HTMLElement | undefined;
+    if (host) {
+      this.minimapViewportWidth = host.clientWidth;
+      this.minimapViewportHeight = host.clientHeight;
+    }
+  }
+
   // ── Drawing tool state ─────────────────────────────────────────────────────
   activeTool: DrawingTool = 'pointer';
   activeColor = '#1e1e1e';
@@ -215,6 +225,30 @@ export class CanvasComponent {
   activeEdgeMode: EdgeMode = 'end';
   activeFill = 'none';
   activeFillOpacity = 0.2;
+
+  // ── Minimap scroll tracking ────────────────────────────────────────────────
+  minimapScrollLeft = 0;
+  minimapScrollTop = 0;
+  minimapViewportWidth = 0;
+  minimapViewportHeight = 0;
+
+  onCanvasScroll(): void {
+    const host = this.canvasHostRef?.nativeElement as HTMLElement | undefined;
+    if (!host) return;
+    this.minimapScrollLeft = host.scrollLeft;
+    this.minimapScrollTop = host.scrollTop;
+    this.minimapViewportWidth = host.clientWidth;
+    this.minimapViewportHeight = host.clientHeight;
+  }
+
+  onMinimapPan(e: { scrollLeft: number; scrollTop: number }): void {
+    const host = this.canvasHostRef?.nativeElement as HTMLElement | undefined;
+    if (!host) return;
+    host.scrollLeft = e.scrollLeft;
+    host.scrollTop = e.scrollTop;
+    this.minimapScrollLeft = host.scrollLeft;
+    this.minimapScrollTop = host.scrollTop;
+  }
 
   // ── Resource placement state ───────────────────────────────────────────────
   activeResourceType = '';

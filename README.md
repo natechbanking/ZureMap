@@ -98,7 +98,7 @@ ZureMap talks to Azure through its local proxy server, which calls the Azure CLI
 docker run -d \
   --name zuremap \
   -p 3001:3001 \
-  -v "$HOME/.azure:/root/.azure:ro" \
+  -v "$HOME/.azure:/home/zuremap/.azure:ro" \
   ghcr.io/natechsa/zuremap:latest
 ```
 
@@ -123,7 +123,7 @@ services:
     ports:
       - "3001:3001"
     volumes:
-      - $HOME/.azure:/root/.azure:ro
+      - $HOME/.azure:/home/zuremap/.azure:ro
     restart: unless-stopped
 ```
 

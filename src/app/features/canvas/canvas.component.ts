@@ -2136,10 +2136,6 @@ export class CanvasComponent {
     return this.actions.formatCurrency(value, this.finOpsBaseCurrency);
   }
 
-  toggleDrift(): void {
-    this.actions.toggleDrift();
-  }
-
   get finOpsLoading(): boolean { return this.actions.finOpsState === 'loading'; }
   get finOpsError(): string | null { return this.actions.finOpsError; }
 

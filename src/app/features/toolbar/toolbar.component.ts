@@ -53,7 +53,7 @@ import { CommonModule } from '@angular/common';
           title="Import ZureMap JSON or embedded PNG"
         >
           ↑ Import
-          <input type="file" accept=".json,.png" class="sr-only" (change)="onFileChange($event)" />
+          <input type="file" accept=".json,application/json,.png,image/png" class="sr-only" (change)="onFileChange($event)" />
         </label>
 
         <button (click)="exportJson.emit()" class="px-3 py-1 rounded text-xs text-white/70 hover:bg-white/10" title="Export JSON">↓ JSON</button>

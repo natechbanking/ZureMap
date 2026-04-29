@@ -1,4 +1,4 @@
-import { Component, inject, effect, ViewChild, ElementRef, HostListener, computed } from '@angular/core';
+import { Component, inject, effect, ViewChild, ElementRef, HostListener, computed, AfterViewInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { DiagramStore } from '../../core/store/diagram.store';
 import { ELKLayoutService } from '../../core/services/elk-layout.service';
@@ -33,10 +33,12 @@ import { AnnotationContextMenuComponent } from './context-menus/annotation-conte
 import { RgContextMenuComponent } from './context-menus/rg-context-menu.component';
 import { MultiSelectContextMenuComponent } from './context-menus/multi-select-context-menu.component';
 import { ResourceEditorModalComponent } from './resource-editor-modal.component';
+import { CreateResourceModalComponent, ResourceCreationData } from './create-resource-modal.component';
 import { ExportDialogComponent } from './export-dialog.component';
 import { FinOpsInsightsPanelComponent } from './finops-insights-panel.component';
 import { EdgeStylePanelComponent } from './edge-style-panel.component';
 import { ZoomControlsComponent } from './zoom-controls.component';
+import { MinimapComponent } from './minimap.component';
 import { AnnotationEditOverlayComponent } from './annotation-edit-overlay.component';
 import { DiagramNode } from '../../core/models/diagram-node.model';
 import { Annotation, DrawingTool, StrokeStyle, EdgeRouting, EdgeMode } from '../../core/models/annotation.model';
@@ -102,22 +104,25 @@ const ZERO_OFFSET: SizeOffset = { top: 0, right: 0, bottom: 0, left: 0 };
     RgContextMenuComponent,
     MultiSelectContextMenuComponent,
     ResourceEditorModalComponent,
+    CreateResourceModalComponent,
     ExportDialogComponent,
     FinOpsInsightsPanelComponent,
     EdgeStylePanelComponent,
     ZoomControlsComponent,
+    MinimapComponent,
     AnnotationEditOverlayComponent,
   ],
   templateUrl: "./canvas.component.html",
   styleUrl: "./canvas.component.scss",
 })
-export class CanvasComponent {
+export class CanvasComponent implements AfterViewInit {
   @ViewChild('canvasHost', { read: ElementRef }) canvasHostRef!: ElementRef;
   @ViewChild('exportRoot', { read: ElementRef }) exportRootRef!: ElementRef;
   @ViewChild('renameInput') renameInputRef?: ElementRef;
 
   store = inject(DiagramStore);
   private elkLayout = inject(ELKLayoutService);
+  protected iconRegistryService = inject(IconRegistryService);
   private actions = inject(CanvasActionsService);
   private edgeEditor = inject(CanvasEdgeEditorService);
   private resourceEditor = inject(CanvasResourceEditorService);
@@ -202,6 +207,14 @@ export class CanvasComponent {
     });
   }
 
+  ngAfterViewInit(): void {
+    const host = this.canvasHostRef?.nativeElement as HTMLElement | undefined;
+    if (host) {
+      this.minimapViewportWidth = host.clientWidth;
+      this.minimapViewportHeight = host.clientHeight;
+    }
+  }
+
   // ── Drawing tool state ─────────────────────────────────────────────────────
   activeTool: DrawingTool = 'pointer';
   activeColor = '#1e1e1e';
@@ -212,6 +225,36 @@ export class CanvasComponent {
   activeEdgeMode: EdgeMode = 'end';
   activeFill = 'none';
   activeFillOpacity = 0.2;
+
+  // ── Minimap state ──────────────────────────────────────────────────────────
+  minimapOpen = false;
+  minimapScrollLeft = 0;
+  minimapScrollTop = 0;
+  minimapViewportWidth = 0;
+  minimapViewportHeight = 0;
+
+  onCanvasScroll(): void {
+    const host = this.canvasHostRef?.nativeElement as HTMLElement | undefined;
+    if (!host) return;
+    this.minimapScrollLeft = host.scrollLeft;
+    this.minimapScrollTop = host.scrollTop;
+    this.minimapViewportWidth = host.clientWidth;
+    this.minimapViewportHeight = host.clientHeight;
+  }
+
+  onMinimapPan(e: { scrollLeft: number; scrollTop: number }): void {
+    const host = this.canvasHostRef?.nativeElement as HTMLElement | undefined;
+    if (!host) return;
+    host.scrollLeft = e.scrollLeft;
+    host.scrollTop = e.scrollTop;
+    this.minimapScrollLeft = host.scrollLeft;
+    this.minimapScrollTop = host.scrollTop;
+  }
+
+  // ── Resource placement state ───────────────────────────────────────────────
+  activeResourceType = '';
+  showCreateResourceModal = false;
+  resourcePlacementPosition: { x: number; y: number } | null = null;
 
   selectedAnnotationId: string | null = null;
   editingAnnotation: Annotation | null = null;
@@ -278,22 +321,7 @@ export class CanvasComponent {
 
   // Node HTML5 drag
   private dragOffset = { x: 0, y: 0 };
-  private routeTableCollapsedHeights = new Map<string, number>();
-  private virtualNetworkCollapsedHeights = new Map<string, number>();
-  private nsgCollapsedHeights = new Map<string, number>();
-  private storageAccountCollapsedHeights = new Map<string, number>();
-  private aksCollapsedHeights = new Map<string, number>();
-  private vmDetailCollapsedHeights = new Map<string, number>();
-  private uaiCollapsedHeights = new Map<string, number>();
-  private hostingEnvironmentCollapsedHeights = new Map<string, number>();
-  private serverFarmCollapsedHeights = new Map<string, number>();
-  private publicIpCollapsedHeights = new Map<string, number>();
-  private scheduleCollapsedHeights = new Map<string, number>();
-  private diskCollapsedHeights = new Map<string, number>();
-  private azureFirewallCollapsedHeights = new Map<string, number>();
-  private applicationGatewayCollapsedHeights = new Map<string, number>();
-  private connectionCollapsedHeights = new Map<string, number>();
-  private dnsZoneCollapsedHeights = new Map<string, number>();
+  private collapsedHeights = new Map<string, number>();
   selectedEdgeId: string | null = null;
   edgeWaypointDragState: EdgeWaypointDragState | null = null;
   annWaypointDragState: AnnWaypointDragState | null = null;
@@ -306,6 +334,13 @@ export class CanvasComponent {
   exportBg: 'white' | 'black' | 'transparent' = 'white';
   exportEmbed = false;
   exportBusy = false;
+  dismissEmptyCanvasHint = false;
+
+  get showEmptyCanvasHint(): boolean {
+    return !this.dismissEmptyCanvasHint
+      && this.store.canvasSessionMode() === 'empty'
+      && this.store.nodes().length === 0;
+  }
 
   // ── Keyboard shortcuts ─────────────────────────────────────────────────────
   @HostListener('document:keydown', ['$event'])
@@ -612,6 +647,61 @@ export class CanvasComponent {
     this.applyDrawingRuntime(resetDrawingRuntime(this.currentDrawingRuntime()));
   }
 
+  onResourceTypeChange(type: string): void {
+    this.activeResourceType = type;
+  }
+
+  onCreateResourceConfirm(data: ResourceCreationData): void {
+    if (!this.resourcePlacementPosition || !this.activeResourceType) return;
+    const iconUrl = this.iconRegistryService.getIconUrl(this.activeResourceType);
+    const id = `custom-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const pos = this.resourcePlacementPosition;
+    const tags: Record<string, string> = {};
+    for (const t of data.tags) {
+      if (t.key.trim()) tags[t.key.trim()] = t.value;
+    }
+    const node: DiagramNode = {
+      id,
+      label: data.name,
+      resourceType: this.activeResourceType,
+      iconUrl,
+      group: 'standalone',
+      groupId: data.resourceGroup || 'custom',
+      position: pos,
+      size: { width: 160, height: 80 },
+      status: data.status,
+      selected: false,
+      highlighted: false,
+      metadata: {
+        id: `/custom/${data.resourceGroup || 'custom'}/${this.activeResourceType}/${data.name}`,
+        name: data.name,
+        type: this.activeResourceType,
+        location: data.location,
+        resourceGroup: data.resourceGroup,
+        subscriptionId: 'custom',
+        tags,
+        properties: {},
+      },
+      custom: {
+        description: data.description,
+        internalItems: data.internalItems
+          .filter(i => i.text.trim())
+          .map((item, i) => ({ id: `ii-${i}`, text: item.text, x: 4, y: 20 + i * 16 })),
+      },
+    };
+    this.store.pushUndo();
+    this.store.appendNode(node);
+    this.showCreateResourceModal = false;
+    this.resourcePlacementPosition = null;
+    this.setTool('pointer');
+  }
+
+  onCreateResourceCancel(): void {
+    this.showCreateResourceModal = false;
+    this.resourcePlacementPosition = null;
+    this.setTool('pointer');
+  }
+
   onToolbarColorChange(color: string): void {
     this.activeColor = color;
     this.updateSelectedAnnotation({ color });
@@ -655,6 +745,12 @@ export class CanvasComponent {
   // ── Drawing surface events ─────────────────────────────────────────────────
   onDrawMouseDown(e: MouseEvent): void {
     e.preventDefault();
+    if (this.activeTool === 'resource') {
+      const pt = this.svgPoint(e);
+      this.resourcePlacementPosition = { x: pt.x, y: pt.y };
+      this.showCreateResourceModal = true;
+      return;
+    }
     const pt = this.svgPoint(e);
     const result = onDrawStart(this.currentDrawingRuntime(), this.currentDrawingStyle(), pt);
     this.applyDrawingRuntime(result.next);
@@ -1894,7 +1990,7 @@ export class CanvasComponent {
       req.nodeId,
       req.expanded,
       req.routeCount === 0 ? 48 : req.routeCount * 52 + 28,
-      this.routeTableCollapsedHeights,
+      this.collapsedHeights,
     );
   }
 
@@ -1904,7 +2000,7 @@ export class CanvasComponent {
       req.nodeId,
       req.expanded,
       req.subnetCount === 0 ? 40 : req.subnetCount * 40 + 24,
-      this.virtualNetworkCollapsedHeights,
+      this.collapsedHeights,
     );
   }
 
@@ -1914,7 +2010,7 @@ export class CanvasComponent {
       req.nodeId,
       req.expanded,
       req.ruleCount === 0 ? 40 : req.ruleCount * 52 + 24,
-      this.nsgCollapsedHeights,
+      this.collapsedHeights,
     );
   }
 
@@ -1924,13 +2020,13 @@ export class CanvasComponent {
       req.nodeId,
       req.expanded,
       req.itemCount === 0 ? 32 : req.itemCount * 24 + 64,
-      this.storageAccountCollapsedHeights,
+      this.collapsedHeights,
     );
   }
 
   onVmExpansionChanged(req: VmExpansionRequest): void {
     // Header badges row ~28px + up to 3 detail rows ~18px each + panel chrome 20px.
-    this.applyNodePanelExpansion(req.nodeId, req.expanded, 28 + 3 * 18 + 20, this.vmDetailCollapsedHeights);
+    this.applyNodePanelExpansion(req.nodeId, req.expanded, 28 + 3 * 18 + 20, this.collapsedHeights);
   }
 
   onAksExpansionChanged(req: AksExpansionRequest): void {
@@ -1939,7 +2035,7 @@ export class CanvasComponent {
       req.nodeId,
       req.expanded,
       req.nodePoolCount === 0 ? 48 : req.nodePoolCount * 52 + 48,
-      this.aksCollapsedHeights,
+      this.collapsedHeights,
     );
   }
 
@@ -1949,7 +2045,7 @@ export class CanvasComponent {
       req.nodeId,
       req.expanded,
       req.assignmentCount === 0 ? 48 : req.assignmentCount * 64 + 24,
-      this.uaiCollapsedHeights,
+      this.collapsedHeights,
     );
   }
 
@@ -1959,7 +2055,7 @@ export class CanvasComponent {
       req.nodeId,
       req.expanded,
       req.statCount === 0 ? 40 : req.statCount * 26 + 20,
-      this.hostingEnvironmentCollapsedHeights,
+      this.collapsedHeights,
     );
   }
 
@@ -1968,7 +2064,7 @@ export class CanvasComponent {
       req.nodeId,
       req.expanded,
       req.statCount === 0 ? 40 : req.statCount * 26 + 20,
-      this.serverFarmCollapsedHeights,
+      this.collapsedHeights,
     );
   }
 
@@ -1978,7 +2074,7 @@ export class CanvasComponent {
       req.nodeId,
       req.expanded,
       req.detailCount === 0 ? 40 : req.detailCount * 24 + 20,
-      this.publicIpCollapsedHeights,
+      this.collapsedHeights,
     );
   }
 
@@ -1987,7 +2083,7 @@ export class CanvasComponent {
       req.nodeId,
       req.expanded,
       req.detailCount === 0 ? 40 : req.detailCount * 24 + 20,
-      this.scheduleCollapsedHeights,
+      this.collapsedHeights,
     );
   }
 
@@ -1996,7 +2092,7 @@ export class CanvasComponent {
       req.nodeId,
       req.expanded,
       req.detailCount === 0 ? 40 : req.detailCount * 24 + 20,
-      this.diskCollapsedHeights,
+      this.collapsedHeights,
     );
   }
 
@@ -2005,7 +2101,7 @@ export class CanvasComponent {
       req.nodeId,
       req.expanded,
       req.detailCount === 0 ? 40 : req.detailCount * 24 + 20,
-      this.azureFirewallCollapsedHeights,
+      this.collapsedHeights,
     );
   }
 
@@ -2014,7 +2110,7 @@ export class CanvasComponent {
       req.nodeId,
       req.expanded,
       req.detailCount === 0 ? 40 : req.detailCount * 24 + 20,
-      this.applicationGatewayCollapsedHeights,
+      this.collapsedHeights,
     );
   }
 
@@ -2023,7 +2119,7 @@ export class CanvasComponent {
       req.nodeId,
       req.expanded,
       req.detailCount === 0 ? 40 : req.detailCount * 24 + 20,
-      this.connectionCollapsedHeights,
+      this.collapsedHeights,
     );
   }
 
@@ -2032,7 +2128,7 @@ export class CanvasComponent {
       req.nodeId,
       req.expanded,
       req.recordCount === 0 ? 40 : req.recordCount * 44 + 16,
-      this.dnsZoneCollapsedHeights,
+      this.collapsedHeights,
     );
   }
 
@@ -2115,10 +2211,10 @@ export class CanvasComponent {
   get finOpsTopNodesView(): { id: string; label: string; costText: string }[] {
     return this.finOpsTopNodes.map(n => ({ id: n.id, label: n.label, costText: this.formatCurrency(n.cost) }));
   }
-  get finOpsState(): 'idle' | 'loading' | 'success' | 'partial' | 'error' { return this.actions.finOpsState; }
-  get finOpsStale(): boolean { return this.actions.finOpsStale; }
-  get finOpsDrawerOpen(): boolean { return this.actions.finOpsDrawerOpen; }
-  get finOpsPayload() { return this.actions.finOpsPayload; }
+  get finOpsState(): 'idle' | 'loading' | 'success' | 'partial' | 'error' { return this.actions.finOpsState(); }
+  get finOpsStale(): boolean { return this.actions.finOpsStale(); }
+  get finOpsDrawerOpen(): boolean { return this.actions.finOpsDrawerOpen(); }
+  get finOpsPayload() { return this.actions.finOpsPayload(); }
   get finOpsPeriodPreset(): 'mtd' | 'last30' { return this.actions.finOpsPeriodPreset; }
   get finOpsBaseCurrency(): string { return this.actions.finOpsBaseCurrency; }
   get finOpsSubscriptionOptions(): { id: string; label: string }[] { return this.actions.finOpsSubscriptionOptions; }
@@ -2127,17 +2223,17 @@ export class CanvasComponent {
   get finOpsSelectedSubscriptionIds(): string[] { return this.actions.selectedSubscriptionIds; }
   get finOpsSelectedResourceGroups(): string[] { return this.actions.selectedResourceGroups; }
   get finOpsSelectedResourceTypes(): string[] { return this.actions.selectedResourceTypes; }
-  get finOpsByResourceGroup() { return this.actions.finOpsPayload?.byResourceGroup ?? []; }
-  get finOpsByResourceType() { return this.actions.finOpsPayload?.byResourceType ?? []; }
-  get finOpsLoadedSubscriptions(): number { return this.actions.finOpsPayload?.loadedSubscriptionCount ?? 0; }
-  get finOpsFailedSubscriptions(): number { return this.actions.finOpsPayload?.failedSubscriptionCount ?? 0; }
+  get finOpsByResourceGroup() { return this.actions.finOpsPayload()?.byResourceGroup ?? []; }
+  get finOpsByResourceType() { return this.actions.finOpsPayload()?.byResourceType ?? []; }
+  get finOpsLoadedSubscriptions(): number { return this.actions.finOpsPayload()?.loadedSubscriptionCount ?? 0; }
+  get finOpsFailedSubscriptions(): number { return this.actions.finOpsPayload()?.failedSubscriptionCount ?? 0; }
 
   formatCurrency(value: number): string {
     return this.actions.formatCurrency(value, this.finOpsBaseCurrency);
   }
 
-  get finOpsLoading(): boolean { return this.actions.finOpsState === 'loading'; }
-  get finOpsError(): string | null { return this.actions.finOpsError; }
+  get finOpsLoading(): boolean { return this.actions.finOpsState() === 'loading'; }
+  get finOpsError(): string | null { return this.actions.finOpsError(); }
 
   openExportDialog(): void { this.exportDialogOpen = true; }
   closeExportDialog(): void { this.exportDialogOpen = false; }
@@ -2170,25 +2266,9 @@ export class CanvasComponent {
       const currentNodes = this.store.nodes();
 
       // Run ELK with collapsed node heights so expanded panels don't distort spacing.
-      // All collapsed-height maps track the pre-expansion height for each node type.
-      const collapsedMaps = [
-        this.routeTableCollapsedHeights,
-        this.virtualNetworkCollapsedHeights,
-        this.nsgCollapsedHeights,
-        this.storageAccountCollapsedHeights,
-        this.aksCollapsedHeights,
-        this.vmDetailCollapsedHeights,
-        this.uaiCollapsedHeights,
-        this.hostingEnvironmentCollapsedHeights,
-        this.serverFarmCollapsedHeights,
-      ];
-
       const layoutNodes = currentNodes.map(node => {
-        for (const map of collapsedMaps) {
-          const h = map.get(node.id);
-          if (h !== undefined) return { ...node, size: { ...node.size, height: h } };
-        }
-        return node;
+        const h = this.collapsedHeights.get(node.id);
+        return h !== undefined ? { ...node, size: { ...node.size, height: h } } : node;
       });
 
       const laid = await this.elkLayout.layout(layoutNodes, this.store.edges());

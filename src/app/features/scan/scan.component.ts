@@ -33,16 +33,48 @@ interface ConnectionType {
               <p class="text-sm text-gray-500">Azure Architecture Diagram Generator</p>
             </div>
           </div>
-          <label
-            class="px-3 py-1.5 rounded-lg text-xs font-medium text-gray-600 hover:bg-gray-100 border border-gray-200 cursor-pointer transition-colors"
-            title="Import ZureMap JSON or embedded PNG"
-          >
-            ↑ Import
-            <input type="file" accept=".json,application/json,.png,image/png" class="sr-only" (change)="onImportFileChange($event)" />
-          </label>
         </div>
 
         @switch (store.scanPhase()) {
+
+          @case ('choosing-start') {
+            <div class="space-y-6">
+              <div>
+                <h2 class="text-base font-semibold text-gray-900 mb-1">Choose How to Start</h2>
+                <p class="text-sm text-gray-500">Scan Azure subscriptions or start with a blank canvas.</p>
+              </div>
+
+              <div class="grid grid-cols-1 gap-3">
+                <button
+                  type="button"
+                  (click)="beginAzureScanFlow()"
+                  class="text-left rounded-xl border border-blue-200 bg-blue-50/50 hover:bg-blue-50 transition-colors p-4"
+                >
+                  <p class="text-sm font-semibold text-blue-800 mb-1">Scan Azure</p>
+                  <p class="text-xs text-gray-600">Select subscriptions, configure options, and generate a diagram from live resources.</p>
+                </button>
+
+                <button
+                  type="button"
+                  (click)="startEmptyCanvas()"
+                  class="text-left rounded-xl border border-gray-200 bg-gray-50 hover:bg-gray-100 transition-colors p-4"
+                >
+                  <p class="text-sm font-semibold text-gray-800 mb-1">Start Empty</p>
+                  <p class="text-xs text-gray-600">Open an empty canvas and build your architecture manually.</p>
+                </button>
+              </div>
+
+              <div class="pt-2">
+                <label
+                  class="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-medium text-gray-600 hover:bg-gray-100 border border-gray-200 cursor-pointer transition-colors"
+                  title="Import ZureMap JSON or embedded PNG"
+                >
+                  ↑ Import Existing Diagram
+                  <input type="file" accept=".json,application/json,.png,image/png" class="sr-only" (change)="onImportFileChange($event)" />
+                </label>
+              </div>
+            </div>
+          }
 
           @case ('idle') {
             <div class="text-center py-4">
@@ -392,7 +424,7 @@ interface ConnectionType {
                 </div>
               </div>
               <button
-                (click)="startScan()"
+                (click)="enterStartChoice()"
                 class="w-full py-2.5 px-4 bg-azure-blue text-white rounded-lg font-medium hover:bg-blue-700 transition-colors text-sm"
               >
                 Try again
@@ -487,10 +519,10 @@ export class ScanComponent implements OnInit {
   }
 
   ngOnInit(): void {
-    this.startScan();
+    this.enterStartChoice();
   }
 
-  startScan(): void {
+  enterStartChoice(): void {
     this.needsLogin = false;
     this.optionsGenerateConnections = true;
     this.optionsIncludeAppSlots = false;
@@ -500,9 +532,14 @@ export class ScanComponent implements OnInit {
     this.progressLog.set([]);
     this.scanSteps.set([]);
     this.scanError.set(null);
-    this.store.scanPhase.set('idle');
+    this.store.activeSubscriptions.set([]);
+    this.store.scanPhase.set('choosing-start');
     this.store.errorMessage.set(null);
+  }
 
+  beginAzureScanFlow(): void {
+    this.needsLogin = false;
+    this.store.scanPhase.set('idle');
     this.auth.checkLoginStatus().subscribe({
       next: (status) => {
         if (status.loggedIn) {
@@ -565,6 +602,7 @@ export class ScanComponent implements OnInit {
       this.store.setEdges(state.edges ?? []);
       this.store.annotations.set(state.annotations ?? []);
       this.store.loadBaseline(state.nodes ?? []);
+      this.store.canvasSessionMode.set('scanned');
       input.value = '';
       this.router.navigate(['/canvas']);
     } catch {
@@ -681,6 +719,7 @@ export class ScanComponent implements OnInit {
       this.zone.run(() => {
         this.scanSteps.update(steps => steps.map(s => ({ ...s, status: 'done' })));
         this.store.scanPhase.set('ready');
+        this.store.canvasSessionMode.set('scanned');
         this.router.navigate(['/canvas']);
       });
     } catch (err: unknown) {
@@ -702,5 +741,13 @@ export class ScanComponent implements OnInit {
       if (!seen.has(r.id)) seen.set(r.id, r);
     }
     return Array.from(seen.values());
+  }
+
+  startEmptyCanvas(): void {
+    this.store.clearDiagram();
+    this.store.activeSubscriptions.set([]);
+    this.store.annotations.set([]);
+    this.store.canvasSessionMode.set('empty');
+    this.router.navigate(['/canvas']);
   }
 }

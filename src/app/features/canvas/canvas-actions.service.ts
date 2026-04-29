@@ -1,4 +1,4 @@
-import { ElementRef, Injectable, inject } from '@angular/core';
+import { ElementRef, Injectable, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { ExportService, ExportImageOptions } from '../../core/services/export.service';
 import { DiagramStore } from '../../core/store/diagram.store';
@@ -14,11 +14,11 @@ export class CanvasActionsService {
   private finops = inject(CanvasFinopsService);
   private router = inject(Router);
 
-  finOpsDrawerOpen = false;
-  finOpsState: FinOpsLoadState = 'idle';
-  finOpsStale = false;
-  finOpsError: string | null = null;
-  finOpsPayload: FinOpsV2Response | null = null;
+  readonly finOpsDrawerOpen = signal(false);
+  readonly finOpsState = signal<FinOpsLoadState>('idle');
+  readonly finOpsStale = signal(false);
+  readonly finOpsError = signal<string | null>(null);
+  readonly finOpsPayload = signal<FinOpsV2Response | null>(null);
 
   private finOpsParams: FinOpsRequestParams = {
     periodPreset: 'mtd',
@@ -33,9 +33,9 @@ export class CanvasActionsService {
   };
 
   async toggleFinOpsDrawer(): Promise<void> {
-    this.finOpsDrawerOpen = !this.finOpsDrawerOpen;
-    if (!this.finOpsDrawerOpen) return;
-    if (this.finOpsState === 'idle' || this.finOpsStale) {
+    this.finOpsDrawerOpen.update(v => !v);
+    if (!this.finOpsDrawerOpen()) return;
+    if (this.finOpsState() === 'idle' || this.finOpsStale()) {
       await this.refreshFinOps();
     }
   }
@@ -108,8 +108,8 @@ export class CanvasActionsService {
   async refreshFinOps(): Promise<void> {
     const subIds = this.activeSubscriptionIds;
     if (subIds.length === 0) {
-      this.finOpsState = 'error';
-      this.finOpsError = 'No active subscriptions selected. Re-scan and select at least one subscription.';
+      this.finOpsState.set('error');
+      this.finOpsError.set('No active subscriptions selected. Re-scan and select at least one subscription.');
       this.store.finOpsLayerActive.set(false);
       return;
     }
@@ -117,8 +117,8 @@ export class CanvasActionsService {
     const requestedSubIds = this.selectedSubscriptionIds.filter(s => subIds.includes(s));
     const effectiveSubIds = requestedSubIds.length > 0 ? requestedSubIds : subIds;
 
-    this.finOpsState = 'loading';
-    this.finOpsError = null;
+    this.finOpsState.set('loading');
+    this.finOpsError.set(null);
 
     const request: FinOpsRequestParams = {
       ...this.finOpsParams,
@@ -132,28 +132,28 @@ export class CanvasActionsService {
     try {
       const { nodes: nextNodes, payload } = await this.finops.loadFinOps(this.store.nodes(), request);
       if (!payload) {
-        this.finOpsState = 'error';
-        this.finOpsError = 'Failed to load FinOps data. Ensure proxy is running and Cost Management Reader access is granted.';
+        this.finOpsState.set('error');
+        this.finOpsError.set('Failed to load FinOps data. Ensure proxy is running and Cost Management Reader access is granted.');
         return;
       }
 
-      this.finOpsPayload = payload;
-      this.finOpsStale = false;
+      this.finOpsPayload.set(payload);
+      this.finOpsStale.set(false);
       this.store.finOpsLayerActive.set(true);
       this.store.setNodes(nextNodes);
 
-      this.finOpsState = payload.failedSubscriptionCount > 0 ? 'partial' : 'success';
+      this.finOpsState.set(payload.failedSubscriptionCount > 0 ? 'partial' : 'success');
       if (!nextNodes.some(n => n.costData)) {
-        this.finOpsError = 'Cost query returned no mapped resources for the selected period and filters.';
+        this.finOpsError.set('Cost query returned no mapped resources for the selected period and filters.');
       }
     } catch {
-      this.finOpsState = 'error';
-      this.finOpsError = 'Failed to load FinOps data. Ensure proxy is running and Cost Management Reader access is granted.';
+      this.finOpsState.set('error');
+      this.finOpsError.set('Failed to load FinOps data. Ensure proxy is running and Cost Management Reader access is granted.');
     }
   }
 
   private markFinOpsStale(): void {
-    this.finOpsStale = true;
+    this.finOpsStale.set(true);
   }
 
   private get activeSubscriptionIds(): string[] {
@@ -229,6 +229,7 @@ export class CanvasActionsService {
       this.store.setEdges(state.edges ?? []);
       this.store.annotations.set(state.annotations ?? []);
       this.store.loadBaseline(state.nodes ?? []);
+      this.store.canvasSessionMode.set('scanned');
     } catch {
       console.error('Failed to import file');
     }

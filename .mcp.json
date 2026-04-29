@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "ng-diagram-docs": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@ng-diagram/mcp"]
+    },
+    "context7": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@upstash/context7-mcp"]
+    }
+  }
+}

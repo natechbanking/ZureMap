@@ -6,6 +6,6 @@ export const azAuthGuard: CanActivateFn = () => {
   const store = inject(DiagramStore);
   const router = inject(Router);
 
-  if (store.hasData()) return true;
+  if (store.hasData() || store.canvasSessionMode() === 'empty') return true;
   return router.createUrlTree(['/scan']);
 };

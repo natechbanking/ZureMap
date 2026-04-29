@@ -1,8 +1,8 @@
-export type DrawingTool = 'pointer' | 'draw' | 'line' | 'arrow' | 'text' | 'rect' | 'ellipse' | 'diamond' | 'sticky';
+export type DrawingTool = 'pointer' | 'draw' | 'line' | 'arrow' | 'text' | 'rect' | 'ellipse' | 'diamond' | 'sticky' | 'resource';
 export type StrokeStyle = 'solid' | 'dashed' | 'dotted';
 export type EdgeRouting = 'straight' | 'elbow';
 export type EdgeMode = 'none' | 'start' | 'end' | 'both';
-export type AnnotationType = Exclude<DrawingTool, 'pointer'> | 'image';
+export type AnnotationType = Exclude<DrawingTool, 'pointer' | 'resource'> | 'image';
 
 export interface Annotation {
   id: string;

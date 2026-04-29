@@ -10,9 +10,12 @@ interface DiagramSnapshot {
   edges: DiagramEdge[];
   annotations: Annotation[];
   customNames: [string, string][];
+  tagRules: TagRule[];
+  canvasSessionMode: 'scanned' | 'empty' | null;
 }
 
 export type ScanPhase =
+  | 'choosing-start'
   | 'idle'
   | 'authenticating'
   | 'selecting-subscription'
@@ -25,6 +28,7 @@ export type ScanPhase =
 
 @Injectable({ providedIn: 'root' })
 export class DiagramStore {
+  readonly canvasSessionMode = signal<'scanned' | 'empty' | null>(null);
   readonly nodes = signal<DiagramNode[]>([]);
   readonly edges = signal<DiagramEdge[]>([]);
 
@@ -121,6 +125,8 @@ export class DiagramStore {
       edges: this.edges(),
       annotations: this.annotations(),
       customNames: [...this.customContainerNames()],
+      tagRules: this.tagRules(),
+      canvasSessionMode: this.canvasSessionMode(),
     };
   }
 
@@ -129,6 +135,8 @@ export class DiagramStore {
     this.edges.set(s.edges);
     this.annotations.set(s.annotations);
     this.customContainerNames.set(new Map(s.customNames));
+    this.tagRules.set(s.tagRules);
+    this.canvasSessionMode.set(s.canvasSessionMode);
   }
 
   addAnnotation(a: Annotation): void { this.annotations.update(list => [...list, a]); }
@@ -295,21 +303,19 @@ export class DiagramStore {
   }
 
   deleteSelectedNodes(): void {
-    const ids = this.selectedNodeIds();
+    const ids = new Set(this.selectedNodeIds());
     this.selectNodes([]);
-    for (const id of ids) {
-      this.nodes.update(current =>
-        current
-          .filter(n => n.id !== id)
-          .map(n => n.children?.includes(id)
-            ? { ...n, children: n.children.filter(c => c !== id) }
-            : n
-          )
-      );
-      this.edges.update(current =>
-        current.filter(e => e.sourceId !== id && e.targetId !== id)
-      );
-    }
+    this.nodes.update(current =>
+      current
+        .filter(n => !ids.has(n.id))
+        .map(n => n.children?.some(c => ids.has(c))
+          ? { ...n, children: n.children.filter(c => !ids.has(c)) }
+          : n
+        )
+    );
+    this.edges.update(current =>
+      current.filter(e => !ids.has(e.sourceId) && !ids.has(e.targetId))
+    );
   }
 
   loadBaseline(nodes: DiagramNode[]): void {
@@ -322,6 +328,7 @@ export class DiagramStore {
     this.selectedNodeIds.set([]);
     this.sidebarOpen.set(false);
     this.scanPhase.set('idle');
+    this.canvasSessionMode.set(null);
     this.errorMessage.set(null);
     this._undoStack.length = 0;
     this._redoStack.length = 0;

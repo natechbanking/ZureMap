@@ -17,6 +17,26 @@
 
       <div class="flex flex-1 overflow-hidden relative">
 
+        @if (showEmptyCanvasHint) {
+          <div class="absolute top-3 right-3 z-[140] max-w-sm rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-gray-700 shadow-sm">
+            <div class="flex items-start gap-2">
+              <span class="mt-0.5 text-blue-700">i</span>
+              <div class="min-w-0">
+                <p class="font-semibold text-blue-800">Blank canvas ready</p>
+                <p class="mt-0.5">Use the drawing toolbar to place resources and sketch your architecture.</p>
+              </div>
+              <button
+                type="button"
+                class="ml-2 text-gray-500 hover:text-gray-700"
+                (click)="dismissEmptyCanvasHint = true"
+                title="Dismiss hint"
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+        }
+
         <!-- Floating drawing toolbar (draggable) -->
         <div
           class="absolute z-[120] pointer-events-auto select-none"
@@ -46,7 +66,9 @@
             [annotationCount]="store.annotations().length"
             [tagRules]="store.tagRules()"
             [availableTags]="availableTags"
+            [activeResourceType]="activeResourceType"
             (toolChange)="setTool($event)"
+            (resourceTypeChange)="onResourceTypeChange($event)"
             (colorChange)="onToolbarColorChange($event)"
             (strokeWidthChange)="onToolbarStrokeWidthChange($event)"
             (strokeStyleChange)="onToolbarStrokeStyleChange($event)"
@@ -71,6 +93,7 @@
           style="background-image: radial-gradient(circle, #d2d0ce 1px, transparent 1px); background-size: 24px 24px;"
           (wheel)="onCanvasWheel($event)"
           (mousedown)="onCanvasBackgroundMouseDown($event)"
+          (scroll)="onCanvasScroll()"
         >
           <div
             class="relative"
@@ -859,12 +882,28 @@
 
         </div>
 
+        <app-minimap
+          [nodes]="store.nodes()"
+          [canvasWidth]="canvasWidth"
+          [canvasHeight]="canvasHeight"
+          [scrollLeft]="minimapScrollLeft"
+          [scrollTop]="minimapScrollTop"
+          [zoomLevel]="zoomLevel"
+          [viewportWidth]="minimapViewportWidth"
+          [viewportHeight]="minimapViewportHeight"
+          [right]="store.sidebarOpen() ? 336 : 16"
+          [visible]="minimapOpen"
+          (panTo)="onMinimapPan($event)"
+        />
+
         <app-zoom-controls
           [zoomPercent]="zoomPercent"
           [right]="store.sidebarOpen() ? 336 : 16"
+          [minimapOpen]="minimapOpen"
           (zoomIn)="zoomIn()"
           (zoomOut)="zoomOut()"
           (resetZoom)="resetZoom()"
+          (toggleMinimap)="minimapOpen = !minimapOpen"
         />
 
         @if (finOpsDrawerOpen) {
@@ -925,6 +964,17 @@
             (animatedChange)="setSelectedEdgeAnimated($event)"
             (styleReset)="resetSelectedEdgeStyle()"
             (deleteRequested)="deleteSelectedEdge()"
+          />
+        }
+
+        @if (showCreateResourceModal && resourcePlacementPosition) {
+          <app-create-resource-modal
+            [position]="resourcePlacementPosition"
+            [resourceType]="activeResourceType"
+            [resourceLabel]="iconRegistryService.getTypeLabel(activeResourceType)"
+            [iconUrl]="iconRegistryService.getIconUrl(activeResourceType)"
+            (confirm)="onCreateResourceConfirm($event)"
+            (dismissed)="onCreateResourceCancel()"
           />
         }
 

@@ -6,15 +6,12 @@
         [totalCost]="store.totalMonthlyCost()"
         [totalCostCurrency]="finOpsBaseCurrency"
         [finOpsActive]="finOpsDrawerOpen"
-        [comparisonMode]="store.comparisonMode()"
-        [driftSummary]="store.driftSummary()"
         [relayoutBusy]="relayoutBusy"
         (openExportDialog)="openExportDialog()"
         (exportJson)="exportJson()"
         (toggleFinOps)="toggleFinOps()"
         (rescan)="rescan()"
         (importJson)="onImportFile($event)"
-        (toggleDrift)="toggleDrift()"
         (relayout)="relayoutCanvas()"
       />
 

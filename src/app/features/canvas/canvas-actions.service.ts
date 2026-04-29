@@ -1,6 +1,5 @@
 import { ElementRef, Injectable, inject } from '@angular/core';
 import { Router } from '@angular/router';
-import { DriftService } from '../../core/services/drift.service';
 import { ExportService, ExportImageOptions } from '../../core/services/export.service';
 import { DiagramStore } from '../../core/store/diagram.store';
 import { CanvasFinopsService } from './canvas-finops.service';
@@ -11,7 +10,6 @@ export type FinOpsLoadState = 'idle' | 'loading' | 'success' | 'partial' | 'erro
 @Injectable({ providedIn: 'root' })
 export class CanvasActionsService {
   private store = inject(DiagramStore);
-  private driftSvc = inject(DriftService);
   private exportSvc = inject(ExportService);
   private finops = inject(CanvasFinopsService);
   private router = inject(Router);
@@ -204,17 +202,6 @@ export class CanvasActionsService {
       currency,
       maximumFractionDigits: 2,
     }).format(value);
-  }
-
-  toggleDrift(): void {
-    if (!this.store.comparisonMode()) {
-      this.store.setNodes(this.driftSvc.computeDrift(this.store.baselineNodes(), this.store.nodes()));
-      this.store.comparisonMode.set(true);
-      return;
-    }
-
-    this.store.comparisonMode.set(false);
-    this.store.setNodes(this.store.nodes().map(n => ({ ...n, driftStatus: undefined })));
   }
 
   async exportImage(exportRootRef: ElementRef, options: ExportImageOptions): Promise<void> {

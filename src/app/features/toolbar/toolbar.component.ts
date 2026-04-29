@@ -19,17 +19,6 @@ import { CommonModule } from '@angular/common';
           <span class="text-xs text-white/60">·</span>
           <span class="text-xs text-white/80 font-medium">{{ formatCost(totalCost, totalCostCurrency) }}</span>
         }
-        @if (comparisonMode && driftSummary) {
-          <div class="flex items-center gap-1.5 ml-2">
-            <span class="px-2 py-0.5 bg-green-600 rounded-full text-xs">{{ driftSummary.matched }} matched</span>
-            @if (driftSummary.missing > 0) {
-              <span class="px-2 py-0.5 bg-red-500 rounded-full text-xs">{{ driftSummary.missing }} missing</span>
-            }
-            @if (driftSummary.unplanned > 0) {
-              <span class="px-2 py-0.5 bg-blue-500 rounded-full text-xs">{{ driftSummary.unplanned }} new</span>
-            }
-          </div>
-        }
       </div>
 
       <div class="flex items-center gap-1">
@@ -40,12 +29,6 @@ import { CommonModule } from '@angular/common';
           title="Open/close FinOps drawer"
         >💰 FinOps</button>
 
-        <button
-          (click)="toggleDrift.emit()"
-          [class]="comparisonMode ? 'px-3 py-1 rounded text-xs transition-colors bg-blue-600 text-white' : 'px-3 py-1 rounded text-xs transition-colors text-white/70 hover:bg-white/10'"
-          title="Compare with baseline"
-        >⇄ Drift</button>
-
         <div class="h-4 w-px bg-white/20 mx-1"></div>
 
         <label
@@ -53,7 +36,7 @@ import { CommonModule } from '@angular/common';
           title="Import ZureMap JSON or embedded PNG"
         >
           ↑ Import
-          <input type="file" accept=".json,.png" class="sr-only" (change)="onFileChange($event)" />
+          <input type="file" accept=".json,application/json,.png,image/png" class="sr-only" (change)="onFileChange($event)" />
         </label>
 
         <button (click)="exportJson.emit()" class="px-3 py-1 rounded text-xs text-white/70 hover:bg-white/10" title="Export JSON">↓ JSON</button>
@@ -85,22 +68,20 @@ export class ToolbarComponent {
   @Input() totalCost = 0;
   @Input() totalCostCurrency = 'EUR';
   @Input() finOpsActive = false;
-  @Input() comparisonMode = false;
-  @Input() driftSummary: { matched: number; missing: number; unplanned: number } | null = null;
-
   @Input() relayoutBusy = false;
 
   @Output() openExportDialog = new EventEmitter<void>();
   @Output() exportJson = new EventEmitter<void>();
   @Output() importJson = new EventEmitter<File>();
   @Output() toggleFinOps = new EventEmitter<void>();
-  @Output() toggleDrift = new EventEmitter<void>();
   @Output() rescan = new EventEmitter<void>();
   @Output() relayout = new EventEmitter<void>();
 
   onFileChange(event: Event): void {
-    const file = (event.target as HTMLInputElement).files?.[0];
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
     if (file) this.importJson.emit(file);
+    input.value = '';
   }
 
   formatCost(value: number, currency: string): string {

@@ -229,6 +229,7 @@ export class CanvasActionsService {
       this.store.setEdges(state.edges ?? []);
       this.store.annotations.set(state.annotations ?? []);
       this.store.loadBaseline(state.nodes ?? []);
+      this.store.canvasSessionMode.set('scanned');
     } catch {
       console.error('Failed to import file');
     }

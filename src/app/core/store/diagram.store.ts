@@ -13,6 +13,7 @@ interface DiagramSnapshot {
 }
 
 export type ScanPhase =
+  | 'choosing-start'
   | 'idle'
   | 'authenticating'
   | 'selecting-subscription'
@@ -25,6 +26,7 @@ export type ScanPhase =
 
 @Injectable({ providedIn: 'root' })
 export class DiagramStore {
+  readonly canvasSessionMode = signal<'scanned' | 'empty' | null>(null);
   readonly nodes = signal<DiagramNode[]>([]);
   readonly edges = signal<DiagramEdge[]>([]);
 
@@ -322,6 +324,7 @@ export class DiagramStore {
     this.selectedNodeIds.set([]);
     this.sidebarOpen.set(false);
     this.scanPhase.set('idle');
+    this.canvasSessionMode.set(null);
     this.errorMessage.set(null);
     this._undoStack.length = 0;
     this._redoStack.length = 0;

@@ -349,6 +349,13 @@ export class CanvasComponent implements AfterViewInit {
   exportBg: 'white' | 'black' | 'transparent' = 'white';
   exportEmbed = false;
   exportBusy = false;
+  dismissEmptyCanvasHint = false;
+
+  get showEmptyCanvasHint(): boolean {
+    return !this.dismissEmptyCanvasHint
+      && this.store.canvasSessionMode() === 'empty'
+      && this.store.nodes().length === 0;
+  }
 
   // ── Keyboard shortcuts ─────────────────────────────────────────────────────
   @HostListener('document:keydown', ['$event'])

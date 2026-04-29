@@ -341,6 +341,11 @@ export class CanvasComponent {
       this.deleteSelectedAnnotation();
       return;
     }
+    if ((e.key === 'Delete' || e.key === 'Backspace') && this.selectedEdgeId) {
+      e.preventDefault();
+      this.deleteSelectedEdge();
+      return;
+    }
     if ((e.key === 'Delete' || e.key === 'Backspace') && this.store.selectedNodeIds().length > 1) {
       e.preventDefault();
       this.store.pushUndo();
@@ -765,6 +770,14 @@ export class CanvasComponent {
       this.store.deleteAnnotation(this.selectedAnnotationId);
       this.selectedAnnotationId = null;
     }
+  }
+
+  deleteSelectedEdge(): void {
+    if (!this.selectedEdgeId) return;
+    this.store.pushUndo();
+    const selectedEdgeId = this.selectedEdgeId;
+    this.store.setEdges(this.store.edges().filter(edge => edge.id !== selectedEdgeId));
+    this.selectedEdgeId = null;
   }
 
   duplicateSelectedAnnotation(): void {

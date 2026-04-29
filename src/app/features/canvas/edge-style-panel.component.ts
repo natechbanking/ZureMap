@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, EventEmitter, Input, Output } from '@angular/core';
+import { Component, EventEmitter, HostListener, Input, Output } from '@angular/core';
 import { DiagramEdge } from '../../core/models/diagram-edge.model';
 
 @Component({
@@ -96,6 +96,16 @@ export class EdgeStylePanelComponent {
   @Output() markerChange = new EventEmitter<string>();
   @Output() animatedChange = new EventEmitter<boolean>();
   @Output() styleReset = new EventEmitter<void>();
+  @Output() deleteRequested = new EventEmitter<void>();
+
+  @HostListener('window:keydown', ['$event'])
+  onKeyDown(event: KeyboardEvent): void {
+    if (event.key !== 'Delete' && event.key !== 'Backspace' && event.key !== 'Del') return;
+    const target = event.target as HTMLElement | null;
+    if (target?.matches('input,textarea,[contenteditable]')) return;
+    event.preventDefault();
+    this.deleteRequested.emit();
+  }
 
   colorValue(event: Event): string {
     return (event.target as HTMLInputElement).value || '#605e5c';

@@ -29,9 +29,9 @@ const AZURE_REGIONS = [
   standalone: true,
   imports: [CommonModule, FormsModule],
   template: `
-    <div class="fixed inset-0 z-[500] flex items-center justify-center p-4" (click)="onBackdropClick($event)">
+    <div class="fixed inset-0 z-[500] flex items-center justify-center p-4">
       <!-- Backdrop -->
-      <div class="absolute inset-0 bg-black/40 backdrop-blur-sm"></div>
+      <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" (click)="onBackdropClick($event)"></div>
 
       <!-- Modal -->
       <div

@@ -1,8 +1,9 @@
-import { Component, Input, Output, EventEmitter, HostListener } from '@angular/core';
+import { Component, Input, Output, EventEmitter, HostListener, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { DrawingTool, StrokeStyle, EdgeRouting, EdgeMode } from '../../../core/models/annotation.model';
 import { TagRule, TagRuleOperator } from '../canvas.types';
+import { IconRegistryService } from '../../../core/services/icon-registry.service';
 
 interface Tool {
   id: DrawingTool;
@@ -12,7 +13,14 @@ interface Tool {
   category: 'select' | 'draw' | 'shape' | 'annotate';
 }
 
-type TabId = 'tools' | 'style' | 'actions' | 'highlight';
+type TabId = 'tools' | 'style' | 'actions' | 'highlight' | 'azure';
+
+interface ResourceCatalogEntry {
+  type: string;
+  label: string;
+  iconUrl: string;
+  category: string;
+}
 
 const TOOLS: Tool[] = [
   { id: 'pointer',  label: 'Select',    key: 'V', icon: 'M4 2 L4 14 L7 11 L9 16 L11 15 L9 10 L13 10 Z', category: 'select' },
@@ -620,6 +628,85 @@ const EDGE_MODES: EdgeMode[] = ['none', 'start', 'end', 'both'];
             </div>
           }
 
+          @if (activeTab === 'azure') {
+            <!-- AZURE RESOURCES TAB -->
+            <div class="space-y-3">
+              <!-- Search + Category filter -->
+              <div class="flex gap-2">
+                <div class="relative flex-1">
+                  <svg viewBox="0 0 20 20" class="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+                    <circle cx="8" cy="8" r="5" />
+                    <path d="M13 13 L17 17" />
+                  </svg>
+                  <input
+                    type="text"
+                    class="w-full text-xs border border-gray-200 rounded-lg pl-8 pr-2 py-1.5 outline-none focus:border-blue-400 transition"
+                    placeholder="Search resources..."
+                    [(ngModel)]="resourceSearch"
+                  />
+                </div>
+                <select
+                  class="text-xs border border-gray-200 rounded-lg px-2 py-1.5 outline-none focus:border-blue-400 bg-white transition max-w-[110px]"
+                  [(ngModel)]="resourceCategoryFilter"
+                >
+                  <option value="">All</option>
+                  @for (cat of resourceCategories; track cat) {
+                    <option [value]="cat">{{ cat }}</option>
+                  }
+                </select>
+              </div>
+
+              <!-- Resource grid -->
+              <div class="grid grid-cols-3 gap-1.5 max-h-[280px] overflow-y-auto pr-0.5">
+                @for (entry of filteredResources; track entry.type) {
+                  <button
+                    class="flex flex-col items-center gap-1 p-2 rounded-xl border-2 transition-all text-center"
+                    [class.border-blue-400]="activeResourceType === entry.type"
+                    [class.bg-blue-50]="activeResourceType === entry.type"
+                    [class.shadow-sm]="activeResourceType === entry.type"
+                    [class.border-gray-100]="activeResourceType !== entry.type"
+                    [class.hover:border-gray-200]="activeResourceType !== entry.type"
+                    [class.hover:bg-gray-50]="activeResourceType !== entry.type"
+                    [title]="entry.label + ' (' + entry.type + ')'"
+                    (click)="selectResourceType(entry)"
+                  >
+                    <img [src]="entry.iconUrl" class="w-7 h-7 object-contain" alt="" />
+                    <span class="text-[9px] leading-tight text-gray-600 line-clamp-2">{{ entry.label }}</span>
+                  </button>
+                }
+                @if (filteredResources.length === 0) {
+                  <p class="col-span-3 text-xs text-gray-400 text-center py-4">No resources match your search.</p>
+                }
+              </div>
+
+              <!-- Placement hint -->
+              @if (activeResourceType) {
+                <div class="flex items-center gap-2 px-2.5 py-2 bg-blue-50 rounded-lg border border-blue-100">
+                  <div class="w-6 h-6 rounded-md bg-blue-500 text-white flex items-center justify-center flex-shrink-0">
+                    <svg viewBox="0 0 20 20" class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                      <circle cx="10" cy="10" r="1.5" fill="currentColor" />
+                      <path d="M10 3 L10 6 M10 14 L10 17 M3 10 L6 10 M14 10 L17 10" />
+                    </svg>
+                  </div>
+                  <div class="flex-1 min-w-0">
+                    <p class="text-xs font-medium text-blue-700 truncate">{{ selectedResourceLabel }}</p>
+                    <p class="text-[10px] text-blue-500">Click canvas to place</p>
+                  </div>
+                </div>
+              } @else {
+                <div class="flex items-center gap-2 px-2.5 py-2 bg-gray-50 rounded-lg">
+                  <div class="w-6 h-6 rounded-md bg-gray-200 flex items-center justify-center">
+                    <svg viewBox="0 0 20 20" class="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+                      <rect x="3" y="3" width="14" height="14" rx="2" />
+                      <path d="M7 10 L13 10 M10 7 L10 13" />
+                    </svg>
+                  </div>
+                  <p class="text-[10px] text-gray-400">Select a resource type above</p>
+                </div>
+              }
+            </div>
+          }
+
           @if (activeTab === 'actions') {
             <!-- ACTIONS TAB -->
             <div class="space-y-3">
@@ -790,7 +877,9 @@ const EDGE_MODES: EdgeMode[] = ['none', 'start', 'end', 'both'];
     </div>
   `,
 })
-export class DrawingToolbarComponent {
+export class DrawingToolbarComponent implements OnInit {
+  constructor(private readonly iconRegistry: IconRegistryService) {}
+
   @Input() activeTool: DrawingTool = 'pointer';
   @Input() activeColor = '#1e1e1e';
   @Input() activeStrokeWidth = 2;
@@ -804,6 +893,7 @@ export class DrawingToolbarComponent {
   @Input() annotationCount = 0;
   @Input() tagRules: TagRule[] = [];
   @Input() availableTags = new Map<string, Set<string>>();
+  @Input() activeResourceType = '';
 
   @Output() tagRulesChange = new EventEmitter<TagRule[]>();
 
@@ -822,6 +912,7 @@ export class DrawingToolbarComponent {
   @Output() duplicateSelected = new EventEmitter<void>();
   @Output() bringToFront = new EventEmitter<void>();
   @Output() sendToBack = new EventEmitter<void>();
+  @Output() resourceTypeChange = new EventEmitter<string>();
 
   readonly tools = TOOLS;
   readonly colors = COLORS;
@@ -835,7 +926,37 @@ export class DrawingToolbarComponent {
     { id: 'style', label: 'Style' },
     { id: 'actions', label: 'Actions' },
     { id: 'highlight', label: 'Highlight' },
+    { id: 'azure', label: 'Azure' },
   ];
+
+  // Resource browser state
+  resourceSearch = '';
+  resourceCategoryFilter = '';
+  resourceCatalog: ResourceCatalogEntry[] = [];
+  resourceCategories: string[] = [];
+  selectedResourceLabel = '';
+
+  ngOnInit(): void {
+    this.resourceCatalog = this.iconRegistry.getResourceTypeCatalog();
+    const cats = [...new Set(this.resourceCatalog.map(e => e.category))].sort();
+    this.resourceCategories = cats;
+  }
+
+  get filteredResources(): ResourceCatalogEntry[] {
+    const search = this.resourceSearch.toLowerCase();
+    return this.resourceCatalog.filter(e => {
+      const matchesSearch = !search || e.label.toLowerCase().includes(search) || e.type.includes(search);
+      const matchesCat = !this.resourceCategoryFilter || e.category === this.resourceCategoryFilter;
+      return matchesSearch && matchesCat;
+    });
+  }
+
+  selectResourceType(entry: ResourceCatalogEntry): void {
+    this.selectedResourceLabel = entry.label;
+    this.resourceTypeChange.emit(entry.type);
+    this.toolChange.emit('resource');
+    this.activeTab = 'azure';
+  }
 
   readonly ruleTargets: { id: TagRule['target']; label: string }[] = [
     { id: 'node', label: 'Node' },
@@ -952,10 +1073,12 @@ export class DrawingToolbarComponent {
   }
 
   getActiveToolIcon(): string {
+    if (this.activeTool === 'resource') return 'M3 3 L17 3 L17 17 L3 17 Z M7 10 L13 10 M10 7 L10 13';
     return this.tools.find(t => t.id === this.activeTool)?.icon || '';
   }
 
   getActiveToolLabel(): string {
+    if (this.activeTool === 'resource') return this.selectedResourceLabel || 'Azure Resource';
     return this.tools.find(t => t.id === this.activeTool)?.label || 'Select';
   }
 
@@ -970,6 +1093,7 @@ export class DrawingToolbarComponent {
       ellipse: 'Click and drag to draw an ellipse',
       diamond: 'Click and drag to draw a diamond',
       sticky: 'Click to place a sticky note',
+      resource: `Click canvas to place${this.selectedResourceLabel ? ': ' + this.selectedResourceLabel : ''}`,
     };
     return hints[this.activeTool];
   }

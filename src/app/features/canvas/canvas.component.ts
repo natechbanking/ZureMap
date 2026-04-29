@@ -33,6 +33,7 @@ import { AnnotationContextMenuComponent } from './context-menus/annotation-conte
 import { RgContextMenuComponent } from './context-menus/rg-context-menu.component';
 import { MultiSelectContextMenuComponent } from './context-menus/multi-select-context-menu.component';
 import { ResourceEditorModalComponent } from './resource-editor-modal.component';
+import { CreateResourceModalComponent, ResourceCreationData } from './create-resource-modal.component';
 import { ExportDialogComponent } from './export-dialog.component';
 import { FinOpsInsightsPanelComponent } from './finops-insights-panel.component';
 import { EdgeStylePanelComponent } from './edge-style-panel.component';
@@ -102,6 +103,7 @@ const ZERO_OFFSET: SizeOffset = { top: 0, right: 0, bottom: 0, left: 0 };
     RgContextMenuComponent,
     MultiSelectContextMenuComponent,
     ResourceEditorModalComponent,
+    CreateResourceModalComponent,
     ExportDialogComponent,
     FinOpsInsightsPanelComponent,
     EdgeStylePanelComponent,
@@ -118,6 +120,7 @@ export class CanvasComponent {
 
   store = inject(DiagramStore);
   private elkLayout = inject(ELKLayoutService);
+  protected iconRegistryService = inject(IconRegistryService);
   private actions = inject(CanvasActionsService);
   private edgeEditor = inject(CanvasEdgeEditorService);
   private resourceEditor = inject(CanvasResourceEditorService);
@@ -212,6 +215,11 @@ export class CanvasComponent {
   activeEdgeMode: EdgeMode = 'end';
   activeFill = 'none';
   activeFillOpacity = 0.2;
+
+  // ── Resource placement state ───────────────────────────────────────────────
+  activeResourceType = '';
+  showCreateResourceModal = false;
+  resourcePlacementPosition: { x: number; y: number } | null = null;
 
   selectedAnnotationId: string | null = null;
   editingAnnotation: Annotation | null = null;
@@ -612,6 +620,61 @@ export class CanvasComponent {
     this.applyDrawingRuntime(resetDrawingRuntime(this.currentDrawingRuntime()));
   }
 
+  onResourceTypeChange(type: string): void {
+    this.activeResourceType = type;
+  }
+
+  onCreateResourceConfirm(data: ResourceCreationData): void {
+    if (!this.resourcePlacementPosition || !this.activeResourceType) return;
+    const iconUrl = this.iconRegistryService.getIconUrl(this.activeResourceType);
+    const id = `custom-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const pos = this.resourcePlacementPosition;
+    const tags: Record<string, string> = {};
+    for (const t of data.tags) {
+      if (t.key.trim()) tags[t.key.trim()] = t.value;
+    }
+    const node: DiagramNode = {
+      id,
+      label: data.name,
+      resourceType: this.activeResourceType,
+      iconUrl,
+      group: 'standalone',
+      groupId: data.resourceGroup || 'custom',
+      position: pos,
+      size: { width: 160, height: 80 },
+      status: data.status,
+      selected: false,
+      highlighted: false,
+      metadata: {
+        id: `/custom/${data.resourceGroup || 'custom'}/${this.activeResourceType}/${data.name}`,
+        name: data.name,
+        type: this.activeResourceType,
+        location: data.location,
+        resourceGroup: data.resourceGroup,
+        subscriptionId: 'custom',
+        tags,
+        properties: {},
+      },
+      custom: {
+        description: data.description,
+        internalItems: data.internalItems
+          .filter(i => i.text.trim())
+          .map((item, i) => ({ id: `ii-${i}`, text: item.text, x: 4, y: 20 + i * 16 })),
+      },
+    };
+    this.store.pushUndo();
+    this.store.appendNode(node);
+    this.showCreateResourceModal = false;
+    this.resourcePlacementPosition = null;
+    this.setTool('pointer');
+  }
+
+  onCreateResourceCancel(): void {
+    this.showCreateResourceModal = false;
+    this.resourcePlacementPosition = null;
+    this.setTool('pointer');
+  }
+
   onToolbarColorChange(color: string): void {
     this.activeColor = color;
     this.updateSelectedAnnotation({ color });
@@ -655,6 +718,12 @@ export class CanvasComponent {
   // ── Drawing surface events ─────────────────────────────────────────────────
   onDrawMouseDown(e: MouseEvent): void {
     e.preventDefault();
+    if (this.activeTool === 'resource') {
+      const pt = this.svgPoint(e);
+      this.resourcePlacementPosition = { x: pt.x, y: pt.y };
+      this.showCreateResourceModal = true;
+      return;
+    }
     const pt = this.svgPoint(e);
     const result = onDrawStart(this.currentDrawingRuntime(), this.currentDrawingStyle(), pt);
     this.applyDrawingRuntime(result.next);

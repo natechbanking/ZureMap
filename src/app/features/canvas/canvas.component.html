@@ -46,7 +46,9 @@
             [annotationCount]="store.annotations().length"
             [tagRules]="store.tagRules()"
             [availableTags]="availableTags"
+            [activeResourceType]="activeResourceType"
             (toolChange)="setTool($event)"
+            (resourceTypeChange)="onResourceTypeChange($event)"
             (colorChange)="onToolbarColorChange($event)"
             (strokeWidthChange)="onToolbarStrokeWidthChange($event)"
             (strokeStyleChange)="onToolbarStrokeStyleChange($event)"
@@ -925,6 +927,17 @@
             (animatedChange)="setSelectedEdgeAnimated($event)"
             (styleReset)="resetSelectedEdgeStyle()"
             (deleteRequested)="deleteSelectedEdge()"
+          />
+        }
+
+        @if (showCreateResourceModal && resourcePlacementPosition) {
+          <app-create-resource-modal
+            [position]="resourcePlacementPosition"
+            [resourceType]="activeResourceType"
+            [resourceLabel]="iconRegistryService.getTypeLabel(activeResourceType)"
+            [iconUrl]="iconRegistryService.getIconUrl(activeResourceType)"
+            (confirm)="onCreateResourceConfirm($event)"
+            (cancel)="onCreateResourceCancel()"
           />
         }
 

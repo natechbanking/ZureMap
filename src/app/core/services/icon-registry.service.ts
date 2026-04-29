@@ -141,6 +141,13 @@ export class IconRegistryService {
     return RESOURCE_TYPE_MAP[resourceType.toLowerCase()]?.label ?? this.humanizeType(resourceType);
   }
 
+  getResourceTypeCatalog(): { type: string; label: string; iconUrl: string; category: string }[] {
+    return Object.entries(RESOURCE_TYPE_MAP).map(([type, meta]) => {
+      const category = meta.icon.split('/')[0];
+      return { type, label: meta.label, iconUrl: this.getIconUrl(type), category };
+    }).sort((a, b) => a.label.localeCompare(b.label));
+  }
+
   private humanizeType(type: string): string {
     const parts = type.split('/');
     const last = parts[parts.length - 1];

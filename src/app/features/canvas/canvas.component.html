@@ -677,7 +677,7 @@
                     (contextmenu)="onAnnotationContextMenu($event, ann)"
                   />
                 }
-                <!-- Selection highlight -->
+                <!-- Selection highlight + resize handles -->
                 @if (selectedAnnotationId === ann.id && activeTool === 'pointer') {
                   @if (ann.type === 'rect' || ann.type === 'ellipse' || ann.type === 'diamond') {
                     <rect
@@ -686,6 +686,26 @@
                       fill="none" stroke="#3b82f6" stroke-width="1.5" stroke-dasharray="4 3" rx="5"
                       pointer-events="none"
                     />
+                    <!-- 8 resize handles: corners + edge midpoints -->
+                    @for (rh of [
+                      {h:'nw', cx: ann.x - 4,                       cy: ann.y - 4,                        cur:'nw-resize'},
+                      {h:'n',  cx: ann.x + (ann.width ?? 0) / 2,    cy: ann.y - 4,                        cur:'n-resize'},
+                      {h:'ne', cx: ann.x + (ann.width ?? 0) + 4,    cy: ann.y - 4,                        cur:'ne-resize'},
+                      {h:'e',  cx: ann.x + (ann.width ?? 0) + 4,    cy: ann.y + (ann.height ?? 0) / 2,   cur:'e-resize'},
+                      {h:'se', cx: ann.x + (ann.width ?? 0) + 4,    cy: ann.y + (ann.height ?? 0) + 4,   cur:'se-resize'},
+                      {h:'s',  cx: ann.x + (ann.width ?? 0) / 2,    cy: ann.y + (ann.height ?? 0) + 4,   cur:'s-resize'},
+                      {h:'sw', cx: ann.x - 4,                       cy: ann.y + (ann.height ?? 0) + 4,   cur:'sw-resize'},
+                      {h:'w',  cx: ann.x - 4,                       cy: ann.y + (ann.height ?? 0) / 2,   cur:'w-resize'}
+                    ]; track rh.h) {
+                      <rect
+                        [attr.x]="rh.cx - 4" [attr.y]="rh.cy - 4"
+                        width="8" height="8" rx="1"
+                        fill="white" stroke="#3b82f6" stroke-width="1.5"
+                        [style.cursor]="rh.cur"
+                        style="pointer-events: all"
+                        (mousedown)="onAnnotationShapeResizeMouseDown($event, ann, $any(rh.h))"
+                      />
+                    }
                   }
                 }
               }

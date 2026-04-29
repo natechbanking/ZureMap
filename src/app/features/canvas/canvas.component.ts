@@ -235,6 +235,7 @@ export class CanvasComponent {
   private annDragMouse = { x: 0, y: 0 };
   private annDragOrigin: { x: number; y: number; x2?: number; y2?: number } = { x: 0, y: 0 };
   private imageResizeDrag: { annId: string; startX: number; startY: number; startWidth: number; startHeight: number; aspect: number } | null = null;
+  private annShapeResizeDrag: { annId: string; handle: 'nw'|'n'|'ne'|'e'|'se'|'s'|'sw'|'w'; startClientX: number; startClientY: number; startX: number; startY: number; startWidth: number; startHeight: number } | null = null;
 
   // RG mouse drag (smooth, incremental)
   rgDragState: RgDragState | null = null;
@@ -466,6 +467,29 @@ export class CanvasComponent {
       return;
     }
 
+    if (this.annShapeResizeDrag) {
+      const drag = this.annShapeResizeDrag;
+      const rawDx = (e.clientX - drag.startClientX) / this.zoomLevel;
+      const rawDy = (e.clientY - drag.startClientY) / this.zoomLevel;
+      const MIN = 20;
+      let { startX: x, startY: y, startWidth: w, startHeight: h } = drag;
+      switch (drag.handle) {
+        case 'se': w = Math.max(MIN, drag.startWidth + rawDx); h = Math.max(MIN, drag.startHeight + rawDy); break;
+        case 's':  h = Math.max(MIN, drag.startHeight + rawDy); break;
+        case 'e':  w = Math.max(MIN, drag.startWidth + rawDx); break;
+        case 'nw': w = Math.max(MIN, drag.startWidth - rawDx); h = Math.max(MIN, drag.startHeight - rawDy);
+                   x = drag.startX + drag.startWidth - w; y = drag.startY + drag.startHeight - h; break;
+        case 'n':  h = Math.max(MIN, drag.startHeight - rawDy); y = drag.startY + drag.startHeight - h; break;
+        case 'ne': w = Math.max(MIN, drag.startWidth + rawDx); h = Math.max(MIN, drag.startHeight - rawDy);
+                   y = drag.startY + drag.startHeight - h; break;
+        case 'sw': w = Math.max(MIN, drag.startWidth - rawDx); x = drag.startX + drag.startWidth - w;
+                   h = Math.max(MIN, drag.startHeight + rawDy); break;
+        case 'w':  w = Math.max(MIN, drag.startWidth - rawDx); x = drag.startX + drag.startWidth - w; break;
+      }
+      this.store.updateAnnotation(drag.annId, { x, y, width: w, height: h });
+      return;
+    }
+
     if (this.imageResizeDrag) {
       const drag = this.imageResizeDrag;
       const dx = (e.clientX - drag.startX) / this.zoomLevel;
@@ -572,6 +596,7 @@ export class CanvasComponent {
     this.edgeWaypointDragState = null;
     this.annWaypointDragState = null;
     this.imageResizeDrag = null;
+    this.annShapeResizeDrag = null;
   }
 
   // ── Tool management ────────────────────────────────────────────────────────
@@ -681,6 +706,23 @@ export class CanvasComponent {
       startWidth: width,
       startHeight: height,
       aspect: width / height,
+    };
+  }
+
+  onAnnotationShapeResizeMouseDown(e: MouseEvent, ann: Annotation, handle: 'nw'|'n'|'ne'|'e'|'se'|'s'|'sw'|'w'): void {
+    if (this.activeTool !== 'pointer') return;
+    e.preventDefault();
+    e.stopPropagation();
+    this.store.pushUndo();
+    this.annShapeResizeDrag = {
+      annId: ann.id,
+      handle,
+      startClientX: e.clientX,
+      startClientY: e.clientY,
+      startX: ann.x,
+      startY: ann.y,
+      startWidth: ann.width ?? 80,
+      startHeight: ann.height ?? 60,
     };
   }
 

@@ -11,7 +11,9 @@ import { Annotation } from '../../../core/models/annotation.model';
       class="fixed z-[191] w-56 rounded-lg bg-white border border-gray-200 shadow-xl py-1 select-none"
       [style.left.px]="x"
       [style.top.px]="y"
+      role="presentation"
       (click)="$event.stopPropagation()"
+      (keydown)="$event.stopPropagation()"
     >
       <div class="px-3 py-1.5 border-b border-gray-100">
         <p class="text-[11px] font-semibold text-gray-800 truncate">Annotation</p>

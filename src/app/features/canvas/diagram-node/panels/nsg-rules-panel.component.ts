@@ -8,7 +8,7 @@ import { NsgRuleView } from '../diagram-node-list-details.mapper';
   imports: [CommonModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="w-full mt-1 rounded border border-orange-200 bg-white shadow-sm overflow-hidden" (mousedown)="stop($event)" (click)="stop($event)">
+    <div class="w-full mt-1 rounded border border-orange-200 bg-white shadow-sm overflow-hidden" role="presentation" (mousedown)="stop($event)" (click)="stop($event)" (keydown)="stop($event)">
       @if (rules.length === 0) {
         <p class="text-[10px] text-gray-500 px-2 py-1.5">No security rules found.</p>
       } @else {
@@ -33,7 +33,7 @@ import { NsgRuleView } from '../diagram-node-list-details.mapper';
 export class NsgRulesPanelComponent {
   @Input({ required: true }) rules: NsgRuleView[] = [];
 
-  stop(event: MouseEvent): void {
+  stop(event: Event): void {
     event.preventDefault();
     event.stopPropagation();
   }

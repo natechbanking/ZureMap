@@ -8,7 +8,7 @@ import { AksInfoView } from '../diagram-node-list-details.mapper';
   imports: [CommonModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="w-full mt-1 rounded border border-violet-200 bg-white shadow-sm overflow-hidden" (mousedown)="stop($event)" (click)="stop($event)">
+    <div class="w-full mt-1 rounded border border-violet-200 bg-white shadow-sm overflow-hidden" role="presentation" (mousedown)="stop($event)" (click)="stop($event)" (keydown)="stop($event)">
       <div class="px-2 pt-1.5 pb-1 flex flex-wrap gap-1 border-b border-violet-100">
         <span class="text-[9px] font-semibold px-1.5 py-px rounded-full bg-violet-100 text-violet-700 leading-tight">k8s {{ info.kubernetesVersion }}</span>
         <span class="text-[9px] px-1.5 py-px rounded-full bg-blue-100 text-blue-700 leading-tight">{{ info.networkPlugin }}</span>
@@ -36,7 +36,7 @@ import { AksInfoView } from '../diagram-node-list-details.mapper';
 export class AksDetailsPanelComponent {
   @Input({ required: true }) info!: AksInfoView;
 
-  stop(event: MouseEvent): void {
+  stop(event: Event): void {
     event.preventDefault();
     event.stopPropagation();
   }

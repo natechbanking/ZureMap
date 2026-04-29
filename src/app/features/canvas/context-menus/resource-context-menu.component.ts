@@ -11,14 +11,16 @@ import { DiagramNode } from '../../../core/models/diagram-node.model';
       class="fixed z-[191] w-52 rounded-lg bg-white border border-gray-200 shadow-xl py-1 select-none"
       [style.left.px]="x"
       [style.top.px]="y"
+      role="presentation"
       (click)="$event.stopPropagation()"
+      (keydown)="$event.stopPropagation()"
     >
       <div class="px-3 py-1.5 border-b border-gray-100">
         <p class="text-[11px] font-semibold text-gray-800 truncate" [title]="node.label">{{ node.label }}</p>
         <p class="text-[10px] text-gray-400 truncate">{{ node.resourceType.split('/').pop() }}</p>
       </div>
       <div class="py-0.5">
-        <button type="button" class="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-left text-gray-700 hover:bg-gray-50" (click)="focus.emit()">
+        <button type="button" class="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-left text-gray-700 hover:bg-gray-50" (click)="nodeFocused.emit()">
           <svg class="w-3.5 h-3.5 shrink-0 text-gray-400" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
             <circle cx="8" cy="8" r="6"/>
             <circle cx="8" cy="8" r="2" fill="currentColor" stroke="none"/>

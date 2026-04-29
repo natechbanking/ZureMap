@@ -8,7 +8,7 @@ import { VmInfoView } from '../diagram-node-list-details.mapper';
   imports: [CommonModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="w-full mt-1 rounded border border-emerald-200 bg-white shadow-sm overflow-hidden" (mousedown)="stop($event)" (click)="stop($event)">
+    <div class="w-full mt-1 rounded border border-emerald-200 bg-white shadow-sm overflow-hidden" role="presentation" (mousedown)="stop($event)" (click)="stop($event)" (keydown)="stop($event)">
       <div class="px-2 pt-1.5 pb-1 flex flex-wrap gap-1 border-b border-emerald-100">
         <span class="text-[9px] font-semibold px-1.5 py-px rounded-full bg-emerald-100 text-emerald-700 leading-tight truncate max-w-full" [title]="info.vmSize">{{ info.vmSize }}</span>
         <span class="text-[9px] px-1.5 py-px rounded-full leading-tight shrink-0" [ngClass]="info.osType === 'Windows' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'">{{ info.osType }}</span>
@@ -32,7 +32,7 @@ import { VmInfoView } from '../diagram-node-list-details.mapper';
 export class VmDetailsPanelComponent {
   @Input({ required: true }) info!: VmInfoView;
 
-  stop(event: MouseEvent): void {
+  stop(event: Event): void {
     event.preventDefault();
     event.stopPropagation();
   }

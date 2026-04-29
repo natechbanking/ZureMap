@@ -6,11 +6,11 @@ import { Component, EventEmitter, Input, Output } from '@angular/core';
   standalone: true,
   imports: [CommonModule],
   template: `
-    <div class="absolute inset-0 z-[170] bg-black/30 flex items-center justify-center p-4" (click)="close.emit()">
-      <div class="w-full max-w-sm rounded-xl border border-gray-200 bg-white shadow-2xl" (click)="$event.stopPropagation()">
+    <div class="absolute inset-0 z-[170] bg-black/30 flex items-center justify-center p-4" role="presentation" (click)="closed.emit()" (keydown.escape)="closed.emit()">
+      <div class="w-full max-w-sm rounded-xl border border-gray-200 bg-white shadow-2xl" role="presentation" (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
         <div class="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
           <h3 class="text-sm font-semibold text-gray-900">Export Image</h3>
-          <button class="text-xs text-gray-500 hover:text-gray-700" (click)="close.emit()">✕</button>
+          <button class="text-xs text-gray-500 hover:text-gray-700" (click)="closed.emit()">✕</button>
         </div>
 
         <div class="p-4 space-y-4">
@@ -42,7 +42,7 @@ import { Component, EventEmitter, Input, Output } from '@angular/core';
         </div>
 
         <div class="px-4 py-3 border-t border-gray-100 flex justify-end gap-2">
-          <button class="h-9 px-3 rounded border border-gray-200 text-xs text-gray-700 hover:bg-gray-50" (click)="close.emit()">Cancel</button>
+          <button class="h-9 px-3 rounded border border-gray-200 text-xs text-gray-700 hover:bg-gray-50" (click)="closed.emit()">Cancel</button>
           <button
             class="h-9 px-4 rounded bg-blue-600 text-xs text-white hover:bg-blue-700 disabled:opacity-50"
             [disabled]="busy"

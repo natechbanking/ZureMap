@@ -19,7 +19,7 @@ export interface NodeDetailListSection {
   imports: [CommonModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="w-full mt-1 rounded bg-white shadow-sm p-1.5" [ngClass]="containerClass" (mousedown)="stop($event)" (click)="stop($event)">
+    <div class="w-full mt-1 rounded bg-white shadow-sm p-1.5" [ngClass]="containerClass" role="presentation" (mousedown)="stop($event)" (click)="stop($event)" (keydown)="stop($event)">
       @if (sections.length === 0 || totalItemCount === 0) {
         <p class="text-[10px] text-gray-500 px-1 py-0.5">{{ emptyText }}</p>
       } @else {
@@ -58,7 +58,7 @@ export class NodeDetailListPanelComponent {
     return this.sections.reduce((sum, section) => sum + section.items.length, 0);
   }
 
-  stop(event: MouseEvent): void {
+  stop(event: Event): void {
     event.preventDefault();
     event.stopPropagation();
   }

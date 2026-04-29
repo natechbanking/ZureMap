@@ -7,7 +7,7 @@ import { CommonModule } from '@angular/common';
   imports: [CommonModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="w-full mt-1 rounded border border-teal-200 bg-white shadow-sm overflow-hidden" (mousedown)="stop($event)" (click)="stop($event)">
+    <div class="w-full mt-1 rounded border border-teal-200 bg-white shadow-sm overflow-hidden" role="presentation" (mousedown)="stop($event)" (click)="stop($event)" (keydown)="stop($event)">
       @if (loading) {
         <p class="text-[10px] text-gray-400 px-2 py-1.5 text-center">Loading...</p>
       } @else if (error) {
@@ -72,7 +72,7 @@ export class StorageDetailsPanelComponent {
   @Input() loading = false;
   @Input() error: string | null = null;
 
-  stop(event: MouseEvent): void {
+  stop(event: Event): void {
     event.preventDefault();
     event.stopPropagation();
   }

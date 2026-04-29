@@ -107,7 +107,9 @@
                 [style.width.px]="subHLB.w"
                 [style.height.px]="subHLB.h"
                 [style.box-shadow]="subHL && selectedTagHighlightRuleId === subHL.ruleId ? '0 0 0 3px ' + subHL.borderColor + '66' : null"
+                [attr.tabindex]="subHL ? 0 : -1"
                 (click)="subHL ? selectTagHighlight(subHL.ruleId, $event) : null"
+                (keydown.enter)="subHL ? selectTagHighlight(subHL.ruleId, $event) : null"
               >
                 <div
                   class="absolute flex items-center gap-2 px-3 py-2 rounded-t-2xl select-none pointer-events-auto hover:bg-amber-100/60 transition-colors"
@@ -118,8 +120,10 @@
                   [class.cursor-grabbing]="isSubscriptionDragging && subscriptionDragState?.subscriptionId === bound.subscriptionId"
                   [class.cursor-crosshair]="activeTool !== 'pointer'"
                   style="z-index: 10; height: 36px"
+                  role="presentation"
                   (mousedown)="onSubscriptionMouseDown($event, bound.subscriptionId)"
                   (click)="$event.stopPropagation()"
+                  (keydown)="$event.stopPropagation()"
                 >
                   <img [src]="subscriptionIconUrl" alt="" class="w-4 h-4 object-contain flex-shrink-0 opacity-90" (error)="$any($event.target).style.display='none'" />
                   @if (renamingContainer?.type === 'sub' && renamingContainer?.id === bound.subscriptionId) {
@@ -191,7 +195,9 @@
                 [style.width.px]="rgHLB.w"
                 [style.height.px]="rgHLB.h"
                 [style.box-shadow]="rgHL && selectedTagHighlightRuleId === rgHL.ruleId ? '0 0 0 3px ' + rgHL.borderColor + '66' : null"
+                [attr.tabindex]="rgHL ? 0 : -1"
                 (click)="rgHL ? selectTagHighlight(rgHL.ruleId, $event) : null"
+                (keydown.enter)="rgHL ? selectTagHighlight(rgHL.ruleId, $event) : null"
               >
                 <div
                   class="absolute flex items-center gap-2 px-3 py-1.5 rounded-t-xl select-none pointer-events-auto hover:bg-blue-100/50 transition-colors"
@@ -202,9 +208,11 @@
                   [class.cursor-grabbing]="isRgDragging && rgDragState?.id === bound.id"
                   [class.cursor-crosshair]="activeTool !== 'pointer'"
                   style="z-index: 20; height: 32px"
+                  role="presentation"
                   (mousedown)="onRgMouseDown($event, bound.id)"
                   (contextmenu)="onRgContextMenu($event, bound)"
                   (click)="$event.stopPropagation()"
+                  (keydown)="$event.stopPropagation()"
                 >
                   <img [src]="rgIconUrl" alt="" class="w-4 h-4 object-contain flex-shrink-0" (error)="$any($event.target).style.display='none'" />
                   @if (renamingContainer?.type === 'rg' && renamingContainer?.id === bound.id) {
@@ -774,6 +782,7 @@
                       type="button"
                       data-export-hide
                       class="absolute -right-1 -bottom-1 w-3.5 h-3.5 rounded-sm border border-blue-300 bg-white shadow-sm cursor-se-resize hover:border-blue-500 hover:bg-blue-50"
+                      aria-label="Resize image"
                       (mousedown)="onImageResizeMouseDown($event, ann)"
                     ></button>
                   }
@@ -932,7 +941,7 @@
 
       <!-- Context menu (fixed, outside canvas zoom transform) -->
       @if (contextMenu || rgContextMenu || annotationContextMenu || multiSelectContextMenu) {
-        <div class="fixed inset-0 z-[190]" (click)="closeContextMenu()" (contextmenu)="$event.preventDefault(); closeContextMenu()"></div>
+        <div class="fixed inset-0 z-[190]" role="presentation" (click)="closeContextMenu()" (contextmenu)="$event.preventDefault(); closeContextMenu()" (keydown.escape)="closeContextMenu()"></div>
         @if (contextMenu) {
           <app-resource-context-menu
             [node]="contextMenu.node"

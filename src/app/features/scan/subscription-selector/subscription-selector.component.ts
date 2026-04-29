@@ -53,7 +53,9 @@ import { AzureSubscription } from '../../../core/models/azure-resource.model';
               @for (sub of group.subscriptions; track sub.subscriptionId) {
                 <div class="flex items-center gap-3 p-3 rounded-lg border transition-all cursor-pointer hover:border-blue-300"
                   [ngClass]="isSelected(sub) ? 'border-azure-blue bg-blue-50' : 'border-gray-200'"
-                  (click)="toggle(sub); $event.preventDefault()">
+                  tabindex="0"
+                  (click)="toggle(sub); $event.preventDefault()"
+                  (keydown.enter)="toggle(sub); $event.preventDefault()">
                   
                   <div class="flex items-center justify-center w-5 h-5 rounded border flex-shrink-0 transition-colors"
                     [ngClass]="isSelected(sub) ? 'border-azure-blue bg-azure-blue' : 'border-gray-300'">

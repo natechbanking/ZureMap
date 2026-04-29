@@ -9,7 +9,9 @@
       [class.ring-azure-blue]="node.selected"
       [class.opacity-50]="node.driftStatus === 'missing'"
       [class.border-dashed]="node.driftStatus === 'unplanned'"
+      tabindex="0"
       (click)="onNodeClick($event)"
+      (keydown.enter)="onNodeClick($event)"
       (dblclick)="onDoubleClick($event)"
       (contextmenu)="onContextMenu($event)"
     >

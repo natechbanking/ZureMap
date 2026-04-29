@@ -13,7 +13,7 @@ import { DiagramEdge } from '../../core/models/diagram-edge.model';
     >
       <div class="flex items-center justify-between mb-2">
         <h3 class="text-sm font-semibold text-gray-900">Connection Style</h3>
-        <button class="text-xs text-gray-500 hover:text-gray-700" (click)="close.emit()">Close</button>
+        <button class="text-xs text-gray-500 hover:text-gray-700" (click)="closed.emit()">Close</button>
       </div>
       <p class="text-[11px] text-gray-500 mb-3">Type: <span class="font-medium text-gray-700">{{ edge.edgeType }}</span></p>
 
@@ -76,7 +76,7 @@ import { DiagramEdge } from '../../core/models/diagram-edge.model';
         </label>
         <button
           class="h-8 rounded border border-gray-200 text-xs text-gray-700 hover:bg-gray-50"
-          (click)="reset.emit()"
+          (click)="styleReset.emit()"
         >
           Reset To Default
         </button>

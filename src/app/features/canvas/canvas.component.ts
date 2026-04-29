@@ -1124,7 +1124,7 @@ export class CanvasComponent {
     };
   }
 
-  selectTagHighlight(ruleId: string, event: MouseEvent): void {
+  selectTagHighlight(ruleId: string, event: Event): void {
     event.stopPropagation();
     this.selectedTagHighlightRuleId = ruleId;
     this.selectedAnnotationId = null;

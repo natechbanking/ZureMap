@@ -19,7 +19,7 @@ import { FinOpsBreakdownRow, FinOpsPeriodPreset, FinOpsTrendPoint, FinOpsV2Respo
         <button
           type="button"
           class="px-2 py-1 text-xs rounded border border-gray-200 text-gray-600 hover:bg-gray-50"
-          (click)="close.emit()"
+          (click)="closed.emit()"
         >Close</button>
       </div>
 
@@ -40,8 +40,9 @@ import { FinOpsBreakdownRow, FinOpsPeriodPreset, FinOpsTrendPoint, FinOpsV2Respo
         </div>
 
         <div class="grid grid-cols-1 gap-2">
-          <label class="text-[11px] text-gray-600">Subscriptions</label>
+          <label for="finops-subs-select" class="text-[11px] text-gray-600">Subscriptions</label>
           <select
+            id="finops-subs-select"
             multiple
             class="w-full text-xs border border-gray-200 rounded px-2 py-1.5 min-h-20"
             (change)="onMultiSelectChange($event, 'subscriptions')"
@@ -51,8 +52,9 @@ import { FinOpsBreakdownRow, FinOpsPeriodPreset, FinOpsTrendPoint, FinOpsV2Respo
             }
           </select>
 
-          <label class="text-[11px] text-gray-600">Resource Groups</label>
+          <label for="finops-rg-select" class="text-[11px] text-gray-600">Resource Groups</label>
           <select
+            id="finops-rg-select"
             multiple
             class="w-full text-xs border border-gray-200 rounded px-2 py-1.5 min-h-20"
             (change)="onMultiSelectChange($event, 'resourceGroups')"
@@ -62,8 +64,9 @@ import { FinOpsBreakdownRow, FinOpsPeriodPreset, FinOpsTrendPoint, FinOpsV2Respo
             }
           </select>
 
-          <label class="text-[11px] text-gray-600">Resource Types</label>
+          <label for="finops-rt-select" class="text-[11px] text-gray-600">Resource Types</label>
           <select
+            id="finops-rt-select"
             multiple
             class="w-full text-xs border border-gray-200 rounded px-2 py-1.5 min-h-20"
             (change)="onMultiSelectChange($event, 'resourceTypes')"

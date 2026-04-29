@@ -365,8 +365,9 @@ export class DiagramNodeComponent {
     }];
   }
 
-  onNodeClick(event: MouseEvent): void {
-    if (event.ctrlKey || event.metaKey) return;
+  onNodeClick(event: Event): void {
+    const e = event as MouseEvent | KeyboardEvent;
+    if (e.ctrlKey || e.metaKey) return;
     this.clicked.emit(this.node.id);
   }
 

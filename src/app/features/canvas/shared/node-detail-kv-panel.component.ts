@@ -8,7 +8,7 @@ import { DetailKv } from '../diagram-node/diagram-node-format.util';
   imports: [CommonModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="w-full mt-1 rounded bg-white shadow-sm overflow-hidden" [ngClass]="containerClass" (mousedown)="stop($event)" (click)="stop($event)">
+    <div class="w-full mt-1 rounded bg-white shadow-sm overflow-hidden" [ngClass]="containerClass" role="presentation" (mousedown)="stop($event)" (click)="stop($event)" (keydown)="stop($event)">
       @if (loading) {
         <p class="text-[10px] text-gray-400 px-2 py-1.5 text-center">Loading...</p>
       } @else if (error) {
@@ -37,7 +37,7 @@ export class NodeDetailKvPanelComponent {
   @Input() loading = false;
   @Input() error: string | null = null;
 
-  stop(event: MouseEvent): void {
+  stop(event: Event): void {
     event.preventDefault();
     event.stopPropagation();
   }

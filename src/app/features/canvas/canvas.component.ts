@@ -646,6 +646,10 @@ export class CanvasComponent implements AfterViewInit {
           this.selectedAnnotationIds = intersectedAnnotations;
         }
         this.selectedAnnotationId = this.selectedAnnotationIds[0] ?? null;
+        if (this.selectedAnnotationId) {
+          const selectedAnnotation = this.annotationById(this.selectedAnnotationId);
+          if (selectedAnnotation) this.syncToolbarFromAnnotation(selectedAnnotation);
+        }
       }
       this.marqueeState = null;
     }
@@ -888,8 +892,8 @@ export class CanvasComponent implements AfterViewInit {
       startClientY: e.clientY,
       startX: ann.x,
       startY: ann.y,
-      startWidth: ann.width ?? 80,
-      startHeight: ann.height ?? 60,
+      startWidth: ann.width ?? this.annotationTextWidth(ann),
+      startHeight: ann.height ?? this.annotationTextHeight(ann),
     };
   }
 
@@ -2469,9 +2473,12 @@ export class CanvasComponent implements AfterViewInit {
     if (ann.type === 'arrow' || ann.type === 'line') return Math.max(ann.x, ann.x2 ?? ann.x);
     if (ann.type === 'rect' || ann.type === 'diamond' || ann.type === 'ellipse' || ann.type === 'image') return ann.x + (ann.width ?? 0);
     if (ann.type === 'draw' && ann.pathData) return this.pathMax(ann.pathData).x;
-    if ((ann.type === 'text' || ann.type === 'sticky') && (ann.rotation ?? 0) !== 0) {
-      const box = this.rotatedBounds(ann.x, ann.y, this.annotationTextWidth(ann), this.annotationTextHeight(ann), ann.rotation ?? 0);
-      return box.maxX;
+    if (ann.type === 'text' || ann.type === 'sticky') {
+      if ((ann.rotation ?? 0) !== 0) {
+        const box = this.rotatedBounds(ann.x, ann.y, this.annotationTextWidth(ann), this.annotationTextHeight(ann), ann.rotation ?? 0);
+        return box.maxX;
+      }
+      return ann.x + this.annotationTextWidth(ann);
     }
     return ann.x + (ann.width ?? 200);
   }
@@ -2480,9 +2487,12 @@ export class CanvasComponent implements AfterViewInit {
     if (ann.type === 'arrow' || ann.type === 'line') return Math.max(ann.y, ann.y2 ?? ann.y);
     if (ann.type === 'rect' || ann.type === 'diamond' || ann.type === 'ellipse' || ann.type === 'image') return ann.y + (ann.height ?? 0);
     if (ann.type === 'draw' && ann.pathData) return this.pathMax(ann.pathData).y;
-    if ((ann.type === 'text' || ann.type === 'sticky') && (ann.rotation ?? 0) !== 0) {
-      const box = this.rotatedBounds(ann.x, ann.y, this.annotationTextWidth(ann), this.annotationTextHeight(ann), ann.rotation ?? 0);
-      return box.maxY;
+    if (ann.type === 'text' || ann.type === 'sticky') {
+      if ((ann.rotation ?? 0) !== 0) {
+        const box = this.rotatedBounds(ann.x, ann.y, this.annotationTextWidth(ann), this.annotationTextHeight(ann), ann.rotation ?? 0);
+        return box.maxY;
+      }
+      return ann.y + this.annotationTextHeight(ann);
     }
     return ann.y + (ann.height ?? 80);
   }

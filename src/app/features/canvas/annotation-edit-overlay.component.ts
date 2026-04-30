@@ -26,6 +26,8 @@ import { Annotation } from '../../core/models/annotation.model';
         [class.bg-yellow-100]="editingAnnotation.type === 'sticky'"
         [style.left.px]="editingAnnotation.x"
         [style.top.px]="editingAnnotation.y"
+        [style.width.px]="editingAnnotation.width ?? 160"
+        [style.height.px]="editingAnnotation.height ?? (editingAnnotation.type === 'sticky' ? 80 : 36)"
         [style.min-width.px]="160"
         [style.min-height.px]="editingAnnotation.type === 'sticky' ? 80 : 36"
         [style.font-size.px]="editingAnnotation.fontSize ?? 14"

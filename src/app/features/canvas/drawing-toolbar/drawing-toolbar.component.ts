@@ -1180,7 +1180,7 @@ export class DrawingToolbarComponent implements OnInit {
   }
 
   stringValue(event: Event): string {
-    return (event.target as HTMLInputElement).value || '';
+    return (event.target as HTMLInputElement | HTMLSelectElement).value || '';
   }
 
   @HostListener('window:keydown', ['$event'])

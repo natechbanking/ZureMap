@@ -1,0 +1,64 @@
+@for (node of visibleNodes; track node.id) {
+  @let nodeHL = nodeTagHighlights.get(node.id) ?? null;
+  @let detachParentId = childToParentMap.get(node.id);
+  <div
+    class="absolute group"
+    [style.left.px]="node.position.x"
+    [style.top.px]="node.position.y"
+    [style.transform]="node.angle ? 'rotate(' + node.angle + 'deg)' : null"
+    style="transform-origin: center center;"
+    [style.pointer-events]="activeTool === 'pointer' ? 'auto' : 'none'"
+    [class.cursor-grab]="activeTool === 'pointer' && nodeDragState?.id !== node.id"
+    [class.cursor-grabbing]="nodeDragState?.id === node.id"
+    (mousedown)="nodeMouseDown.emit({ event: $event, node: node })"
+  >
+    <app-diagram-node
+      [node]="node"
+      [finOpsActive]="finOpsActive"
+      [zoomLevel]="zoomLevel"
+      [tagHighlightColor]="nodeHL"
+      (clicked)="nodeClicked.emit($event)"
+      (editRequested)="editRequested.emit($event)"
+      (internalItemMoved)="internalItemMoved.emit($event)"
+      (nodeResized)="nodeResized.emit($event)"
+      (nodeRotateStarted)="nodeRotateStarted.emit()"
+      (nodeRotated)="nodeRotated.emit($event)"
+      (routeTableExpansionChanged)="routeTableExpansionChanged.emit($event)"
+      (virtualNetworkExpansionChanged)="virtualNetworkExpansionChanged.emit($event)"
+      (nsgExpansionChanged)="nsgExpansionChanged.emit($event)"
+      (storageAccountExpansionChanged)="storageAccountExpansionChanged.emit($event)"
+      (aksExpansionChanged)="aksExpansionChanged.emit($event)"
+      (vmExpansionChanged)="vmExpansionChanged.emit($event)"
+      (uaiExpansionChanged)="uaiExpansionChanged.emit($event)"
+      (hostingEnvironmentExpansionChanged)="hostingEnvironmentExpansionChanged.emit($event)"
+      (serverFarmExpansionChanged)="serverFarmExpansionChanged.emit($event)"
+      (publicIpExpansionChanged)="publicIpExpansionChanged.emit($event)"
+      (scheduleExpansionChanged)="scheduleExpansionChanged.emit($event)"
+      (diskExpansionChanged)="diskExpansionChanged.emit($event)"
+      (azureFirewallExpansionChanged)="azureFirewallExpansionChanged.emit($event)"
+      (applicationGatewayExpansionChanged)="applicationGatewayExpansionChanged.emit($event)"
+      (connectionExpansionChanged)="connectionExpansionChanged.emit($event)"
+      (dnsZoneExpansionChanged)="dnsZoneExpansionChanged.emit($event)"
+      (contextMenuRequested)="contextMenuRequested.emit($event)"
+    />
+    @if (detachParentId || canDetachFromResourceGroup(node)) {
+      <button
+        type="button"
+        class="absolute top-0.5 right-0.5 z-10 flex items-center justify-center w-5 h-5 rounded
+               transition-opacity duration-150 group-hover:opacity-100
+               bg-white/80 border border-gray-300 text-gray-400
+               hover:text-red-500 hover:border-red-400 hover:bg-red-50 cursor-pointer"
+        [class.opacity-0]="nodeDragState?.id !== node.id"
+        [title]="breakOutTitle(node, detachParentId ?? null)"
+        (mousedown)="$event.stopPropagation()"
+        (click)="$event.stopPropagation(); breakOut.emit({ nodeId: node.id, parentId: detachParentId ?? null })"
+      >
+        <svg class="w-3 h-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+          <rect x="2.5" y="5.5" width="8" height="8" rx="1.5"/>
+          <path d="M8 2.5h5.5V8"/>
+          <path d="M13.5 2.5L7.5 8.5"/>
+        </svg>
+      </button>
+    }
+  </div>
+}

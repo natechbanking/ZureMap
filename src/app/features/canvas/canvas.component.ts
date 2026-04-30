@@ -25,7 +25,6 @@ import {
   ConnectionExpansionRequest,
   DnsZoneExpansionRequest,
 } from './diagram-node/diagram-node.contracts';
-import { DiagramNodeComponent } from './diagram-node/diagram-node.component';
 import { SidebarComponent } from '../sidebar/sidebar.component';
 import { ToolbarComponent } from '../toolbar/toolbar.component';
 import { DrawingToolbarComponent } from './drawing-toolbar/drawing-toolbar.component';
@@ -41,6 +40,11 @@ import { EdgeStylePanelComponent } from './edge-style-panel.component';
 import { ZoomControlsComponent } from './zoom-controls.component';
 import { MinimapComponent } from './minimap.component';
 import { AnnotationEditOverlayComponent } from './annotation-edit-overlay.component';
+import { CanvasSvgLayerComponent } from './layers/canvas-svg-layer.component';
+import { CanvasContainersLayerComponent } from './layers/canvas-containers-layer.component';
+import { CanvasNodesLayerComponent } from './layers/canvas-nodes-layer.component';
+import { CanvasAnnotationOverlayLayerComponent } from './layers/canvas-annotation-overlay-layer.component';
+import { CanvasContextMenuService } from './canvas-context-menu.service';
 import { DiagramNode } from '../../core/models/diagram-node.model';
 import { Annotation, DrawingTool, StrokeStyle, EdgeRouting, EdgeMode } from '../../core/models/annotation.model';
 import { DiagramEdge, EdgeStyle } from '../../core/models/diagram-edge.model';
@@ -50,6 +54,9 @@ import {
   VmBound,
   RouteTableBound,
   ResourceEditorDraft,
+  SizeOffset,
+  TagHighlightInfo,
+  TagHighlightResizeDragState,
   ToolbarDragState,
   SubscriptionDragState,
   VmDragState,
@@ -70,25 +77,16 @@ import { CanvasActionsService } from './canvas-actions.service';
 import { CanvasNodeExpansionService } from './canvas-node-expansion.service';
 import { CanvasTagVisualizationService } from './canvas-tag-visualization.service';
 import {
-  diamondPointsFromRect as diamondPointsFromRectUtil,
+  annotationBounds as annotationBoundsUtil,
+  annotationMaxX as annotationMaxXUtil,
+  annotationMaxY as annotationMaxYUtil,
+  annotationTextHeight as annotationTextHeightUtil,
+  annotationTextWidth as annotationTextWidthUtil,
   edgeAnchorBetween,
-  edgePolylinePoints,
-  linePointsFromAnnotation,
-  linePointsFromCoords as linePointsFromCoordsUtil,
-  polylinePointsString,
-  sloppyFilterForLevel,
-  strokeDashArrayForStyle,
 } from './canvas-geometry.util';
 import { DrawingRuntimeState, DrawingStyleState, onDrawEnd, onDrawMove, onDrawStart, resetDrawingRuntime } from './canvas-drawing.util';
+import { normalizePastedImage, pasteTargetPosition as pasteTargetPositionUtil } from './canvas-image-paste.util';
 
-interface SizeOffset { top: number; right: number; bottom: number; left: number }
-interface TagHighlightInfo {
-  ruleId: string;
-  borderColor: string;
-  bgColor: string;
-  badgeLabel?: string;
-  sizeOffset?: SizeOffset;
-}
 const ZERO_OFFSET: SizeOffset = { top: 0, right: 0, bottom: 0, left: 0 };
 const AZURE_RESOURCE_DND_TYPE = 'application/x-zuremap-azure-resource';
 
@@ -97,7 +95,6 @@ const AZURE_RESOURCE_DND_TYPE = 'application/x-zuremap-azure-resource';
   standalone: true,
   imports: [
     CommonModule,
-    DiagramNodeComponent,
     SidebarComponent,
     ToolbarComponent,
     DrawingToolbarComponent,
@@ -113,6 +110,10 @@ const AZURE_RESOURCE_DND_TYPE = 'application/x-zuremap-azure-resource';
     ZoomControlsComponent,
     MinimapComponent,
     AnnotationEditOverlayComponent,
+    CanvasSvgLayerComponent,
+    CanvasContainersLayerComponent,
+    CanvasNodesLayerComponent,
+    CanvasAnnotationOverlayLayerComponent,
   ],
   templateUrl: "./canvas.component.html",
   styleUrl: "./canvas.component.scss",
@@ -120,7 +121,6 @@ const AZURE_RESOURCE_DND_TYPE = 'application/x-zuremap-azure-resource';
 export class CanvasComponent implements AfterViewInit {
   @ViewChild('canvasHost', { read: ElementRef }) canvasHostRef!: ElementRef;
   @ViewChild('exportRoot', { read: ElementRef }) exportRootRef!: ElementRef;
-  @ViewChild('renameInput') renameInputRef?: ElementRef;
 
   store = inject(DiagramStore);
   private elkLayout = inject(ELKLayoutService);
@@ -135,9 +135,7 @@ export class CanvasComponent implements AfterViewInit {
   private overlapSvc = inject(CanvasOverlapService);
   private nodeExpansion = inject(CanvasNodeExpansionService);
   private tagVisualization = inject(CanvasTagVisualizationService);
-  readonly rgIconUrl = inject(IconRegistryService).getIconUrl('microsoft.resources/resourcegroups');
-  readonly subscriptionIconUrl = inject(IconRegistryService).getIconUrl('microsoft.resources/subscriptions');
-
+  readonly ctxMenuSvc = inject(CanvasContextMenuService);
   readonly childToParentMap = computed(() => {
     const map = new Map<string, string>();
     for (const node of this.store.nodes()) {
@@ -174,25 +172,8 @@ export class CanvasComponent implements AfterViewInit {
   /** ID of the tag-rule highlight currently selected on canvas (for resize/delete). */
   selectedTagHighlightRuleId: string | null = null;
   /** Active resize drag for a tag rule highlight. */
-  tagHighlightResizeDrag: {
-    ruleId: string;
-    handle: string;
-    startX: number;
-    startY: number;
-    startOffset: SizeOffset;
-    currentOffset: SizeOffset;
-  } | null = null;
+  tagHighlightResizeDrag: TagHighlightResizeDragState | null = null;
 
-  readonly resizeHandles = [
-    { id: 'nw', left: '0%',   top: '0%',   cursor: 'nw-resize' },
-    { id: 'n',  left: '50%',  top: '0%',   cursor: 'n-resize'  },
-    { id: 'ne', left: '100%', top: '0%',   cursor: 'ne-resize' },
-    { id: 'e',  left: '100%', top: '50%',  cursor: 'e-resize'  },
-    { id: 'se', left: '100%', top: '100%', cursor: 'se-resize' },
-    { id: 's',  left: '50%',  top: '100%', cursor: 's-resize'  },
-    { id: 'sw', left: '0%',   top: '100%', cursor: 'sw-resize' },
-    { id: 'w',  left: '0%',   top: '50%',  cursor: 'w-resize'  },
-  ];
   /** All tag keys + their known values across all nodes, for autofill. */
   availableTags = new Map<string, Set<string>>();
   private collapsedResourceGroups = new Set<string>();
@@ -296,12 +277,6 @@ export class CanvasComponent implements AfterViewInit {
 
   // Individual node mouse drag
   nodeDragState: NodeDragState | null = null;
-
-  // Context menu
-  contextMenu: (ContextMenuRequest & { node: DiagramNode }) | null = null;
-  rgContextMenu: { x: number; y: number; id: string; name: string } | null = null;
-  annotationContextMenu: { x: number; y: number; annotationId: string } | null = null;
-  multiSelectContextMenu: { x: number; y: number } | null = null;
 
   // Marquee selection
   marqueeState: { startX: number; startY: number; currentX: number; currentY: number; ctrlHeld: boolean } | null = null;
@@ -432,8 +407,8 @@ export class CanvasComponent implements AfterViewInit {
     if (!file) return;
 
     try {
-      const processed = await this.normalizePastedImage(file);
-      const position = this.pasteTargetPosition(processed.width, processed.height);
+      const processed = await normalizePastedImage(file);
+      const position = pasteTargetPositionUtil(this.canvasHostRef?.nativeElement, this.zoomLevel, processed.width, processed.height);
       const annotation: Annotation = {
         id: `ann-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
         type: 'image',
@@ -634,7 +609,7 @@ export class CanvasComponent implements AfterViewInit {
           .map(n => n.id);
         const intersectedAnnotations = this.store.annotations()
           .filter(a => {
-            const b = this.annotationBounds(a);
+            const b = annotationBoundsUtil(a);
             return b.maxX > x && b.minX < x + w && b.maxY > y && b.minY < y + h;
           })
           .map(a => a.id);
@@ -851,8 +826,8 @@ export class CanvasComponent implements AfterViewInit {
       return;
     }
     e.stopPropagation();
-    this.annotationContextMenu = null;
-    this.contextMenu = null;
+    this.ctxMenuSvc.annotationContextMenu = null;
+    this.ctxMenuSvc.contextMenu = null;
     this.selectedEdgeId = null;
     if (e.ctrlKey || e.metaKey) {
       if (this.selectedAnnotationIds.includes(ann.id)) {
@@ -906,8 +881,8 @@ export class CanvasComponent implements AfterViewInit {
       startClientY: e.clientY,
       startX: ann.x,
       startY: ann.y,
-      startWidth: ann.width ?? this.annotationTextWidth(ann),
-      startHeight: ann.height ?? this.annotationTextHeight(ann),
+      startWidth: ann.width ?? annotationTextWidthUtil(ann),
+      startHeight: ann.height ?? annotationTextHeightUtil(ann),
     };
   }
 
@@ -916,8 +891,8 @@ export class CanvasComponent implements AfterViewInit {
     e.preventDefault();
     e.stopPropagation();
     this.store.pushUndo();
-    const width = this.annotationTextWidth(ann);
-    const height = this.annotationTextHeight(ann);
+    const width = annotationTextWidthUtil(ann);
+    const height = annotationTextHeightUtil(ann);
     this.annRotateDrag = {
       annId: ann.id,
       cx: ann.x + width / 2,
@@ -1035,10 +1010,6 @@ export class CanvasComponent implements AfterViewInit {
     return this.annotationById(this.selectedAnnotationId) ?? null;
   }
 
-  isAnnotationSelected(id: string): boolean {
-    return this.selectedAnnotationIds.includes(id);
-  }
-
   get canEditSelectedTextStyle(): boolean {
     if (!this.selectedAnnotationId) return false;
     const ann = this.annotationById(this.selectedAnnotationId);
@@ -1051,55 +1022,6 @@ export class CanvasComponent implements AfterViewInit {
     return ann?.type === 'rect' || ann?.type === 'ellipse' || ann?.type === 'diamond';
   }
 
-  diamondPoints(ann: Annotation): string {
-    if (!ann.width || !ann.height) return '';
-    return diamondPointsFromRectUtil({ x: ann.x, y: ann.y, w: ann.width, h: ann.height });
-  }
-
-  diamondPointsFromRect(r: { x: number; y: number; w: number; h: number }): string {
-    return diamondPointsFromRectUtil(r);
-  }
-
-  linePoints(ann: Annotation): string {
-    return linePointsFromAnnotation(ann);
-  }
-
-  linePointsFromCoords(x1: number, y1: number, x2: number, y2: number, routing: EdgeRouting): string {
-    return linePointsFromCoordsUtil(x1, y1, x2, y2, routing);
-  }
-
-  strokeDashArray(ann?: Annotation, styleOverride?: StrokeStyle): string | null {
-    const style = styleOverride ?? ann?.strokeStyle ?? 'solid';
-    return strokeDashArrayForStyle(style);
-  }
-
-  sloppyFilter(ann?: Annotation, sloppinessOverride?: number): string | null {
-    const level = Math.max(0, Math.min(3, Math.round(sloppinessOverride ?? ann?.sloppiness ?? 0)));
-    return sloppyFilterForLevel(level);
-  }
-
-  markerStart(ann: Annotation): string | null {
-    const mode = ann.edgeMode ?? (ann.type === 'arrow' ? 'end' : 'none');
-    return mode === 'start' || mode === 'both' ? this.annMarkerUrl(ann.color) : null;
-  }
-
-  markerEnd(ann: Annotation): string | null {
-    const mode = ann.edgeMode ?? (ann.type === 'arrow' ? 'end' : 'none');
-    return mode === 'end' || mode === 'both' ? this.annMarkerUrl(ann.color) : null;
-  }
-
-  previewMarkerStart(): string | null {
-    return this.activeEdgeMode === 'start' || this.activeEdgeMode === 'both' ? this.annMarkerUrl(this.activeColor) : null;
-  }
-
-  previewMarkerEnd(): string | null {
-    return this.activeEdgeMode === 'end' || this.activeEdgeMode === 'both' ? this.annMarkerUrl(this.activeColor) : null;
-  }
-
-  arrowHead(x1: number, y1: number, x2: number, y2: number): string {
-    return this.annotationSvc.arrowHead(x1, y1, x2, y2);
-  }
-
   // ── Canvas size ────────────────────────────────────────────────────────────
   get canvasWidth(): number {
     const nodes = this.store.nodes();
@@ -1110,7 +1032,7 @@ export class CanvasComponent implements AfterViewInit {
       maxX = Math.max(maxX, n.position.x + n.size.width + 80);
     }
     for (const ann of anns) {
-      maxX = Math.max(maxX, this.annotationMaxX(ann) + 80);
+      maxX = Math.max(maxX, annotationMaxXUtil(ann) + 80);
     }
     maxX = Math.max(maxX, this.previewMaxX() + 80);
 
@@ -1126,7 +1048,7 @@ export class CanvasComponent implements AfterViewInit {
       maxY = Math.max(maxY, n.position.y + n.size.height + 80);
     }
     for (const ann of anns) {
-      maxY = Math.max(maxY, this.annotationMaxY(ann) + 80);
+      maxY = Math.max(maxY, annotationMaxYUtil(ann) + 80);
     }
     maxY = Math.max(maxY, this.previewMaxY() + 80);
 
@@ -1377,27 +1299,6 @@ export class CanvasComponent implements AfterViewInit {
 
   // ── Tag highlight selection & resize ──────────────────────────────────────
 
-  getEffectiveSizeOffset(hl: TagHighlightInfo | undefined): SizeOffset {
-    if (!hl) return ZERO_OFFSET;
-    if (this.tagHighlightResizeDrag?.ruleId === hl.ruleId) {
-      return this.tagHighlightResizeDrag!.currentOffset;
-    }
-    return hl.sizeOffset ?? ZERO_OFFSET;
-  }
-
-  getHighlightBounds(
-    bound: { x: number; y: number; width: number; height: number },
-    hl: TagHighlightInfo | undefined,
-  ): { x: number; y: number; w: number; h: number } {
-    const off = this.getEffectiveSizeOffset(hl);
-    return {
-      x: bound.x - off.left,
-      y: bound.y - off.top,
-      w: bound.width + off.left + off.right,
-      h: bound.height + off.top + off.bottom,
-    };
-  }
-
   selectTagHighlight(ruleId: string, event: Event): void {
     event.stopPropagation();
     this.selectedTagHighlightRuleId = ruleId;
@@ -1601,15 +1502,7 @@ export class CanvasComponent implements AfterViewInit {
     this.selectedEdgeId = edge.id;
   }
 
-  // ── Edge waypoint handles ──────────────────────────────────────────────────
-  getEdgePoints(edge: DiagramEdge): { x: number; y: number }[] {
-    return edgePolylinePoints(this.store.nodes(), edge);
-  }
-
-  getEdgePolylineString(edge: DiagramEdge): string {
-    return polylinePointsString(this.getEdgePoints(edge));
-  }
-
+  // ── Edge markers (used only in <defs> in canvas.component.html) ──────────
   edgeMarkerColors(): string[] {
     const colors = new Set<string>();
     for (const edge of this.visibleEdges) {
@@ -1620,10 +1513,6 @@ export class CanvasComponent implements AfterViewInit {
 
   edgeMarkerId(color: string): string {
     return `edge-arrow-${color.replace(/[^a-zA-Z0-9_-]/g, '_')}`;
-  }
-
-  edgeMarkerUrl(color: string): string {
-    return `url(#${this.edgeMarkerId(color)})`;
   }
 
   annMarkerColors(): string[] {
@@ -1640,23 +1529,6 @@ export class CanvasComponent implements AfterViewInit {
 
   annMarkerId(color: string): string {
     return `ann-arrow-${color.replace(/[^a-zA-Z0-9_-]/g, '_')}`;
-  }
-
-  annMarkerUrl(color: string): string {
-    return `url(#${this.annMarkerId(color)})`;
-  }
-
-  getEdgeHandles(edge: DiagramEdge): { x: number; y: number; index: number }[] {
-    return (edge.waypoints ?? []).map((wp, i) => ({ x: wp.x, y: wp.y, index: i }));
-  }
-
-  getEdgeMidHandles(edge: DiagramEdge): { x: number; y: number; segmentIndex: number }[] {
-    const pts = this.getEdgePoints(edge);
-    const mids: { x: number; y: number; segmentIndex: number }[] = [];
-    for (let i = 0; i < pts.length - 1; i++) {
-      mids.push({ x: (pts[i].x + pts[i + 1].x) / 2, y: (pts[i].y + pts[i + 1].y) / 2, segmentIndex: i });
-    }
-    return mids;
   }
 
   onEdgeWaypointMouseDown(e: MouseEvent, edge: DiagramEdge, waypointIndex: number): void {
@@ -1683,24 +1555,6 @@ export class CanvasComponent implements AfterViewInit {
     this.store.pushUndo();
     const waypoints = (edge.waypoints ?? []).filter((_, i) => i !== waypointIndex);
     this.store.setEdges(this.store.edges().map(ed => ed.id === edge.id ? { ...ed, waypoints: waypoints.length ? waypoints : undefined } : ed));
-  }
-
-  // ── Annotation waypoint handles ────────────────────────────────────────────
-  getAnnHandles(ann: Annotation): { x: number; y: number; index: number }[] {
-    return (ann.waypoints ?? []).map((wp, i) => ({ x: wp.x, y: wp.y, index: i }));
-  }
-
-  getAnnMidHandles(ann: Annotation): { x: number; y: number; segmentIndex: number }[] {
-    const pts: { x: number; y: number }[] = [
-      { x: ann.x, y: ann.y },
-      ...(ann.waypoints ?? []),
-      { x: ann.x2 ?? ann.x, y: ann.y2 ?? ann.y },
-    ];
-    const mids: { x: number; y: number; segmentIndex: number }[] = [];
-    for (let i = 0; i < pts.length - 1; i++) {
-      mids.push({ x: (pts[i].x + pts[i + 1].x) / 2, y: (pts[i].y + pts[i + 1].y) / 2, segmentIndex: i });
-    }
-    return mids;
   }
 
   onAnnWaypointMouseDown(e: MouseEvent, ann: Annotation, waypointIndex: number): void {
@@ -1760,26 +1614,11 @@ export class CanvasComponent implements AfterViewInit {
 
   // ── Context menu ──────────────────────────────────────────────────────────
   onContextMenuRequested(req: ContextMenuRequest): void {
-    const node = this.store.nodes().find(n => n.id === req.nodeId);
-    if (!node) return;
-    this.rgContextMenu = null;
-    this.annotationContextMenu = null;
-    if (this.store.selectedNodeIds().length > 1 && this.store.selectedNodeIds().includes(req.nodeId)) {
-      this.contextMenu = null;
-      this.multiSelectContextMenu = { x: req.x, y: req.y };
-      return;
-    }
-    this.multiSelectContextMenu = null;
-    this.contextMenu = { ...req, node };
+    this.ctxMenuSvc.onContextMenuRequested(req);
   }
 
   onRgContextMenu(event: MouseEvent, rg: RgBound): void {
-    if (this.activeTool !== 'pointer') return;
-    event.preventDefault();
-    event.stopPropagation();
-    this.contextMenu = null;
-    this.annotationContextMenu = null;
-    this.rgContextMenu = { x: event.clientX, y: event.clientY, id: rg.id, name: rg.name };
+    this.ctxMenuSvc.onRgContextMenu(event, rg, this.activeTool);
   }
 
   onAnnotationContextMenu(event: MouseEvent, ann: Annotation): void {
@@ -1789,134 +1628,56 @@ export class CanvasComponent implements AfterViewInit {
     if (nodeUnder) {
       event.preventDefault();
       event.stopPropagation();
-      this.onContextMenuRequested({ nodeId: nodeUnder.id, x: event.clientX, y: event.clientY });
+      this.ctxMenuSvc.onContextMenuRequested({ nodeId: nodeUnder.id, x: event.clientX, y: event.clientY });
       return;
     }
     event.preventDefault();
     event.stopPropagation();
-    this.contextMenu = null;
+    this.ctxMenuSvc.contextMenu = null;
+    this.ctxMenuSvc.rgContextMenu = null;
+    this.ctxMenuSvc.multiSelectContextMenu = null;
     this.selectedEdgeId = null;
     this.store.selectNode(null);
     this.selectedAnnotationId = ann.id;
     this.selectedAnnotationIds = [ann.id];
     this.syncToolbarFromAnnotation(ann);
-    this.annotationContextMenu = { x: event.clientX, y: event.clientY, annotationId: ann.id };
+    this.ctxMenuSvc.annotationContextMenu = { x: event.clientX, y: event.clientY, annotationId: ann.id };
   }
 
   closeContextMenu(): void {
-    this.contextMenu = null;
-    this.rgContextMenu = null;
-    this.annotationContextMenu = null;
-    this.multiSelectContextMenu = null;
-  }
-
-  private parseRgBoundId(id: string): { subscriptionId: string; rgName: string } | null {
-    const idx = id.indexOf('::');
-    if (idx < 0) return null;
-    return { subscriptionId: id.slice(0, idx), rgName: id.slice(idx + 2) };
-  }
-
-  private isNodeInsideRgContainer(node: DiagramNode, subscriptionId: string, rgName: string): boolean {
-    if (node.group !== 'resourceGroup') return false;
-    const nodeSub = node.metadata?.subscriptionId || '';
-    const nodeRg = node.groupId || node.metadata?.resourceGroup || '';
-    return nodeSub === subscriptionId && nodeRg === rgName;
-  }
-
-  async autoLayoutRgContainer(rgBoundId: string): Promise<void> {
-    if (this.relayoutBusy) return;
-    const parsed = this.parseRgBoundId(rgBoundId);
-    if (!parsed) return;
-
-    const allNodes = this.store.nodes();
-    const targetNodes = allNodes.filter(n => this.isNodeInsideRgContainer(n, parsed.subscriptionId, parsed.rgName));
-    if (targetNodes.length < 2) return;
-
-    const targetIds = new Set(targetNodes.map(n => n.id));
-    const targetEdges = this.store.edges().filter(e => targetIds.has(e.sourceId) && targetIds.has(e.targetId));
-
-    const oldMinX = Math.min(...targetNodes.map(n => n.position.x));
-    const oldMinY = Math.min(...targetNodes.map(n => n.position.y));
-
-    this.relayoutBusy = true;
-    try {
-      const laidOut = await this.elkLayout.layout(targetNodes, targetEdges);
-      const newMinX = Math.min(...laidOut.map(n => n.position.x));
-      const newMinY = Math.min(...laidOut.map(n => n.position.y));
-      const dx = oldMinX - newMinX;
-      const dy = oldMinY - newMinY;
-
-      const nextPos = new Map(laidOut.map(n => [n.id, { x: n.position.x + dx, y: n.position.y + dy }]));
-      this.store.pushUndo();
-      this.store.setNodes(
-        allNodes.map(n => nextPos.has(n.id) ? { ...n, position: nextPos.get(n.id)! } : n)
-      );
-    } finally {
-      this.relayoutBusy = false;
-    }
+    this.ctxMenuSvc.closeContextMenu();
   }
 
   async ctxRgAutoLayout(): Promise<void> {
-    if (!this.rgContextMenu) return;
-    await this.autoLayoutRgContainer(this.rgContextMenu.id);
-    this.closeContextMenu();
+    await this.ctxMenuSvc.ctxRgAutoLayout();
   }
 
   ctxDelete(): void {
-    if (!this.contextMenu) return;
-    this.store.pushUndo();
-    this.store.deleteNode(this.contextMenu.nodeId);
-    this.closeContextMenu();
+    this.ctxMenuSvc.ctxDelete();
   }
 
   ctxMultiDelete(): void {
-    this.store.pushUndo();
-    this.store.deleteSelectedNodes();
-    this.closeContextMenu();
+    this.ctxMenuSvc.ctxMultiDelete();
   }
 
   ctxMultiCopyNames(): void {
-    const nodes = this.store.nodes().filter(n => this.store.selectedNodeIds().includes(n.id));
-    navigator.clipboard.writeText(nodes.map(n => n.label).join('\n'));
-    this.closeContextMenu();
+    this.ctxMenuSvc.ctxMultiCopyNames();
   }
 
   ctxMultiDetachAll(): void {
-    this.store.pushUndo();
-    for (const id of this.store.selectedNodeIds()) {
-      const node = this.store.nodes().find(n => n.id === id);
-      if (!node) continue;
-      const parentId = this.childToParentMap().get(id);
-      if (parentId) {
-        this.store.detachNodeFromParent(id, parentId);
-      } else if (node.group === 'resourceGroup') {
-        this.store.detachNodeFromResourceGroup(id);
-      }
-    }
-    this.closeContextMenu();
+    this.ctxMenuSvc.ctxMultiDetachAll();
   }
 
   ctxCopyName(): void {
-    if (!this.contextMenu) return;
-    navigator.clipboard.writeText(this.contextMenu.node.label);
-    this.closeContextMenu();
+    this.ctxMenuSvc.ctxCopyName();
   }
 
   ctxCopyResourceId(): void {
-    if (!this.contextMenu) return;
-    navigator.clipboard.writeText(this.contextMenu.node.metadata?.id ?? '');
-    this.closeContextMenu();
+    this.ctxMenuSvc.ctxCopyResourceId();
   }
 
   ctxFocus(): void {
-    if (!this.contextMenu) return;
-    this.store.selectNode(this.contextMenu.nodeId);
-    this.closeContextMenu();
-  }
-
-  detachFromParent(childId: string, parentId: string): void {
-    this.store.pushUndo();
-    this.store.detachNodeFromParent(childId, parentId);
+    this.ctxMenuSvc.ctxFocus();
   }
 
   breakOutNode(nodeId: string, parentId: string | null): void {
@@ -1939,122 +1700,76 @@ export class CanvasComponent implements AfterViewInit {
     return null;
   }
 
-  breakOutTitle(node: DiagramNode, parentId: string | null): string {
-    if (parentId) return `Break out of ${this.parentLabelById().get(parentId) ?? 'container'}`;
-    return `Break out of ${this.parentLabelForNode(node) ?? 'resource group'}`;
-  }
-
-  private inferredImmediateParentId(resourceId: string): string | null {
-    const parts = resourceId.split('/').filter(Boolean);
-    const providersIdx = parts.findIndex(p => p.toLowerCase() === 'providers');
-    if (providersIdx < 0) return null;
-    const providerTailLen = parts.length - (providersIdx + 1);
-    if (providerTailLen <= 3 || providerTailLen % 2 === 0) return null;
-    return `/${parts.slice(0, parts.length - 2).join('/')}`;
-  }
-
-  resetParentIdForNode(node: DiagramNode): string | null {
-    if (this.childToParentMap().has(node.id)) return null;
-
-    const byId = new Set(this.store.nodes().map(n => n.id.toLowerCase()));
-    const preferred = [node.parentId, this.inferredImmediateParentId(node.id)];
-    for (const candidate of preferred) {
-      if (!candidate) continue;
-      if (byId.has(candidate.toLowerCase())) return candidate;
-    }
-    return null;
-  }
-
   canResetBreakout(node: DiagramNode): boolean {
-    if (this.resetParentIdForNode(node)) return true;
-    return node.group === 'standalone' && !!(node.metadata?.resourceGroup || '').trim();
+    return this.ctxMenuSvc.canResetBreakout(node);
   }
 
   resetBreakoutLabel(node: DiagramNode): string {
-    const parentId = this.resetParentIdForNode(node);
-    if (parentId) return `Add back to ${this.parentLabelById().get(parentId) ?? 'container'}`;
-    const rg = node.metadata?.resourceGroup || 'resource group';
-    return `Add back to RG ${rg}`;
+    return this.ctxMenuSvc.resetBreakoutLabel(node);
   }
 
   resetBreakout(node: DiagramNode): void {
-    this.store.pushUndo();
-    const parentId = this.resetParentIdForNode(node);
-    if (parentId) this.store.reattachNodeToParent(node.id, parentId);
-    if (node.group === 'standalone') this.store.reattachNodeToResourceGroup(node.id);
+    this.ctxMenuSvc.resetBreakout(node);
   }
 
   ctxResetBreakout(): void {
-    if (!this.contextMenu) return;
-    this.resetBreakout(this.contextMenu.node);
-    this.closeContextMenu();
+    this.ctxMenuSvc.ctxResetBreakout();
   }
 
   ctxDetachFromParent(): void {
-    if (!this.contextMenu) return;
-    const parentId = this.childToParentMap().get(this.contextMenu.nodeId) ?? null;
-    this.breakOutNode(this.contextMenu.nodeId, parentId);
-    this.closeContextMenu();
+    this.ctxMenuSvc.ctxDetachFromParent();
   }
 
   ctxVisualizeTags(): void {
-    if (!this.contextMenu) return;
-    const nodeId = this.contextMenu.nodeId;
-    const nextNodes = this.tagVisualization.apply(this.store.nodes(), nodeId);
-    if (nextNodes) {
-      this.store.pushUndo();
-      this.store.setNodes(nextNodes);
-      this.store.selectNode(nodeId);
-    }
-    this.closeContextMenu();
+    this.ctxMenuSvc.ctxVisualizeTags();
   }
 
   ctxAnnDuplicate(): void {
-    if (!this.annotationContextMenu) return;
-    this.selectedAnnotationId = this.annotationContextMenu.annotationId;
-    this.selectedAnnotationIds = [this.annotationContextMenu.annotationId];
+    if (!this.ctxMenuSvc.annotationContextMenu) return;
+    this.selectedAnnotationId = this.ctxMenuSvc.annotationContextMenu.annotationId;
+    this.selectedAnnotationIds = [this.ctxMenuSvc.annotationContextMenu.annotationId];
     this.duplicateSelectedAnnotation();
     this.closeContextMenu();
   }
 
   ctxAnnBringFront(): void {
-    if (!this.annotationContextMenu) return;
-    this.selectedAnnotationId = this.annotationContextMenu.annotationId;
-    this.selectedAnnotationIds = [this.annotationContextMenu.annotationId];
+    if (!this.ctxMenuSvc.annotationContextMenu) return;
+    this.selectedAnnotationId = this.ctxMenuSvc.annotationContextMenu.annotationId;
+    this.selectedAnnotationIds = [this.ctxMenuSvc.annotationContextMenu.annotationId];
     this.bringSelectedAnnotationToFront();
     this.closeContextMenu();
   }
 
   ctxAnnSendBack(): void {
-    if (!this.annotationContextMenu) return;
-    this.selectedAnnotationId = this.annotationContextMenu.annotationId;
-    this.selectedAnnotationIds = [this.annotationContextMenu.annotationId];
+    if (!this.ctxMenuSvc.annotationContextMenu) return;
+    this.selectedAnnotationId = this.ctxMenuSvc.annotationContextMenu.annotationId;
+    this.selectedAnnotationIds = [this.ctxMenuSvc.annotationContextMenu.annotationId];
     this.sendSelectedAnnotationToBack();
     this.closeContextMenu();
   }
 
   ctxAnnCopyText(): void {
-    if (!this.annotationContextMenu) return;
-    const ann = this.annotationById(this.annotationContextMenu.annotationId);
+    if (!this.ctxMenuSvc.annotationContextMenu) return;
+    const ann = this.annotationById(this.ctxMenuSvc.annotationContextMenu.annotationId);
     if (!ann?.text) return;
     navigator.clipboard.writeText(ann.text);
     this.closeContextMenu();
   }
 
   ctxAnnEditText(): void {
-    if (!this.annotationContextMenu) return;
-    const ann = this.annotationById(this.annotationContextMenu.annotationId);
+    if (!this.ctxMenuSvc.annotationContextMenu) return;
+    const ann = this.annotationById(this.ctxMenuSvc.annotationContextMenu.annotationId);
     if (!ann || (ann.type !== 'text' && ann.type !== 'sticky')) return;
     this.startEditAnnotation(ann);
     this.closeContextMenu();
   }
 
   ctxAnnDelete(): void {
-    if (!this.annotationContextMenu) return;
+    if (!this.ctxMenuSvc.annotationContextMenu) return;
     this.store.pushUndo();
-    this.store.deleteAnnotation(this.annotationContextMenu.annotationId);
-    if (this.selectedAnnotationId === this.annotationContextMenu.annotationId) this.selectedAnnotationId = null;
-    this.selectedAnnotationIds = this.selectedAnnotationIds.filter(id => id !== this.annotationContextMenu!.annotationId);
+    this.store.deleteAnnotation(this.ctxMenuSvc.annotationContextMenu.annotationId);
+    if (this.selectedAnnotationId === this.ctxMenuSvc.annotationContextMenu.annotationId) this.selectedAnnotationId = null;
+    this.selectedAnnotationIds = this.selectedAnnotationIds.filter(id => id !== this.ctxMenuSvc.annotationContextMenu!.annotationId);
     this.closeContextMenu();
   }
 
@@ -2199,154 +1914,49 @@ export class CanvasComponent implements AfterViewInit {
     return nodes.map(n => nodeMap.get(n.id) ?? n);
   }
 
-  onRouteTableExpansionChanged(req: RouteTableExpansionRequest): void {
-    // Route cards are compact but include 3 text rows + spacing + panel chrome.
-    // Keep a small safety buffer to avoid clipping at different font metrics/zoom.
-    this.applyNodePanelExpansion(
-      req.nodeId,
-      req.expanded,
-      req.routeCount === 0 ? 48 : req.routeCount * 52 + 28,
-      this.collapsedHeights,
-    );
+  // Panel height formulas: empty-state px | count * row-px + chrome-px
+  private readonly EXPANSION_HEIGHT: Record<string, (req: Record<string, number>) => number> = {
+    routeTable:          r => r['routeCount'] === 0 ? 48 : r['routeCount'] * 52 + 28,
+    virtualNetwork:      r => r['subnetCount'] === 0 ? 40 : r['subnetCount'] * 40 + 24,
+    nsg:                 r => r['ruleCount'] === 0 ? 40 : r['ruleCount'] * 52 + 24,
+    storageAccount:      r => r['itemCount'] === 0 ? 32 : r['itemCount'] * 24 + 64,
+    vm:                  _r => 28 + 3 * 18 + 20,
+    aks:                 r => r['nodePoolCount'] === 0 ? 48 : r['nodePoolCount'] * 52 + 48,
+    uai:                 r => r['assignmentCount'] === 0 ? 48 : r['assignmentCount'] * 64 + 24,
+    hostingEnvironment:  r => r['statCount'] === 0 ? 40 : r['statCount'] * 26 + 20,
+    serverFarm:          r => r['statCount'] === 0 ? 40 : r['statCount'] * 26 + 20,
+    publicIp:            r => r['detailCount'] === 0 ? 40 : r['detailCount'] * 24 + 20,
+    schedule:            r => r['detailCount'] === 0 ? 40 : r['detailCount'] * 24 + 20,
+    disk:                r => r['detailCount'] === 0 ? 40 : r['detailCount'] * 24 + 20,
+    azureFirewall:       r => r['detailCount'] === 0 ? 40 : r['detailCount'] * 24 + 20,
+    applicationGateway:  r => r['detailCount'] === 0 ? 40 : r['detailCount'] * 24 + 20,
+    connection:          r => r['detailCount'] === 0 ? 40 : r['detailCount'] * 24 + 20,
+    dnsZone:             r => r['recordCount'] === 0 ? 40 : r['recordCount'] * 44 + 16,
+  };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private onPanelExpansion(kind: string, req: any): void {
+    const heightFn = this.EXPANSION_HEIGHT[kind];
+    if (!heightFn) return;
+    this.applyNodePanelExpansion(req.nodeId, req.expanded, heightFn(req), this.collapsedHeights);
   }
 
-  onVirtualNetworkExpansionChanged(req: VirtualNetworkExpansionRequest): void {
-    // Subnet cards are compact and include 2 text rows + spacing + panel chrome.
-    this.applyNodePanelExpansion(
-      req.nodeId,
-      req.expanded,
-      req.subnetCount === 0 ? 40 : req.subnetCount * 40 + 24,
-      this.collapsedHeights,
-    );
-  }
-
-  onNsgExpansionChanged(req: NsgExpansionRequest): void {
-    // NSG rule cards have 3 rows (badges + name + ports) + spacing + panel chrome.
-    this.applyNodePanelExpansion(
-      req.nodeId,
-      req.expanded,
-      req.ruleCount === 0 ? 40 : req.ruleCount * 52 + 24,
-      this.collapsedHeights,
-    );
-  }
-
-  onStorageAccountExpansionChanged(req: StorageAccountExpansionRequest): void {
-    // Each item row ~24px + section header ~20px per non-empty category + panel chrome 16px.
-    this.applyNodePanelExpansion(
-      req.nodeId,
-      req.expanded,
-      req.itemCount === 0 ? 32 : req.itemCount * 24 + 64,
-      this.collapsedHeights,
-    );
-  }
-
-  onVmExpansionChanged(req: VmExpansionRequest): void {
-    // Header badges row ~28px + up to 3 detail rows ~18px each + panel chrome 20px.
-    this.applyNodePanelExpansion(req.nodeId, req.expanded, 28 + 3 * 18 + 20, this.collapsedHeights);
-  }
-
-  onAksExpansionChanged(req: AksExpansionRequest): void {
-    // Cluster metadata header ~28px + each node pool card ~52px + panel chrome 20px.
-    this.applyNodePanelExpansion(
-      req.nodeId,
-      req.expanded,
-      req.nodePoolCount === 0 ? 48 : req.nodePoolCount * 52 + 48,
-      this.collapsedHeights,
-    );
-  }
-
-  onUaiExpansionChanged(req: UaiExpansionRequest): void {
-    // Assignment cards contain role + scope rows and optional description.
-    this.applyNodePanelExpansion(
-      req.nodeId,
-      req.expanded,
-      req.assignmentCount === 0 ? 48 : req.assignmentCount * 64 + 24,
-      this.collapsedHeights,
-    );
-  }
-
-  onHostingEnvironmentExpansionChanged(req: HostingEnvironmentExpansionRequest): void {
-    // Stats panel rows are compact key/value lines plus panel chrome.
-    this.applyNodePanelExpansion(
-      req.nodeId,
-      req.expanded,
-      req.statCount === 0 ? 40 : req.statCount * 26 + 20,
-      this.collapsedHeights,
-    );
-  }
-
-  onServerFarmExpansionChanged(req: ServerFarmExpansionRequest): void {
-    this.applyNodePanelExpansion(
-      req.nodeId,
-      req.expanded,
-      req.statCount === 0 ? 40 : req.statCount * 26 + 20,
-      this.collapsedHeights,
-    );
-  }
-
-  onPublicIpExpansionChanged(req: PublicIpExpansionRequest): void {
-    // Detail rows are compact key/value lines plus panel chrome.
-    this.applyNodePanelExpansion(
-      req.nodeId,
-      req.expanded,
-      req.detailCount === 0 ? 40 : req.detailCount * 24 + 20,
-      this.collapsedHeights,
-    );
-  }
-
-  onScheduleExpansionChanged(req: ScheduleExpansionRequest): void {
-    this.applyNodePanelExpansion(
-      req.nodeId,
-      req.expanded,
-      req.detailCount === 0 ? 40 : req.detailCount * 24 + 20,
-      this.collapsedHeights,
-    );
-  }
-
-  onDiskExpansionChanged(req: DiskExpansionRequest): void {
-    this.applyNodePanelExpansion(
-      req.nodeId,
-      req.expanded,
-      req.detailCount === 0 ? 40 : req.detailCount * 24 + 20,
-      this.collapsedHeights,
-    );
-  }
-
-  onAzureFirewallExpansionChanged(req: AzureFirewallExpansionRequest): void {
-    this.applyNodePanelExpansion(
-      req.nodeId,
-      req.expanded,
-      req.detailCount === 0 ? 40 : req.detailCount * 24 + 20,
-      this.collapsedHeights,
-    );
-  }
-
-  onApplicationGatewayExpansionChanged(req: ApplicationGatewayExpansionRequest): void {
-    this.applyNodePanelExpansion(
-      req.nodeId,
-      req.expanded,
-      req.detailCount === 0 ? 40 : req.detailCount * 24 + 20,
-      this.collapsedHeights,
-    );
-  }
-
-  onConnectionExpansionChanged(req: ConnectionExpansionRequest): void {
-    this.applyNodePanelExpansion(
-      req.nodeId,
-      req.expanded,
-      req.detailCount === 0 ? 40 : req.detailCount * 24 + 20,
-      this.collapsedHeights,
-    );
-  }
-
-  onDnsZoneExpansionChanged(req: DnsZoneExpansionRequest): void {
-    this.applyNodePanelExpansion(
-      req.nodeId,
-      req.expanded,
-      req.recordCount === 0 ? 40 : req.recordCount * 44 + 16,
-      this.collapsedHeights,
-    );
-  }
+  onRouteTableExpansionChanged(req: RouteTableExpansionRequest): void { this.onPanelExpansion('routeTable', req); }
+  onVirtualNetworkExpansionChanged(req: VirtualNetworkExpansionRequest): void { this.onPanelExpansion('virtualNetwork', req); }
+  onNsgExpansionChanged(req: NsgExpansionRequest): void { this.onPanelExpansion('nsg', req); }
+  onStorageAccountExpansionChanged(req: StorageAccountExpansionRequest): void { this.onPanelExpansion('storageAccount', req); }
+  onVmExpansionChanged(req: VmExpansionRequest): void { this.onPanelExpansion('vm', req); }
+  onAksExpansionChanged(req: AksExpansionRequest): void { this.onPanelExpansion('aks', req); }
+  onUaiExpansionChanged(req: UaiExpansionRequest): void { this.onPanelExpansion('uai', req); }
+  onHostingEnvironmentExpansionChanged(req: HostingEnvironmentExpansionRequest): void { this.onPanelExpansion('hostingEnvironment', req); }
+  onServerFarmExpansionChanged(req: ServerFarmExpansionRequest): void { this.onPanelExpansion('serverFarm', req); }
+  onPublicIpExpansionChanged(req: PublicIpExpansionRequest): void { this.onPanelExpansion('publicIp', req); }
+  onScheduleExpansionChanged(req: ScheduleExpansionRequest): void { this.onPanelExpansion('schedule', req); }
+  onDiskExpansionChanged(req: DiskExpansionRequest): void { this.onPanelExpansion('disk', req); }
+  onAzureFirewallExpansionChanged(req: AzureFirewallExpansionRequest): void { this.onPanelExpansion('azureFirewall', req); }
+  onApplicationGatewayExpansionChanged(req: ApplicationGatewayExpansionRequest): void { this.onPanelExpansion('applicationGateway', req); }
+  onConnectionExpansionChanged(req: ConnectionExpansionRequest): void { this.onPanelExpansion('connection', req); }
+  onDnsZoneExpansionChanged(req: DnsZoneExpansionRequest): void { this.onPanelExpansion('dnsZone', req); }
 
   private applyNodePanelExpansion(
     nodeId: string,
@@ -2368,10 +1978,6 @@ export class CanvasComponent implements AfterViewInit {
   startRename(type: 'rg' | 'sub' | 'vm' | 'rt', id: string, currentName: string): void {
     this.renamingContainer = { type, id };
     this.renamingValue = currentName;
-    setTimeout(() => {
-      const el = this.renameInputRef?.nativeElement as HTMLInputElement | undefined;
-      if (el) { el.focus(); el.select(); }
-    }, 0);
   }
 
   commitRename(): void {
@@ -2559,195 +2165,6 @@ export class CanvasComponent implements AfterViewInit {
     this.activeFillOpacity = ann.fillOpacity ?? 0.2;
   }
 
-  private annotationMaxX(ann: Annotation): number {
-    if (ann.type === 'arrow' || ann.type === 'line') return Math.max(ann.x, ann.x2 ?? ann.x);
-    if (ann.type === 'rect' || ann.type === 'diamond' || ann.type === 'ellipse' || ann.type === 'image') return ann.x + (ann.width ?? 0);
-    if (ann.type === 'draw' && ann.pathData) return this.pathMax(ann.pathData).x;
-    if (ann.type === 'text' || ann.type === 'sticky') {
-      if ((ann.rotation ?? 0) !== 0) {
-        const box = this.rotatedBounds(ann.x, ann.y, this.annotationTextWidth(ann), this.annotationTextHeight(ann), ann.rotation ?? 0);
-        return box.maxX;
-      }
-      return ann.x + this.annotationTextWidth(ann);
-    }
-    return ann.x + (ann.width ?? 200);
-  }
-
-  private annotationMaxY(ann: Annotation): number {
-    if (ann.type === 'arrow' || ann.type === 'line') return Math.max(ann.y, ann.y2 ?? ann.y);
-    if (ann.type === 'rect' || ann.type === 'diamond' || ann.type === 'ellipse' || ann.type === 'image') return ann.y + (ann.height ?? 0);
-    if (ann.type === 'draw' && ann.pathData) return this.pathMax(ann.pathData).y;
-    if (ann.type === 'text' || ann.type === 'sticky') {
-      if ((ann.rotation ?? 0) !== 0) {
-        const box = this.rotatedBounds(ann.x, ann.y, this.annotationTextWidth(ann), this.annotationTextHeight(ann), ann.rotation ?? 0);
-        return box.maxY;
-      }
-      return ann.y + this.annotationTextHeight(ann);
-    }
-    return ann.y + (ann.height ?? 80);
-  }
-
-  private annotationBounds(ann: Annotation): { minX: number; minY: number; maxX: number; maxY: number } {
-    const minX = ann.type === 'arrow' || ann.type === 'line' ? Math.min(ann.x, ann.x2 ?? ann.x) : ann.x;
-    const minY = ann.type === 'arrow' || ann.type === 'line' ? Math.min(ann.y, ann.y2 ?? ann.y) : ann.y;
-    return {
-      minX,
-      minY,
-      maxX: this.annotationMaxX(ann),
-      maxY: this.annotationMaxY(ann),
-    };
-  }
-
-  annotationTransform(ann: Annotation): string {
-    const rot = ann.rotation ?? 0;
-    if (!rot) return '';
-    return `rotate(${rot}deg)`;
-  }
-
-  annotationTextWidth(ann: Annotation): number {
-    return ann.width ?? (ann.type === 'sticky' ? 180 : 200);
-  }
-
-  annotationTextHeight(ann: Annotation): number {
-    return ann.height ?? (ann.type === 'sticky' ? 120 : 48);
-  }
-
-  private rotatedBounds(x: number, y: number, width: number, height: number, rotationDeg: number): {
-    minX: number;
-    maxX: number;
-    minY: number;
-    maxY: number;
-  } {
-    const theta = (rotationDeg * Math.PI) / 180;
-    const cos = Math.cos(theta);
-    const sin = Math.sin(theta);
-    const cx = x + width / 2;
-    const cy = y + height / 2;
-    const points = [
-      { x, y },
-      { x: x + width, y },
-      { x, y: y + height },
-      { x: x + width, y: y + height },
-    ].map(p => {
-      const dx = p.x - cx;
-      const dy = p.y - cy;
-      return {
-        x: cx + dx * cos - dy * sin,
-        y: cy + dx * sin + dy * cos,
-      };
-    });
-    return {
-      minX: Math.min(...points.map(p => p.x)),
-      maxX: Math.max(...points.map(p => p.x)),
-      minY: Math.min(...points.map(p => p.y)),
-      maxY: Math.max(...points.map(p => p.y)),
-    };
-  }
-
-  private pasteTargetPosition(width: number, height: number): { x: number; y: number } {
-    const host = this.canvasHostRef?.nativeElement as HTMLElement | undefined;
-    if (!host) return { x: 48, y: 48 };
-    const x = (host.scrollLeft + host.clientWidth / 2) / this.zoomLevel - width / 2;
-    const y = (host.scrollTop + host.clientHeight / 2) / this.zoomLevel - height / 2;
-    return { x: Math.max(0, x), y: Math.max(0, y) };
-  }
-
-  private dataUrlByteLength(dataUrl: string): number {
-    const base64 = dataUrl.split(',')[1] ?? '';
-    const padding = base64.endsWith('==') ? 2 : base64.endsWith('=') ? 1 : 0;
-    return Math.floor((base64.length * 3) / 4) - padding;
-  }
-
-  private loadImageFromBlob(blob: Blob): Promise<HTMLImageElement> {
-    return new Promise((resolve, reject) => {
-      const url = URL.createObjectURL(blob);
-      const img = new Image();
-      img.onload = () => {
-        URL.revokeObjectURL(url);
-        resolve(img);
-      };
-      img.onerror = () => {
-        URL.revokeObjectURL(url);
-        reject(new Error('Unable to load pasted image.'));
-      };
-      img.src = url;
-    });
-  }
-
-  private imageHasTransparency(img: HTMLImageElement): boolean {
-    const probeCanvas = document.createElement('canvas');
-    const probeCtx = probeCanvas.getContext('2d', { willReadFrequently: true });
-    if (!probeCtx) return false;
-
-    const maxProbe = 256;
-    const scale = Math.min(1, maxProbe / Math.max(img.naturalWidth || 1, img.naturalHeight || 1));
-    const w = Math.max(1, Math.round((img.naturalWidth || 1) * scale));
-    const h = Math.max(1, Math.round((img.naturalHeight || 1) * scale));
-
-    probeCanvas.width = w;
-    probeCanvas.height = h;
-    probeCtx.clearRect(0, 0, w, h);
-    probeCtx.drawImage(img, 0, 0, w, h);
-
-    const data = probeCtx.getImageData(0, 0, w, h).data;
-    for (let i = 3; i < data.length; i += 4) {
-      if (data[i] < 255) return true;
-    }
-    return false;
-  }
-
-  private renderCanvasToDataUrl(canvas: HTMLCanvasElement, mime: 'image/png' | 'image/jpeg', quality?: number): string {
-    return canvas.toDataURL(mime, quality);
-  }
-
-  private async normalizePastedImage(blob: Blob): Promise<{ dataUrl: string; width: number; height: number }> {
-    const MAX_DIMENSION = 1920;
-    const MAX_BYTES = 1_500_000;
-
-    const source = await this.loadImageFromBlob(blob);
-    const hasTransparency = this.imageHasTransparency(source);
-    let width = source.naturalWidth;
-    let height = source.naturalHeight;
-    const firstScale = Math.min(1, MAX_DIMENSION / Math.max(width, height));
-    width = Math.max(1, Math.round(width * firstScale));
-    height = Math.max(1, Math.round(height * firstScale));
-
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-    if (!ctx) throw new Error('Canvas context unavailable.');
-
-    let scale = 1;
-    let mime: 'image/png' | 'image/jpeg' = hasTransparency
-      ? 'image/png'
-      : (blob.type === 'image/png' ? 'image/png' : 'image/jpeg');
-    let quality = 0.9;
-
-    for (let i = 0; i < 8; i++) {
-      const w = Math.max(1, Math.round(width * scale));
-      const h = Math.max(1, Math.round(height * scale));
-      canvas.width = w;
-      canvas.height = h;
-      ctx.clearRect(0, 0, w, h);
-      ctx.drawImage(source, 0, 0, w, h);
-
-      const dataUrl = this.renderCanvasToDataUrl(canvas, mime, mime === 'image/jpeg' ? quality : undefined);
-      if (this.dataUrlByteLength(dataUrl) <= MAX_BYTES) {
-        return { dataUrl, width: w, height: h };
-      }
-
-      if (mime === 'image/png' && !hasTransparency) {
-        mime = 'image/jpeg';
-        quality = 0.9;
-      } else if (quality > 0.6) {
-        quality -= 0.1;
-      } else {
-        scale *= 0.85;
-      }
-    }
-
-    throw new Error('Pasted image is too large after compression.');
-  }
-
   private previewMaxX(): number {
     let maxX = 0;
     if (this.previewArrow) maxX = Math.max(maxX, this.previewArrow.x1, this.previewArrow.x2);
@@ -2768,22 +2185,6 @@ export class CanvasComponent implements AfterViewInit {
     if (this.previewEllipse) maxY = Math.max(maxY, this.previewEllipse.cy + this.previewEllipse.ry);
     for (const [, y] of this.drawPoints) maxY = Math.max(maxY, y);
     return maxY;
-  }
-
-  private pathMax(pathData: string): { x: number; y: number } {
-    const nums = pathData.match(/-?\d+(?:\.\d+)?/g);
-    if (!nums || nums.length < 2) return { x: 0, y: 0 };
-    let maxX = Number.NEGATIVE_INFINITY;
-    let maxY = Number.NEGATIVE_INFINITY;
-    for (let i = 0; i < nums.length - 1; i += 2) {
-      const x = Number(nums[i]);
-      const y = Number(nums[i + 1]);
-      if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
-      maxX = Math.max(maxX, x);
-      maxY = Math.max(maxY, y);
-    }
-    if (!Number.isFinite(maxX) || !Number.isFinite(maxY)) return { x: 0, y: 0 };
-    return { x: maxX, y: maxY };
   }
 
   private currentDrawingRuntime(): DrawingRuntimeState {

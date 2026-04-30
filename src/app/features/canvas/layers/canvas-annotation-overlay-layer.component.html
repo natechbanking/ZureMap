@@ -1,0 +1,100 @@
+@for (ann of annotations; track ann.id) {
+  @let isSelected = isAnnotationSelected(ann.id);
+  @if (ann.type === 'image' && ann.imageDataUrl) {
+    <div
+      class="absolute select-none"
+      [class.ring-2]="isSelected"
+      [class.ring-blue-400]="isSelected"
+      [style.left.px]="ann.x"
+      [style.top.px]="ann.y"
+      [style.width.px]="ann.width ?? 240"
+      [style.height.px]="ann.height ?? 180"
+      [style.pointer-events]="activeTool === 'pointer' ? 'auto' : 'none'"
+      [style.cursor]="activeTool === 'pointer' ? 'move' : 'default'"
+      (mousedown)="annotationMouseDown.emit({ event: $event, ann: ann })"
+      (contextmenu)="annotationContextMenu.emit({ event: $event, ann: ann })"
+    >
+      <img
+        [src]="ann.imageDataUrl"
+        alt=""
+        class="w-full h-full object-contain rounded border border-gray-200"
+        draggable="false"
+      />
+      @if (selectedAnnotationId === ann.id && activeTool === 'pointer') {
+        <button
+          type="button"
+          data-export-hide
+          class="absolute -right-1 -bottom-1 w-3.5 h-3.5 rounded-sm border border-blue-300 bg-white shadow-sm cursor-se-resize hover:border-blue-500 hover:bg-blue-50"
+          aria-label="Resize image"
+          (mousedown)="imageResizeMouseDown.emit({ event: $event, ann: ann })"
+        ></button>
+      }
+    </div>
+  }
+  @if (ann.type === 'text' || ann.type === 'sticky') {
+    <div
+      class="absolute select-none"
+      [class.ring-2]="isSelected"
+      [class.ring-blue-400]="isSelected"
+      [style.left.px]="ann.x"
+      [style.top.px]="ann.y"
+      [style.width.px]="annotationTextWidth(ann)"
+      [style.height.px]="annotationTextHeight(ann)"
+      [style.transform]="annotationTransform(ann)"
+      style="transform-origin: center center;"
+      [style.font-size.px]="ann.fontSize ?? 14"
+      [style.font-family]="ann.fontFamily ?? 'Arial, sans-serif'"
+      [style.color]="ann.color"
+      [style.pointer-events]="activeTool === 'pointer' ? 'auto' : 'none'"
+      [style.cursor]="activeTool === 'pointer' ? 'move' : 'default'"
+      (mousedown)="annotationMouseDown.emit({ event: $event, ann: ann })"
+      (contextmenu)="annotationContextMenu.emit({ event: $event, ann: ann })"
+      (dblclick)="startEdit.emit(ann)"
+    >
+      <div
+        class="w-full h-full whitespace-pre-wrap break-words leading-relaxed"
+        [class.p-3]="ann.type === 'sticky'"
+        [class.rounded-xl]="ann.type === 'sticky'"
+        [class.shadow-lg]="ann.type === 'sticky'"
+        [class.border]="ann.type === 'sticky'"
+        [class.border-amber-200]="ann.type === 'sticky'"
+        [class.bg-amber-50]="ann.type === 'sticky'"
+        [class.opacity-0]="editingAnnotation?.id === ann.id"
+      >{{ ann.text || '…' }}</div>
+      @if (selectedAnnotationId === ann.id && activeTool === 'pointer' && editingAnnotation?.id !== ann.id) {
+        @for (rh of [
+          {h:'nw', cls:'-left-1 -top-1', cur:'nw-resize'},
+          {h:'n', cls:'left-1/2 -translate-x-1/2 -top-1', cur:'n-resize'},
+          {h:'ne', cls:'-right-1 -top-1', cur:'ne-resize'},
+          {h:'e', cls:'-right-1 top-1/2 -translate-y-1/2', cur:'e-resize'},
+          {h:'se', cls:'-right-1 -bottom-1', cur:'se-resize'},
+          {h:'s', cls:'left-1/2 -translate-x-1/2 -bottom-1', cur:'s-resize'},
+          {h:'sw', cls:'-left-1 -bottom-1', cur:'sw-resize'},
+          {h:'w', cls:'-left-1 top-1/2 -translate-y-1/2', cur:'w-resize'}
+        ]; track rh.h) {
+          <button
+            type="button"
+            data-export-hide
+            class="absolute w-3.5 h-3.5 rounded-sm border border-blue-300 bg-white shadow-sm hover:border-blue-500 hover:bg-blue-50"
+            [ngClass]="rh.cls"
+            [style.cursor]="rh.cur"
+            aria-label="Resize text"
+            (mousedown)="annotationShapeResizeMouseDown.emit({ event: $event, ann: ann, handle: rh.h })"
+          ></button>
+        }
+        <button
+          type="button"
+          data-export-hide
+          class="absolute left-1/2 -translate-x-1/2 -top-7 w-4 h-4 rounded-full border border-blue-300 bg-white shadow-sm cursor-grab hover:border-blue-500 hover:bg-blue-50 flex items-center justify-center"
+          aria-label="Rotate text"
+          (mousedown)="annotationRotateMouseDown.emit({ event: $event, ann: ann })"
+        >
+          <svg viewBox="0 0 16 16" class="w-2.5 h-2.5 text-gray-500" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M13.5 6A6 6 0 1 0 10 12.5" />
+            <polyline points="13.5 2 13.5 6 9.5 6" />
+          </svg>
+        </button>
+      }
+    </div>
+  }
+}

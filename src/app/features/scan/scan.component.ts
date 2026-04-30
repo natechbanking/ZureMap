@@ -610,15 +610,8 @@ export class ScanComponent implements OnInit {
     if (!file) return;
     try {
       const state = await this.exportSvc.importFile(file);
-      this.store.clearDiagram();
-      this.store.activeSubscriptions.set(state.subscriptions ?? []);
-      this.store.setNodes(state.nodes ?? []);
-      this.store.setEdges(state.edges ?? []);
-      this.store.annotations.set(state.annotations ?? []);
-      this.store.loadBaseline(state.nodes ?? []);
-      this.store.canvasSessionMode.set('scanned');
+      this.applyImportedState(state);
       input.value = '';
-      this.router.navigate(['/canvas']);
     } catch {
       input.value = '';
       this.store.scanPhase.set('error');
@@ -630,20 +623,26 @@ export class ScanComponent implements OnInit {
   async loadDemo(): Promise<void> {
     try {
       const response = await fetch('demo/diagram.json');
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const state = await response.json() as DiagramStateFile;
-      this.store.clearDiagram();
-      this.store.activeSubscriptions.set(state.subscriptions ?? []);
-      this.store.setNodes(state.nodes ?? []);
-      this.store.setEdges(state.edges ?? []);
-      this.store.annotations.set(state.annotations ?? []);
-      this.store.loadBaseline(state.nodes ?? []);
-      this.store.canvasSessionMode.set('scanned');
-      this.router.navigate(['/canvas']);
-    } catch {
+      if (state.version !== '1.0') throw new Error(`Unsupported version: ${state.version}`);
+      this.applyImportedState(state);
+    } catch (err) {
       this.store.scanPhase.set('error');
       this.store.errorMessage.set('Failed to load demo diagram.');
-      this.scanError.set({ code: 'SERVER_ERROR', detail: 'Could not fetch demo/diagram.json.' });
+      this.scanError.set({ code: 'SERVER_ERROR', detail: err instanceof Error ? err.message : 'Could not fetch demo/diagram.json.' });
     }
+  }
+
+  private applyImportedState(state: DiagramStateFile): void {
+    this.store.clearDiagram();
+    this.store.activeSubscriptions.set(state.subscriptions ?? []);
+    this.store.setNodes(state.nodes ?? []);
+    this.store.setEdges(state.edges ?? []);
+    this.store.annotations.set(state.annotations ?? []);
+    this.store.loadBaseline(state.nodes ?? []);
+    this.store.canvasSessionMode.set('scanned');
+    this.router.navigate(['/canvas']);
   }
 
   private async runScan(subscriptionIds: string[]): Promise<void> {

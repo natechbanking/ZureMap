@@ -44,6 +44,7 @@ build-demo: ## Build the static demo for GitHub Pages
 	npx ng build --configuration=demo
 
 demo: build-demo ## Build demo and serve it locally at http://localhost:4300/ZureMap/
+	@rm -rf dist/zuremap-demo-serve/ZureMap
 	@mkdir -p dist/zuremap-demo-serve/ZureMap
 	@cp -r dist/zuremap-demo/browser/. dist/zuremap-demo-serve/ZureMap/
 	@echo "→  Demo: http://localhost:4300/ZureMap/"

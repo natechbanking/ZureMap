@@ -1,4 +1,4 @@
-.PHONY: help install dev start proxy serve build build-prod test test-watch \
+.PHONY: help install dev start proxy serve build build-prod build-demo demo test test-watch \
        lint clean map-icons check \
        docker-build docker-up docker-down docker-logs
 
@@ -40,6 +40,15 @@ build: ## Build for production
 build-dev: ## Build for development (with source maps)
 	npx ng build --configuration development
 
+build-demo: ## Build the static demo for GitHub Pages
+	npx ng build --configuration=demo
+
+demo: build-demo ## Build demo and serve it locally at http://localhost:4300/ZureMap/
+	@mkdir -p dist/zuremap-demo-serve/ZureMap
+	@cp -r dist/zuremap-demo/browser/. dist/zuremap-demo-serve/ZureMap/
+	@echo "→  Demo: http://localhost:4300/ZureMap/"
+	npx http-server dist/zuremap-demo-serve -p 4300 -c-1 --silent
+
 # ---------------------------------------------------------------------------
 # Test
 # ---------------------------------------------------------------------------
@@ -65,7 +74,7 @@ map-icons: ## Regenerate icon mappings
 	node scripts/map-icons.js
 
 clean: ## Remove build artifacts and caches
-	rm -rf dist/ .angular/
+	rm -rf dist/ dist/zuremap-demo-serve/ .angular/
 
 check: node_modules ## Verify install is up-to-date then run tests
 	npx ng build

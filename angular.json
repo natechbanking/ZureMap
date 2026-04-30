@@ -75,6 +75,35 @@
               "outputHashing": "all",
               "sourceMap": false
             },
+            "demo": {
+              "fileReplacements": [
+                {
+                  "replace": "src/environments/environment.ts",
+                  "with": "src/environments/environment.demo.ts"
+                }
+              ],
+              "budgets": [
+                {
+                  "type": "initial",
+                  "maximumWarning": "400kB",
+                  "maximumError": "700kB"
+                },
+                {
+                  "type": "anyScript",
+                  "maximumWarning": "1300kB",
+                  "maximumError": "1700kB"
+                },
+                {
+                  "type": "anyComponentStyle",
+                  "maximumWarning": "4kB",
+                  "maximumError": "8kB"
+                }
+              ],
+              "outputHashing": "all",
+              "sourceMap": false,
+              "baseHref": "/ZureMap/",
+              "outputPath": "dist/zuremap-demo"
+            },
             "development": {
               "optimization": false,
               "extractLicenses": false,
@@ -91,6 +120,9 @@
           "configurations": {
             "production": {
               "buildTarget": "zuremap:build:production"
+            },
+            "demo": {
+              "buildTarget": "zuremap:build:demo"
             },
             "development": {
               "buildTarget": "zuremap:build:development"

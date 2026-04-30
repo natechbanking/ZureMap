@@ -6,6 +6,7 @@
     "start": "ng serve",
     "dev": "concurrently \"node proxy/server.js\" \"ng serve --proxy-config proxy.conf.json\"",
     "build": "ng build",
+    "build:demo": "ng build --configuration=demo",
     "build:stats": "ng build --stats-json",
     "build:ci": "npm run build:stats && node scripts/check-bundle-stats.js",
     "watch": "ng build --watch --configuration development",

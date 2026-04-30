@@ -1,0 +1,1020 @@
+{
+  "version": "1.0",
+  "exportedAt": "2026-04-30T07:03:57.653Z",
+  "subscriptions": [
+    {
+      "id": "/subscriptions/00000000-0000-0000-0000-000000000001",
+      "subscriptionId": "00000000-0000-0000-0000-000000000001",
+      "name": "Contoso – Production",
+      "state": "Enabled",
+      "tenantId": "00000000-0000-0000-0000-000000000099",
+      "tenantName": "Contoso"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-networking/providers/Microsoft.Network/virtualNetworks/vnet-prod",
+      "label": "vnet-prod",
+      "resourceType": "microsoft.network/virtualnetworks",
+      "iconUrl": "icons/networking/10061-icon-service-Virtual-Networks.svg",
+      "group": "vnet",
+      "groupId": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-networking/providers/Microsoft.Network/virtualNetworks/vnet-prod",
+      "position": {
+        "x": 343.75,
+        "y": 61.25
+      },
+      "size": {
+        "width": 387,
+        "height": 278
+      },
+      "parentId": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-networking",
+      "children": [
+        "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-networking/providers/Microsoft.Network/virtualNetworks/vnet-prod/subnets/snet-frontend",
+        "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-networking/providers/Microsoft.Network/virtualNetworks/vnet-prod/subnets/snet-backend"
+      ],
+      "status": "running",
+      "metadata": {
+        "id": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-networking/providers/Microsoft.Network/virtualNetworks/vnet-prod",
+        "name": "vnet-prod",
+        "type": "Microsoft.Network/virtualNetworks",
+        "location": "eastus",
+        "resourceGroup": "rg-networking",
+        "subscriptionId": "00000000-0000-0000-0000-000000000001",
+        "tags": {
+          "env": "production"
+        },
+        "properties": {
+          "addressSpace": {
+            "addressPrefixes": [
+              "10.0.0.0/16"
+            ]
+          },
+          "subnets": [
+            {
+              "id": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-networking/providers/Microsoft.Network/virtualNetworks/vnet-prod/subnets/snet-frontend"
+            },
+            {
+              "id": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-networking/providers/Microsoft.Network/virtualNetworks/vnet-prod/subnets/snet-backend"
+            },
+            {
+              "id": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-networking/providers/Microsoft.Network/virtualNetworks/vnet-prod/subnets/snet-data"
+            }
+          ]
+        }
+      },
+      "selected": false,
+      "highlighted": false
+    },
+    {
+      "id": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-networking/providers/Microsoft.Network/virtualNetworks/vnet-prod/subnets/snet-frontend",
+      "label": "snet-frontend",
+      "resourceType": "microsoft.network/subnets",
+      "iconUrl": "icons/networking/02742-icon-service-Subnet.svg",
+      "group": "subnet",
+      "groupId": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-networking/providers/Microsoft.Network/virtualNetworks/vnet-prod",
+      "position": {
+        "x": 305,
+        "y": 420.25
+      },
+      "size": {
+        "width": 200,
+        "height": 340
+      },
+      "parentId": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-networking/providers/Microsoft.Network/virtualNetworks/vnet-prod",
+      "children": [
+        "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-compute/providers/Microsoft.ContainerService/managedClusters/aks-contoso-prod",
+        "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-compute/providers/Microsoft.Web/sites/app-contoso-api"
+      ],
+      "status": "running",
+      "metadata": {
+        "id": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-networking/providers/Microsoft.Network/virtualNetworks/vnet-prod/subnets/snet-frontend",
+        "name": "snet-frontend",
+        "type": "Microsoft.Network/virtualNetworks/subnets",
+        "location": "eastus",
+        "resourceGroup": "rg-networking",
+        "subscriptionId": "00000000-0000-0000-0000-000000000001",
+        "tags": {},
+        "properties": {
+          "addressPrefix": "10.0.1.0/24"
+        }
+      },
+      "selected": false,
+      "highlighted": false
+    },
+    {
+      "id": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-networking/providers/Microsoft.Network/virtualNetworks/vnet-prod/subnets/snet-backend",
+      "label": "snet-backend",
+      "resourceType": "microsoft.network/subnets",
+      "iconUrl": "icons/networking/02742-icon-service-Subnet.svg",
+      "group": "subnet",
+      "groupId": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-networking/providers/Microsoft.Network/virtualNetworks/vnet-prod",
+      "position": {
+        "x": 545,
+        "y": 420.25
+      },
+      "size": {
+        "width": 200,
+        "height": 340
+      },
+      "parentId": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-networking/providers/Microsoft.Network/virtualNetworks/vnet-prod",
+      "children": [],
+      "status": "running",
+      "metadata": {
+        "id": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-networking/providers/Microsoft.Network/virtualNetworks/vnet-prod/subnets/snet-backend",
+        "name": "snet-backend",
+        "type": "Microsoft.Network/virtualNetworks/subnets",
+        "location": "eastus",
+        "resourceGroup": "rg-networking",
+        "subscriptionId": "00000000-0000-0000-0000-000000000001",
+        "tags": {},
+        "properties": {
+          "addressPrefix": "10.0.2.0/24"
+        }
+      },
+      "selected": false,
+      "highlighted": false
+    },
+    {
+      "id": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-networking/providers/Microsoft.Network/networkSecurityGroups/nsg-frontend",
+      "label": "nsg-frontend",
+      "resourceType": "microsoft.network/networksecuritygroups",
+      "iconUrl": "icons/networking/10067-icon-service-Network-Security-Groups.svg",
+      "group": "resourceGroup",
+      "groupId": "rg-networking",
+      "position": {
+        "x": 265,
+        "y": 970.25
+      },
+      "size": {
+        "width": 140,
+        "height": 92
+      },
+      "parentId": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-networking",
+      "status": "running",
+      "metadata": {
+        "id": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-networking/providers/Microsoft.Network/networkSecurityGroups/nsg-frontend",
+        "name": "nsg-frontend",
+        "type": "Microsoft.Network/networkSecurityGroups",
+        "location": "eastus",
+        "resourceGroup": "rg-networking",
+        "subscriptionId": "00000000-0000-0000-0000-000000000001",
+        "tags": {
+          "env": "production"
+        },
+        "properties": {}
+      },
+      "selected": false,
+      "highlighted": false
+    },
+    {
+      "id": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-networking/providers/Microsoft.Network/networkSecurityGroups/nsg-backend",
+      "label": "nsg-backend",
+      "resourceType": "microsoft.network/networksecuritygroups",
+      "iconUrl": "icons/networking/10067-icon-service-Network-Security-Groups.svg",
+      "group": "resourceGroup",
+      "groupId": "rg-networking",
+      "position": {
+        "x": 445,
+        "y": 970.25
+      },
+      "size": {
+        "width": 140,
+        "height": 92
+      },
+      "parentId": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-networking",
+      "status": "running",
+      "metadata": {
+        "id": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-networking/providers/Microsoft.Network/networkSecurityGroups/nsg-backend",
+        "name": "nsg-backend",
+        "type": "Microsoft.Network/networkSecurityGroups",
+        "location": "eastus",
+        "resourceGroup": "rg-networking",
+        "subscriptionId": "00000000-0000-0000-0000-000000000001",
+        "tags": {
+          "env": "production"
+        },
+        "properties": {}
+      },
+      "selected": false,
+      "highlighted": false
+    },
+    {
+      "id": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-networking/providers/Microsoft.Network/privateDnsZones/privatelink.database.windows.net",
+      "label": "privatelink.database.windows.net",
+      "resourceType": "microsoft.network/privatednszones",
+      "iconUrl": "icons/networking/10064-icon-service-DNS-Zones.svg",
+      "group": "resourceGroup",
+      "groupId": "rg-networking",
+      "position": {
+        "x": 645,
+        "y": 970.25
+      },
+      "size": {
+        "width": 184,
+        "height": 108
+      },
+      "parentId": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-networking",
+      "status": "running",
+      "metadata": {
+        "id": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-networking/providers/Microsoft.Network/privateDnsZones/privatelink.database.windows.net",
+        "name": "privatelink.database.windows.net",
+        "type": "Microsoft.Network/privateDnsZones",
+        "location": "global",
+        "resourceGroup": "rg-networking",
+        "subscriptionId": "00000000-0000-0000-0000-000000000001",
+        "tags": {},
+        "properties": {}
+      },
+      "selected": false,
+      "highlighted": false
+    },
+    {
+      "id": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-networking/providers/Microsoft.Network/privateEndpoints/pe-sql-contoso",
+      "label": "pe-sql-contoso",
+      "resourceType": "microsoft.network/privateendpoints",
+      "iconUrl": "icons/other/02579-icon-service-Private-Endpoints.svg",
+      "group": "subnet",
+      "groupId": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-networking/providers/Microsoft.Network/virtualNetworks/vnet-prod",
+      "position": {
+        "x": 802.5,
+        "y": 67.75
+      },
+      "size": {
+        "width": 140,
+        "height": 92
+      },
+      "parentId": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-networking/providers/Microsoft.Network/virtualNetworks/vnet-prod/subnets/snet-data",
+      "status": "running",
+      "metadata": {
+        "id": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-networking/providers/Microsoft.Network/privateEndpoints/pe-sql-contoso",
+        "name": "pe-sql-contoso",
+        "type": "Microsoft.Network/privateEndpoints",
+        "location": "eastus",
+        "resourceGroup": "rg-networking",
+        "subscriptionId": "00000000-0000-0000-0000-000000000001",
+        "tags": {},
+        "properties": {
+          "subnet": {
+            "id": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-networking/providers/Microsoft.Network/virtualNetworks/vnet-prod/subnets/snet-data"
+          }
+        }
+      },
+      "selected": false,
+      "highlighted": false
+    },
+    {
+      "id": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-networking/providers/Microsoft.Network/privateEndpoints/pe-storage-contoso",
+      "label": "pe-storage-contoso",
+      "resourceType": "microsoft.network/privateendpoints",
+      "iconUrl": "icons/other/02579-icon-service-Private-Endpoints.svg",
+      "group": "subnet",
+      "groupId": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-networking/providers/Microsoft.Network/virtualNetworks/vnet-prod",
+      "position": {
+        "x": 787.5,
+        "y": 211.5
+      },
+      "size": {
+        "width": 140,
+        "height": 92
+      },
+      "parentId": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-networking/providers/Microsoft.Network/virtualNetworks/vnet-prod/subnets/snet-data",
+      "status": "running",
+      "metadata": {
+        "id": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-networking/providers/Microsoft.Network/privateEndpoints/pe-storage-contoso",
+        "name": "pe-storage-contoso",
+        "type": "Microsoft.Network/privateEndpoints",
+        "location": "eastus",
+        "resourceGroup": "rg-networking",
+        "subscriptionId": "00000000-0000-0000-0000-000000000001",
+        "tags": {},
+        "properties": {
+          "subnet": {
+            "id": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-networking/providers/Microsoft.Network/virtualNetworks/vnet-prod/subnets/snet-data"
+          }
+        }
+      },
+      "selected": false,
+      "highlighted": false
+    },
+    {
+      "id": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-compute/providers/Microsoft.ContainerService/managedClusters/aks-contoso-prod",
+      "label": "aks-contoso-prod",
+      "resourceType": "microsoft.containerservice/managedclusters",
+      "iconUrl": "icons/compute/10023-icon-service-Kubernetes-Services.svg",
+      "group": "resourceGroup",
+      "groupId": "rg-compute",
+      "position": {
+        "x": 1329,
+        "y": 136.25
+      },
+      "size": {
+        "width": 155,
+        "height": 110
+      },
+      "parentId": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-compute",
+      "costData": {
+        "monthlyCostUsd": 1240.5,
+        "currency": "USD",
+        "period": "2026-04",
+        "isEstimate": false,
+        "mappingState": "matched"
+      },
+      "status": "running",
+      "metadata": {
+        "id": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-compute/providers/Microsoft.ContainerService/managedClusters/aks-contoso-prod",
+        "name": "aks-contoso-prod",
+        "type": "Microsoft.ContainerService/managedClusters",
+        "location": "eastus",
+        "resourceGroup": "rg-compute",
+        "subscriptionId": "00000000-0000-0000-0000-000000000001",
+        "tags": {
+          "env": "production"
+        },
+        "sku": {
+          "name": "Base",
+          "tier": "Standard"
+        },
+        "properties": {
+          "kubernetesVersion": "1.31.2",
+          "nodeResourceGroup": "MC_rg-compute_aks-contoso-prod_eastus",
+          "dnsPrefix": "aks-contoso-prod-dns",
+          "fqdn": "aks-contoso-prod-dns.hcp.eastus.azmk8s.io",
+          "agentPoolProfiles": [
+            {
+              "name": "systempool",
+              "count": 3,
+              "vmSize": "Standard_D4s_v5",
+              "osType": "Linux",
+              "mode": "System"
+            },
+            {
+              "name": "workerpool",
+              "count": 5,
+              "vmSize": "Standard_D8s_v5",
+              "osType": "Linux",
+              "mode": "User"
+            }
+          ]
+        },
+        "identity": {
+          "type": "UserAssigned",
+          "userAssignedIdentities": {
+            "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-compute/providers/Microsoft.ManagedIdentity/userAssignedIdentities/uai-aks-prod": {}
+          }
+        }
+      },
+      "selected": false,
+      "highlighted": false
+    },
+    {
+      "id": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-compute/providers/Microsoft.Web/sites/app-contoso-api",
+      "label": "app-contoso-api",
+      "resourceType": "microsoft.web/sites",
+      "iconUrl": "icons/app services/10035-icon-service-App-Services.svg",
+      "group": "resourceGroup",
+      "groupId": "rg-compute",
+      "position": {
+        "x": 1519,
+        "y": 136.25
+      },
+      "size": {
+        "width": 140,
+        "height": 92
+      },
+      "parentId": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-compute",
+      "costData": {
+        "monthlyCostUsd": 183,
+        "currency": "USD",
+        "period": "2026-04",
+        "isEstimate": false,
+        "mappingState": "matched"
+      },
+      "status": "running",
+      "metadata": {
+        "id": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-compute/providers/Microsoft.Web/sites/app-contoso-api",
+        "name": "app-contoso-api",
+        "type": "Microsoft.Web/sites",
+        "location": "eastus",
+        "resourceGroup": "rg-compute",
+        "subscriptionId": "00000000-0000-0000-0000-000000000001",
+        "tags": {
+          "env": "production"
+        },
+        "kind": "app",
+        "properties": {
+          "defaultHostName": "app-contoso-api.azurewebsites.net",
+          "state": "Running",
+          "serverFarmId": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-compute/providers/Microsoft.Web/serverFarms/asp-contoso-prod"
+        }
+      },
+      "selected": false,
+      "highlighted": false
+    },
+    {
+      "id": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-compute/providers/Microsoft.Web/serverFarms/asp-contoso-prod",
+      "label": "asp-contoso-prod",
+      "resourceType": "microsoft.web/serverfarms",
+      "iconUrl": "icons/app services/00046-icon-service-App-Service-Plans.svg",
+      "group": "resourceGroup",
+      "groupId": "rg-compute",
+      "position": {
+        "x": 1709,
+        "y": 136.25
+      },
+      "size": {
+        "width": 140,
+        "height": 92
+      },
+      "parentId": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-compute",
+      "costData": {
+        "monthlyCostUsd": 73,
+        "currency": "USD",
+        "period": "2026-04",
+        "isEstimate": false,
+        "mappingState": "matched"
+      },
+      "status": "running",
+      "metadata": {
+        "id": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-compute/providers/Microsoft.Web/serverFarms/asp-contoso-prod",
+        "name": "asp-contoso-prod",
+        "type": "Microsoft.Web/serverFarms",
+        "location": "eastus",
+        "resourceGroup": "rg-compute",
+        "subscriptionId": "00000000-0000-0000-0000-000000000001",
+        "tags": {},
+        "sku": {
+          "name": "P2v3",
+          "tier": "PremiumV3",
+          "capacity": 2
+        },
+        "properties": {}
+      },
+      "selected": false,
+      "highlighted": false
+    },
+    {
+      "id": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-compute/providers/Microsoft.ManagedIdentity/userAssignedIdentities/uai-aks-prod",
+      "label": "uai-aks-prod",
+      "resourceType": "microsoft.managedidentity/userassignedidentities",
+      "iconUrl": "icons/identity/10230-icon-service-Users.svg",
+      "group": "resourceGroup",
+      "groupId": "rg-compute",
+      "position": {
+        "x": 1331.5,
+        "y": 290
+      },
+      "size": {
+        "width": 154,
+        "height": 105
+      },
+      "parentId": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-compute",
+      "status": "running",
+      "metadata": {
+        "id": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-compute/providers/Microsoft.ManagedIdentity/userAssignedIdentities/uai-aks-prod",
+        "name": "uai-aks-prod",
+        "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
+        "location": "eastus",
+        "resourceGroup": "rg-compute",
+        "subscriptionId": "00000000-0000-0000-0000-000000000001",
+        "tags": {},
+        "properties": {
+          "principalId": "aaaaaaaa-bbbb-cccc-dddd-000000000001",
+          "clientId": "aaaaaaaa-bbbb-cccc-dddd-000000000002",
+          "tenantId": "00000000-0000-0000-0000-000000000099"
+        }
+      },
+      "selected": false,
+      "highlighted": false
+    },
+    {
+      "id": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-compute/providers/Microsoft.ContainerRegistry/registries/acrcontosoprod",
+      "label": "acrcontosoprod",
+      "resourceType": "microsoft.containerregistry/registries",
+      "iconUrl": "icons/containers/10105-icon-service-Container-Registries.svg",
+      "group": "resourceGroup",
+      "groupId": "rg-compute",
+      "position": {
+        "x": 1519,
+        "y": 286.25
+      },
+      "size": {
+        "width": 140,
+        "height": 92
+      },
+      "parentId": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-compute",
+      "costData": {
+        "monthlyCostUsd": 50,
+        "currency": "USD",
+        "period": "2026-04",
+        "isEstimate": false,
+        "mappingState": "matched"
+      },
+      "status": "running",
+      "metadata": {
+        "id": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-compute/providers/Microsoft.ContainerRegistry/registries/acrcontosoprod",
+        "name": "acrcontosoprod",
+        "type": "Microsoft.ContainerRegistry/registries",
+        "location": "eastus",
+        "resourceGroup": "rg-compute",
+        "subscriptionId": "00000000-0000-0000-0000-000000000001",
+        "tags": {},
+        "sku": {
+          "name": "Premium"
+        },
+        "properties": {
+          "loginServer": "acrcontosoprod.azurecr.io"
+        }
+      },
+      "selected": false,
+      "highlighted": false
+    },
+    {
+      "id": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-data/providers/Microsoft.Storage/storageAccounts/stcontoso001",
+      "label": "stcontoso001",
+      "resourceType": "microsoft.storage/storageaccounts",
+      "iconUrl": "icons/storage/10086-icon-service-Storage-Accounts.svg",
+      "group": "resourceGroup",
+      "groupId": "rg-data",
+      "position": {
+        "x": 1999.75,
+        "y": 150
+      },
+      "size": {
+        "width": 140,
+        "height": 92
+      },
+      "parentId": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-data",
+      "costData": {
+        "monthlyCostUsd": 34.8,
+        "currency": "USD",
+        "period": "2026-04",
+        "isEstimate": false,
+        "mappingState": "matched"
+      },
+      "status": "running",
+      "metadata": {
+        "id": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-data/providers/Microsoft.Storage/storageAccounts/stcontoso001",
+        "name": "stcontoso001",
+        "type": "Microsoft.Storage/storageAccounts",
+        "location": "eastus",
+        "resourceGroup": "rg-data",
+        "subscriptionId": "00000000-0000-0000-0000-000000000001",
+        "tags": {
+          "env": "production"
+        },
+        "sku": {
+          "name": "Standard_ZRS"
+        },
+        "kind": "StorageV2",
+        "properties": {
+          "primaryEndpoints": {
+            "blob": "https://stcontoso001.blob.core.windows.net/"
+          }
+        }
+      },
+      "selected": false,
+      "highlighted": false
+    },
+    {
+      "id": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-data/providers/Microsoft.Sql/servers/sql-contoso-prod",
+      "label": "sql-contoso-prod",
+      "resourceType": "microsoft.sql/servers",
+      "iconUrl": "icons/databases/10132-icon-service-SQL-Server.svg",
+      "group": "resourceGroup",
+      "groupId": "rg-data",
+      "position": {
+        "x": 2189.75,
+        "y": 150
+      },
+      "size": {
+        "width": 140,
+        "height": 92
+      },
+      "parentId": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-data",
+      "children": [
+        "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-data/providers/Microsoft.Sql/servers/sql-contoso-prod/databases/sqldb-contoso-prod"
+      ],
+      "costData": {
+        "monthlyCostUsd": 310.2,
+        "currency": "USD",
+        "period": "2026-04",
+        "isEstimate": false,
+        "mappingState": "matched"
+      },
+      "status": "running",
+      "metadata": {
+        "id": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-data/providers/Microsoft.Sql/servers/sql-contoso-prod",
+        "name": "sql-contoso-prod",
+        "type": "Microsoft.Sql/servers",
+        "location": "eastus",
+        "resourceGroup": "rg-data",
+        "subscriptionId": "00000000-0000-0000-0000-000000000001",
+        "tags": {
+          "env": "production"
+        },
+        "properties": {
+          "fullyQualifiedDomainName": "sql-contoso-prod.database.windows.net",
+          "administratorLogin": "sqladmin",
+          "version": "12.0"
+        }
+      },
+      "selected": false,
+      "highlighted": false
+    },
+    {
+      "id": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-data/providers/Microsoft.Sql/servers/sql-contoso-prod/databases/sqldb-contoso-prod",
+      "label": "sqldb-contoso-prod",
+      "resourceType": "microsoft.sql/servers/databases",
+      "iconUrl": "icons/databases/10130-icon-service-SQL-Database.svg",
+      "group": "resourceGroup",
+      "groupId": "rg-data",
+      "position": {
+        "x": 2189.75,
+        "y": 300
+      },
+      "size": {
+        "width": 140,
+        "height": 92
+      },
+      "parentId": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-data/providers/Microsoft.Sql/servers/sql-contoso-prod",
+      "costData": {
+        "monthlyCostUsd": 148.9,
+        "currency": "USD",
+        "period": "2026-04",
+        "isEstimate": false,
+        "mappingState": "matched"
+      },
+      "status": "running",
+      "metadata": {
+        "id": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-data/providers/Microsoft.Sql/servers/sql-contoso-prod/databases/sqldb-contoso-prod",
+        "name": "sqldb-contoso-prod",
+        "type": "Microsoft.Sql/servers/databases",
+        "location": "eastus",
+        "resourceGroup": "rg-data",
+        "subscriptionId": "00000000-0000-0000-0000-000000000001",
+        "tags": {},
+        "sku": {
+          "name": "GP_Gen5_4",
+          "tier": "GeneralPurpose",
+          "capacity": 4
+        },
+        "properties": {
+          "status": "Online",
+          "edition": "GeneralPurpose"
+        }
+      },
+      "selected": false,
+      "highlighted": false
+    },
+    {
+      "id": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-data/providers/Microsoft.DocumentDB/databaseAccounts/cosmos-contoso-prod",
+      "label": "cosmos-contoso-prod",
+      "resourceType": "microsoft.documentdb/databaseaccounts",
+      "iconUrl": "icons/databases/10121-icon-service-Azure-Cosmos-DB.svg",
+      "group": "resourceGroup",
+      "groupId": "rg-data",
+      "position": {
+        "x": 1999.75,
+        "y": 300
+      },
+      "size": {
+        "width": 140,
+        "height": 92
+      },
+      "parentId": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-data",
+      "costData": {
+        "monthlyCostUsd": 210.6,
+        "currency": "USD",
+        "period": "2026-04",
+        "isEstimate": false,
+        "mappingState": "matched"
+      },
+      "status": "running",
+      "metadata": {
+        "id": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-data/providers/Microsoft.DocumentDB/databaseAccounts/cosmos-contoso-prod",
+        "name": "cosmos-contoso-prod",
+        "type": "Microsoft.DocumentDB/databaseAccounts",
+        "location": "eastus",
+        "resourceGroup": "rg-data",
+        "subscriptionId": "00000000-0000-0000-0000-000000000001",
+        "tags": {
+          "env": "production"
+        },
+        "kind": "GlobalDocumentDB",
+        "properties": {
+          "documentEndpoint": "https://cosmos-contoso-prod.documents.azure.com:443/",
+          "databaseAccountOfferType": "Standard",
+          "locations": [
+            {
+              "locationName": "East US",
+              "failoverPriority": 0
+            },
+            {
+              "locationName": "West US 2",
+              "failoverPriority": 1
+            }
+          ]
+        }
+      },
+      "selected": false,
+      "highlighted": false
+    },
+    {
+      "id": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-data/providers/Microsoft.Cache/Redis/redis-contoso-prod",
+      "label": "redis-contoso-prod",
+      "resourceType": "microsoft.cache/redis",
+      "iconUrl": "icons/databases/10137-icon-service-Cache-Redis.svg",
+      "group": "resourceGroup",
+      "groupId": "rg-data",
+      "position": {
+        "x": 2389.75,
+        "y": 150
+      },
+      "size": {
+        "width": 140,
+        "height": 92
+      },
+      "parentId": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-data",
+      "costData": {
+        "monthlyCostUsd": 95.3,
+        "currency": "USD",
+        "period": "2026-04",
+        "isEstimate": false,
+        "mappingState": "matched"
+      },
+      "status": "running",
+      "metadata": {
+        "id": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-data/providers/Microsoft.Cache/Redis/redis-contoso-prod",
+        "name": "redis-contoso-prod",
+        "type": "Microsoft.Cache/Redis",
+        "location": "eastus",
+        "resourceGroup": "rg-data",
+        "subscriptionId": "00000000-0000-0000-0000-000000000001",
+        "tags": {},
+        "sku": {
+          "name": "Standard",
+          "tier": "Standard",
+          "capacity": 2
+        },
+        "properties": {
+          "redisVersion": "7.0",
+          "hostName": "redis-contoso-prod.redis.cache.windows.net",
+          "port": 6380
+        }
+      },
+      "selected": false,
+      "highlighted": false
+    },
+    {
+      "id": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-data/providers/Microsoft.KeyVault/vaults/kv-contoso-prod",
+      "label": "kv-contoso-prod",
+      "resourceType": "microsoft.keyvault/vaults",
+      "iconUrl": "icons/security/10245-icon-service-Key-Vaults.svg",
+      "group": "resourceGroup",
+      "groupId": "rg-data",
+      "position": {
+        "x": 2389.75,
+        "y": 300
+      },
+      "size": {
+        "width": 140,
+        "height": 92
+      },
+      "parentId": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-data",
+      "costData": {
+        "monthlyCostUsd": 12.1,
+        "currency": "USD",
+        "period": "2026-04",
+        "isEstimate": false,
+        "mappingState": "matched"
+      },
+      "status": "running",
+      "metadata": {
+        "id": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-data/providers/Microsoft.KeyVault/vaults/kv-contoso-prod",
+        "name": "kv-contoso-prod",
+        "type": "Microsoft.KeyVault/vaults",
+        "location": "eastus",
+        "resourceGroup": "rg-data",
+        "subscriptionId": "00000000-0000-0000-0000-000000000001",
+        "tags": {
+          "env": "production"
+        },
+        "properties": {
+          "vaultUri": "https://kv-contoso-prod.vault.azure.net/",
+          "tenantId": "00000000-0000-0000-0000-000000000099",
+          "sku": {
+            "family": "A",
+            "name": "standard"
+          }
+        }
+      },
+      "selected": false,
+      "highlighted": false
+    },
+    {
+      "id": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-monitoring/providers/Microsoft.OperationalInsights/workspaces/law-contoso-prod",
+      "label": "law-contoso-prod",
+      "resourceType": "microsoft.operationalinsights/workspaces",
+      "iconUrl": "icons/management + governance/00009-icon-service-Log-Analytics-Workspaces.svg",
+      "group": "resourceGroup",
+      "groupId": "rg-monitoring",
+      "position": {
+        "x": 1733.25,
+        "y": 700
+      },
+      "size": {
+        "width": 140,
+        "height": 92
+      },
+      "parentId": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-monitoring",
+      "costData": {
+        "monthlyCostUsd": 42.6,
+        "currency": "USD",
+        "period": "2026-04",
+        "isEstimate": false,
+        "mappingState": "matched"
+      },
+      "status": "running",
+      "metadata": {
+        "id": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-monitoring/providers/Microsoft.OperationalInsights/workspaces/law-contoso-prod",
+        "name": "law-contoso-prod",
+        "type": "Microsoft.OperationalInsights/workspaces",
+        "location": "eastus",
+        "resourceGroup": "rg-monitoring",
+        "subscriptionId": "00000000-0000-0000-0000-000000000001",
+        "tags": {},
+        "sku": {
+          "name": "PerGB2018"
+        },
+        "properties": {
+          "retentionInDays": 90
+        }
+      },
+      "selected": false,
+      "highlighted": false
+    },
+    {
+      "id": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-monitoring/providers/Microsoft.Insights/components/appi-contoso-prod",
+      "label": "appi-contoso-prod",
+      "resourceType": "microsoft.insights/components",
+      "iconUrl": "icons/management + governance/00012-icon-service-Application-Insights.svg",
+      "group": "resourceGroup",
+      "groupId": "rg-monitoring",
+      "position": {
+        "x": 1933.25,
+        "y": 700
+      },
+      "size": {
+        "width": 140,
+        "height": 92
+      },
+      "parentId": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-monitoring",
+      "costData": {
+        "monthlyCostUsd": 28.4,
+        "currency": "USD",
+        "period": "2026-04",
+        "isEstimate": false,
+        "mappingState": "matched"
+      },
+      "status": "running",
+      "metadata": {
+        "id": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-monitoring/providers/Microsoft.Insights/components/appi-contoso-prod",
+        "name": "appi-contoso-prod",
+        "type": "microsoft.insights/components",
+        "location": "eastus",
+        "resourceGroup": "rg-monitoring",
+        "subscriptionId": "00000000-0000-0000-0000-000000000001",
+        "tags": {},
+        "kind": "web",
+        "properties": {
+          "InstrumentationKey": "aaaaaaaa-bbbb-cccc-dddd-000000000010",
+          "WorkspaceResourceId": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-monitoring/providers/Microsoft.OperationalInsights/workspaces/law-contoso-prod"
+        }
+      },
+      "selected": false,
+      "highlighted": false
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge-nsg-frontend-snet-frontend",
+      "sourceId": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-networking/providers/Microsoft.Network/networkSecurityGroups/nsg-frontend",
+      "targetId": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-networking/providers/Microsoft.Network/virtualNetworks/vnet-prod/subnets/snet-frontend",
+      "edgeType": "nsgAssociation",
+      "animated": false,
+      "style": {
+        "strokeColor": "#ca5010",
+        "strokeWidth": 1,
+        "dashArray": "2 3",
+        "markerEnd": "none"
+      }
+    },
+    {
+      "id": "edge-nsg-backend-snet-backend",
+      "sourceId": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-networking/providers/Microsoft.Network/networkSecurityGroups/nsg-backend",
+      "targetId": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-networking/providers/Microsoft.Network/virtualNetworks/vnet-prod/subnets/snet-backend",
+      "edgeType": "nsgAssociation",
+      "animated": false,
+      "style": {
+        "strokeColor": "#ca5010",
+        "strokeWidth": 1,
+        "dashArray": "2 3",
+        "markerEnd": "none"
+      }
+    },
+    {
+      "id": "edge-pe-sql-sql-server",
+      "sourceId": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-networking/providers/Microsoft.Network/privateEndpoints/pe-sql-contoso",
+      "targetId": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-data/providers/Microsoft.Sql/servers/sql-contoso-prod",
+      "edgeType": "privateLink",
+      "animated": false,
+      "style": {
+        "strokeColor": "#0078d4",
+        "strokeWidth": 2,
+        "markerEnd": "arrow"
+      },
+      "waypoints": [
+        {
+          "x": 1253.75,
+          "y": 28.75
+        },
+        {
+          "x": 2007.5,
+          "y": 27.5
+        }
+      ]
+    },
+    {
+      "id": "edge-pe-storage-storage",
+      "sourceId": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-networking/providers/Microsoft.Network/privateEndpoints/pe-storage-contoso",
+      "targetId": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-data/providers/Microsoft.Storage/storageAccounts/stcontoso001",
+      "edgeType": "privateLink",
+      "animated": false,
+      "style": {
+        "strokeColor": "#0078d4",
+        "strokeWidth": 2,
+        "markerEnd": "arrow"
+      },
+      "waypoints": [
+        {
+          "x": 1323.75,
+          "y": 438.75
+        },
+        {
+          "x": 1866.25,
+          "y": 440
+        }
+      ]
+    },
+    {
+      "id": "edge-uai-aks",
+      "sourceId": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-compute/providers/Microsoft.ManagedIdentity/userAssignedIdentities/uai-aks-prod",
+      "targetId": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-compute/providers/Microsoft.ContainerService/managedClusters/aks-contoso-prod",
+      "edgeType": "managedIdentity",
+      "animated": false,
+      "style": {
+        "strokeColor": "#8764b8",
+        "strokeWidth": 1.5,
+        "dashArray": "6 3",
+        "markerEnd": "arrow"
+      }
+    },
+    {
+      "id": "edge-app-appi",
+      "sourceId": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-compute/providers/Microsoft.Web/sites/app-contoso-api",
+      "targetId": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-monitoring/providers/Microsoft.Insights/components/appi-contoso-prod",
+      "edgeType": "dependency",
+      "animated": false,
+      "style": {
+        "strokeColor": "#a19f9d",
+        "strokeWidth": 1,
+        "markerEnd": "arrow"
+      }
+    },
+    {
+      "id": "edge-appi-law",
+      "sourceId": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-monitoring/providers/Microsoft.Insights/components/appi-contoso-prod",
+      "targetId": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-monitoring/providers/Microsoft.OperationalInsights/workspaces/law-contoso-prod",
+      "edgeType": "dependency",
+      "animated": false,
+      "style": {
+        "strokeColor": "#a19f9d",
+        "strokeWidth": 1,
+        "markerEnd": "arrow"
+      }
+    },
+    {
+      "id": "edge-app-serverfarm",
+      "sourceId": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-compute/providers/Microsoft.Web/sites/app-contoso-api",
+      "targetId": "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-compute/providers/Microsoft.Web/serverFarms/asp-contoso-prod",
+      "edgeType": "dependency",
+      "animated": false,
+      "style": {
+        "strokeColor": "#a19f9d",
+        "strokeWidth": 1,
+        "markerEnd": "arrow"
+      }
+    }
+  ],
+  "annotations": []
+}

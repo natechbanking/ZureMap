@@ -242,6 +242,38 @@ interface ConnectionType {
                         ></span>
                       </button>
                     </div>
+
+                    @if (!isDemo) {
+                      <div class="flex items-start justify-between gap-4">
+                        <div>
+                          <h4 class="text-xs font-semibold text-gray-700">Crash Recovery Autosave</h4>
+                          <p class="text-[11px] text-gray-500 mt-0.5">
+                            Save every change to a local JSON file after scan completes.
+                          </p>
+                          @if (!supportsAutosavePicker) {
+                            <p class="text-[11px] text-amber-600 mt-0.5">
+                              Local-file autosave is not supported in this browser.
+                            </p>
+                          }
+                        </div>
+                        <button
+                          type="button"
+                          (click)="toggleAutosaveOption()"
+                          class="relative inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full transition-colors focus:outline-none"
+                          [class.bg-azure-blue]="optionsEnableAutosave"
+                          [class.bg-gray-300]="!optionsEnableAutosave"
+                          [class.opacity-50]="!supportsAutosavePicker"
+                          [class.cursor-not-allowed]="!supportsAutosavePicker"
+                          [attr.aria-disabled]="!supportsAutosavePicker"
+                        >
+                          <span
+                            class="inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform duration-200"
+                            [class.translate-x-4.5]="optionsEnableAutosave"
+                            [class.translate-x-0.5]="!optionsEnableAutosave"
+                          ></span>
+                        </button>
+                      </div>
+                    }
                   </div>
                 }
               </div>
@@ -489,6 +521,7 @@ export class ScanComponent implements OnInit {
   optionsIncludeNetworkInterfaces = false;
   optionsUserAssignedIdentityEdges = false;
   optionsIncludeVirtualNetworkLinks = false;
+  optionsEnableAutosave = false;
   progressLog = signal<string[]>([]);
   scanSteps = signal<{ name: string; status: 'pending' | 'active' | 'done' }[]>([]);
   private scanError = signal<{ code: string; detail: string } | null>(null);
@@ -538,6 +571,10 @@ export class ScanComponent implements OnInit {
     this.enterStartChoice();
   }
 
+  get supportsAutosavePicker(): boolean {
+    return this.autosave.supportsLocalFileAutosave();
+  }
+
   enterStartChoice(): void {
     this.needsLogin = false;
     this.optionsGenerateConnections = true;
@@ -545,6 +582,7 @@ export class ScanComponent implements OnInit {
     this.optionsIncludeNetworkInterfaces = false;
     this.optionsUserAssignedIdentityEdges = false;
     this.optionsIncludeVirtualNetworkLinks = false;
+    this.optionsEnableAutosave = false;
     this.progressLog.set([]);
     this.scanSteps.set([]);
     this.scanError.set(null);
@@ -603,7 +641,19 @@ export class ScanComponent implements OnInit {
     this.store.scanPhase.set('selecting-options');
   }
 
-  confirmOptions(): void {
+  async confirmOptions(): Promise<void> {
+    if (!this.isDemo) {
+      if (!this.optionsEnableAutosave) {
+        await this.autosave.disable();
+      } else {
+        if (!this.supportsAutosavePicker) {
+          alert('Local-file autosave is not supported in this browser.');
+          return;
+        }
+        const enabled = await this.autosave.enableForEmptyDiagram();
+        if (!enabled) return;
+      }
+    }
     const subIds = this.store.activeSubscriptions().map(s => s.subscriptionId);
     this.runScan(subIds);
   }
@@ -759,8 +809,8 @@ export class ScanComponent implements OnInit {
         this.scanSteps.update(steps => steps.map(s => ({ ...s, status: 'done' })));
         this.store.scanPhase.set('ready');
         this.store.canvasSessionMode.set('scanned');
-        this.router.navigate(['/canvas']);
       });
+      this.zone.run(() => this.router.navigate(['/canvas']));
     } catch (err: unknown) {
       this.zone.run(() => {
         const e = err as Record<string, unknown>;
@@ -783,25 +833,37 @@ export class ScanComponent implements OnInit {
   }
 
   async startEmptyCanvas(): Promise<void> {
-    if (!this.isDemo) {
-      if (this.autosave.supportsLocalFileAutosave()) {
-        const enable = confirm('Enable autosave to a local JSON file for crash recovery?');
-        if (enable) {
-          const enabled = await this.autosave.enableForEmptyDiagram();
-          if (!enabled) return;
-        } else {
-          await this.autosave.disable();
-        }
-      } else {
-        await this.autosave.disable();
-        alert('Local-file autosave is not supported in this browser. You can still export JSON manually.');
-      }
-    }
+    const proceed = await this.promptAutosaveForNewDiagram({ allowAbortOnPickerCancel: true });
+    if (!proceed) return;
     this.store.clearDiagram();
     this.store.activeSubscriptions.set([]);
     this.store.setAnnotations([]);
     this.store.canvasSessionMode.set('empty');
     this.router.navigate(['/canvas']);
+  }
+
+  private async promptAutosaveForNewDiagram(opts: { allowAbortOnPickerCancel: boolean }): Promise<boolean> {
+    if (this.isDemo) return true;
+    if (!this.autosave.supportsLocalFileAutosave()) {
+      await this.autosave.disable();
+      alert('Local-file autosave is not supported in this browser. You can still export JSON manually.');
+      return true;
+    }
+
+    const enable = confirm('Enable autosave to a local JSON file for crash recovery?');
+    if (!enable) {
+      await this.autosave.disable();
+      return true;
+    }
+
+    const enabled = await this.autosave.enableForEmptyDiagram();
+    if (enabled) return true;
+    return !opts.allowAbortOnPickerCancel;
+  }
+
+  toggleAutosaveOption(): void {
+    if (!this.supportsAutosavePicker) return;
+    this.optionsEnableAutosave = !this.optionsEnableAutosave;
   }
 
   private async maybePromptAutosaveRecovery(): Promise<void> {

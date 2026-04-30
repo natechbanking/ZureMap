@@ -73,8 +73,16 @@ export class AutosaveService {
     this.lastSavedAt.set(null);
     this.metadata = null;
     this.fileHandle = null;
-    localStorage.removeItem(AutosaveService.META_KEY);
-    await this.deleteHandle();
+    try {
+      localStorage.removeItem(AutosaveService.META_KEY);
+    } catch {
+      // storage may be unavailable; ignore
+    }
+    try {
+      await this.deleteHandle();
+    } catch {
+      // IndexedDB may be unavailable or the record may not exist; ignore
+    }
   }
 
   async getRecoveryCandidate(): Promise<AutosaveRecoveryCandidate | null> {
@@ -158,10 +166,14 @@ export class AutosaveService {
 
   private async getHandle(): Promise<FileSystemFileHandle | null> {
     if (this.fileHandle) return this.fileHandle;
-    const rec = await this.getRecord(AutosaveService.HANDLE_KEY);
-    const handle = (rec?.value ?? null) as FileSystemFileHandle | null;
-    this.fileHandle = handle;
-    return handle;
+    try {
+      const rec = await this.getRecord(AutosaveService.HANDLE_KEY);
+      const handle = (rec?.value ?? null) as FileSystemFileHandle | null;
+      this.fileHandle = handle;
+      return handle;
+    } catch {
+      return null;
+    }
   }
 
   private async deleteHandle(): Promise<void> {
@@ -169,6 +181,9 @@ export class AutosaveService {
   }
 
   private openDb(): Promise<IDBDatabase> {
+    if (typeof indexedDB === 'undefined') {
+      return Promise.reject(new Error('IndexedDB is not available in this environment'));
+    }
     return new Promise((resolve, reject) => {
       const req = indexedDB.open(AutosaveService.DB_NAME, 1);
       req.onupgradeneeded = () => {

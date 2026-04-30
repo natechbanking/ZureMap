@@ -1,4 +1,4 @@
-import { Component, inject, effect, ViewChild, ElementRef, HostListener, computed, AfterViewInit } from '@angular/core';
+import { Component, inject, effect, ViewChild, ElementRef, HostListener, computed, AfterViewInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { DiagramStore } from '../../core/store/diagram.store';
 import { ELKLayoutService } from '../../core/services/elk-layout.service';
@@ -120,7 +120,7 @@ const AZURE_RESOURCE_DND_TYPE = 'application/x-zuremap-azure-resource';
   templateUrl: "./canvas.component.html",
   styleUrl: "./canvas.component.scss",
 })
-export class CanvasComponent implements AfterViewInit {
+export class CanvasComponent implements AfterViewInit, OnDestroy {
   @ViewChild('canvasHost', { read: ElementRef }) canvasHostRef!: ElementRef;
   @ViewChild('exportRoot', { read: ElementRef }) exportRootRef!: ElementRef;
 
@@ -212,6 +212,13 @@ export class CanvasComponent implements AfterViewInit {
     if (host) {
       this.minimapViewportWidth = host.clientWidth;
       this.minimapViewportHeight = host.clientHeight;
+    }
+  }
+
+  ngOnDestroy(): void {
+    if (this.autosaveTimer !== null) {
+      window.clearTimeout(this.autosaveTimer);
+      this.autosaveTimer = null;
     }
   }
 

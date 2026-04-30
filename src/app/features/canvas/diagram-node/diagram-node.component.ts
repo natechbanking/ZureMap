@@ -1,4 +1,4 @@
-import { Component, Input, Output, EventEmitter, HostListener, inject } from '@angular/core';
+import { Component, Input, Output, EventEmitter, HostListener, inject, ElementRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { DiagramNode, NodeInternalItem } from '../../../core/models/diagram-node.model';
 import { AzureIconComponent } from '../../../shared/components/azure-icon/azure-icon.component';
@@ -13,6 +13,7 @@ import {
   ContextMenuRequest,
   InternalItemMoveRequest,
   NodeResizeRequest,
+  NodeRotateRequest,
   RouteTableExpansionRequest,
   VirtualNetworkExpansionRequest,
   NsgExpansionRequest,
@@ -109,6 +110,8 @@ export class DiagramNodeComponent {
   @Output() editRequested = new EventEmitter<string>();
   @Output() internalItemMoved = new EventEmitter<InternalItemMoveRequest>();
   @Output() nodeResized = new EventEmitter<NodeResizeRequest>();
+  @Output() nodeRotateStarted = new EventEmitter<string>();
+  @Output() nodeRotated = new EventEmitter<NodeRotateRequest>();
   @Output() routeTableExpansionChanged = new EventEmitter<RouteTableExpansionRequest>();
   @Output() virtualNetworkExpansionChanged = new EventEmitter<VirtualNetworkExpansionRequest>();
   @Output() nsgExpansionChanged = new EventEmitter<NsgExpansionRequest>();
@@ -132,8 +135,10 @@ export class DiagramNodeComponent {
   private uaiRoleAssignmentsSvc = inject(UaiRoleAssignmentsService);
   private azureFirewallDetailsSvc = inject(AzureFirewallDetailsService);
   private dnsRecordsSvc = inject(DnsRecordsService);
+  private elRef = inject(ElementRef);
   private internalDrag: { itemId: string; startMouseX: number; startMouseY: number; startX: number; startY: number } | null = null;
   private resizeDrag: { startMouseX: number; startMouseY: number; startW: number; startH: number } | null = null;
+  private rotateDrag: { cx: number; cy: number } | null = null;
   private _storageDetails: StorageDetails | null = null;
   routesExpanded = false;
   subnetsExpanded = false;
@@ -836,6 +841,17 @@ export class DiagramNodeComponent {
     };
   }
 
+  onRotateHandleMouseDown(event: MouseEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.nodeRotateStarted.emit(this.node.id);
+    const rect = this.elRef.nativeElement.getBoundingClientRect();
+    this.rotateDrag = {
+      cx: rect.left + rect.width / 2,
+      cy: rect.top + rect.height / 2,
+    };
+  }
+
   @HostListener('document:mousemove', ['$event'])
   onDocMouseMove(event: MouseEvent): void {
     if (this.resizeDrag) {
@@ -845,6 +861,13 @@ export class DiagramNodeComponent {
       const width = Math.max(100, Math.min(1200, Math.round(this.resizeDrag.startW + dx)));
       const height = Math.max(70, Math.min(1200, Math.round(this.resizeDrag.startH + dy)));
       this.nodeResized.emit({ nodeId: this.node.id, width, height });
+      return;
+    }
+    if (this.rotateDrag) {
+      const dx = event.clientX - this.rotateDrag.cx;
+      const dy = event.clientY - this.rotateDrag.cy;
+      const angle = Math.round((Math.atan2(dy, dx) * 180) / Math.PI + 90);
+      this.nodeRotated.emit({ nodeId: this.node.id, angle });
       return;
     }
     if (!this.internalDrag) return;
@@ -860,5 +883,6 @@ export class DiagramNodeComponent {
   onDocMouseUp(): void {
     this.internalDrag = null;
     this.resizeDrag = null;
+    this.rotateDrag = null;
   }
 }

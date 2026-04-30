@@ -7,6 +7,7 @@ import {
   ContextMenuRequest,
   InternalItemMoveRequest,
   NodeResizeRequest,
+  NodeRotateRequest,
   RouteTableExpansionRequest,
   VirtualNetworkExpansionRequest,
   NsgExpansionRequest,
@@ -2038,6 +2039,14 @@ export class CanvasComponent implements AfterViewInit {
     });
     nodes = this.pushSiblings(nodes, req.nodeId);
     this.store.setNodes(nodes);
+  }
+
+  onNodeRotated(req: NodeRotateRequest): void {
+    this.store.setNodes(
+      this.store.nodes().map(n =>
+        n.id === req.nodeId ? { ...n, angle: req.angle } : n,
+      ),
+    );
   }
 
   private getSiblings(nodes: DiagramNode[], node: DiagramNode): DiagramNode[] {

@@ -17,6 +17,11 @@ export interface NodeResizeRequest {
   height: number;
 }
 
+export interface NodeRotateRequest {
+  nodeId: string;
+  angle: number;
+}
+
 export interface RouteTableExpansionRequest {
   nodeId: string;
   expanded: boolean;

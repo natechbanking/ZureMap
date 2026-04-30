@@ -295,6 +295,19 @@
       <button
         type="button"
         data-export-hide
+        class="absolute -top-5 left-1/2 -translate-x-1/2 w-4 h-4 rounded-full border border-gray-300 bg-white shadow-sm cursor-grab hover:border-blue-400 hover:bg-blue-50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+        title="Rotate resource"
+        (mousedown)="onRotateHandleMouseDown($event)"
+      >
+        <svg viewBox="0 0 16 16" class="w-2.5 h-2.5 text-gray-500" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M13.5 6A6 6 0 1 0 10 12.5" />
+          <polyline points="13.5 2 13.5 6 9.5 6" />
+        </svg>
+      </button>
+
+      <button
+        type="button"
+        data-export-hide
         class="absolute -right-1 -bottom-1 w-3.5 h-3.5 rounded-sm border border-gray-300 bg-white shadow-sm cursor-se-resize hover:border-blue-400 hover:bg-blue-50 flex items-center justify-center"
         title="Resize resource"
         (mousedown)="onResizeMouseDown($event)"

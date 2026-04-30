@@ -35,4 +35,5 @@ export interface DiagramNode {
   highlighted: boolean;
   driftStatus?: DriftStatus;
   custom?: NodeCustomization;
+  angle?: number;
 }

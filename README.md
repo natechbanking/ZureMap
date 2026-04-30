@@ -26,30 +26,33 @@ ZureMap is an intelligent Azure Architecture Diagram Generator built with Angula
 <table>
   <tr>
     <td align="center" width="50%">
-      <img src="public/demo_1.png" alt="Generated architecture diagram" /><br/>
-      <sub>Auto-generated Azure architecture diagram</sub>
+      <img src="public/demo_1.png" alt="Landing page" /><br/>
+      <sub>Landing page</sub>
     </td>
     <td align="center" width="50%">
-      <img src="public/demo_2.png" alt="Highlight by tag" /><br/>
-      <sub>Highlight resources by tag</sub>
-    </td>
-  </tr>
-  <tr>
-    <td align="center" width="50%">
-      <img src="public/demo_3.png" alt="FinOps cost insights" /><br/>
-      <sub>FinOps &amp; cost insights panel</sub>
-    </td>
-    <td align="center" width="50%">
-      <img src="public/demo_4.png" alt="Subscription selection" /><br/>
+      <img src="public/demo_2.png" alt="Subscription selection" /><br/>
       <sub>Subscription selection</sub>
     </td>
   </tr>
   <tr>
     <td align="center" width="50%">
-      <img src="public/demo_5.png" alt="Diagram configuration options" /><br/>
-      <sub>Step 2: Configure diagram options</sub>
+      <img src="public/demo_3.png" alt="Auto-generated architecture diagram" /><br/>
+      <sub>Auto-generated architecture diagram</sub>
     </td>
-    <td></td>
+    <td align="center" width="50%">
+      <img src="public/demo_4.png" alt="Highlight resources by tag" /><br/>
+      <sub>Highlight resources by tag</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="50%">
+      <img src="public/demo_5.png" alt="Add Azure resources via drawing tools" /><br/>
+      <sub>Add Azure resources via drawing tools</sub>
+    </td>
+    <td align="center" width="50%">
+      <img src="public/demo_6.png" alt="FinOps cost insights" /><br/>
+      <sub>FinOps &amp; cost insights</sub>
+    </td>
   </tr>
 </table>
 

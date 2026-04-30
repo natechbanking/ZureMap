@@ -16,6 +16,7 @@ export interface DrawingStyleState {
   activeTool: DrawingTool;
   activeColor: string;
   activeFontFamily: string;
+  activeFontSize: number;
   activeStrokeWidth: number;
   activeStrokeStyle: StrokeStyle;
   activeSloppiness: number;
@@ -140,7 +141,7 @@ function createAnnotation(style: DrawingStyleState, type: Annotation['type'], x:
     fill: style.activeFill,
     x,
     y,
-    fontSize: 14,
+    fontSize: style.activeFontSize,
     fontFamily: style.activeFontFamily,
     rotation: 0,
   };

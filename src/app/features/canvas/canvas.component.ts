@@ -221,6 +221,7 @@ export class CanvasComponent implements AfterViewInit {
   activeTool: DrawingTool = 'pointer';
   activeColor = '#1e1e1e';
   activeFontFamily = 'Arial, sans-serif';
+  activeFontSize = 14;
   activeStrokeWidth = 2;
   activeStrokeStyle: StrokeStyle = 'solid';
   activeSloppiness = 0;
@@ -763,6 +764,11 @@ export class CanvasComponent implements AfterViewInit {
   onToolbarFontFamilyChange(fontFamily: string): void {
     this.activeFontFamily = fontFamily;
     this.updateSelectedAnnotation({ fontFamily }, ['text', 'sticky']);
+  }
+
+  onToolbarFontSizeChange(fontSize: number): void {
+    this.activeFontSize = fontSize;
+    this.updateSelectedAnnotation({ fontSize }, ['text', 'sticky']);
   }
 
   onToolbarStrokeWidthChange(strokeWidth: number): void {
@@ -2469,6 +2475,7 @@ export class CanvasComponent implements AfterViewInit {
   private syncToolbarFromAnnotation(ann: Annotation): void {
     this.activeColor = ann.color;
     this.activeFontFamily = ann.fontFamily ?? 'Arial, sans-serif';
+    this.activeFontSize = ann.fontSize ?? 14;
     this.activeStrokeWidth = ann.strokeWidth;
     this.activeStrokeStyle = ann.strokeStyle ?? 'solid';
     this.activeSloppiness = ann.sloppiness ?? 0;
@@ -2724,6 +2731,7 @@ export class CanvasComponent implements AfterViewInit {
       activeTool: this.activeTool,
       activeColor: this.activeColor,
       activeFontFamily: this.activeFontFamily,
+      activeFontSize: this.activeFontSize,
       activeStrokeWidth: this.activeStrokeWidth,
       activeStrokeStyle: this.activeStrokeStyle,
       activeSloppiness: this.activeSloppiness,

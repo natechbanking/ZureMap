@@ -42,6 +42,7 @@ const COLORS = [
 ];
 
 const WIDTHS = [1, 2, 4, 6, 8];
+const FONT_SIZES = [10, 12, 14, 16, 18, 20, 24, 28, 32];
 const STROKE_STYLES: StrokeStyle[] = ['solid', 'dashed', 'dotted'];
 const EDGE_ROUTINGS: EdgeRouting[] = ['straight', 'elbow'];
 const EDGE_MODES: EdgeMode[] = ['none', 'start', 'end', 'both'];
@@ -225,12 +226,23 @@ const FONT_FAMILIES = [
                       <option [value]="font.value">{{ font.label }}</option>
                     }
                   </select>
+                  <div class="mt-2">
+                    <select
+                      class="w-full h-9 rounded-lg border-2 border-gray-100 hover:border-gray-200 px-2 text-xs bg-white text-gray-700"
+                      [value]="activeFontSize"
+                      (change)="fontSizeChange.emit(toNumber($event))"
+                    >
+                      @for (size of fontSizes; track size) {
+                        <option [value]="size">{{ size }} px</option>
+                      }
+                    </select>
+                  </div>
                 </div>
               }
 
               <!-- Stroke Width - Visual Preview -->
               <div>
-                <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2">Stroke Width</p>
+                <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2">{{ isLineTool() ? 'Arrow Width' : 'Stroke Width' }}</p>
                 <div class="flex gap-1.5">
                   @for (w of widths; track w) {
                     <button
@@ -909,6 +921,7 @@ export class DrawingToolbarComponent implements OnInit {
   @Input() activeTool: DrawingTool = 'pointer';
   @Input() activeColor = '#1e1e1e';
   @Input() activeFontFamily = 'Arial, sans-serif';
+  @Input() activeFontSize = 14;
   @Input() activeStrokeWidth = 2;
   @Input() activeStrokeStyle: StrokeStyle = 'solid';
   @Input() activeSloppiness = 0;
@@ -928,6 +941,7 @@ export class DrawingToolbarComponent implements OnInit {
   @Output() toolChange = new EventEmitter<DrawingTool>();
   @Output() colorChange = new EventEmitter<string>();
   @Output() fontFamilyChange = new EventEmitter<string>();
+  @Output() fontSizeChange = new EventEmitter<number>();
   @Output() strokeWidthChange = new EventEmitter<number>();
   @Output() strokeStyleChange = new EventEmitter<StrokeStyle>();
   @Output() sloppinessChange = new EventEmitter<number>();
@@ -946,6 +960,7 @@ export class DrawingToolbarComponent implements OnInit {
   readonly tools = TOOLS;
   readonly colors = COLORS;
   readonly widths = WIDTHS;
+  readonly fontSizes = FONT_SIZES;
   readonly strokeStyles = STROKE_STYLES;
   readonly edgeRoutings = EDGE_ROUTINGS;
   readonly edgeModes = EDGE_MODES;

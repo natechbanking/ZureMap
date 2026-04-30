@@ -60,7 +60,7 @@ interface ConnectionType {
                   <button
                     type="button"
                     (click)="beginAzureScanFlow()"
-                    class="text-left rounded-xl border border-blue-200 bg-blue-50/50 hover:bg-blue-50 transition-colors p-4"
+                    class="text-left rounded-xl border border-blue-200 bg-blue-50/50 hover:bg-blue-50 transition-colors p-4 cursor-pointer"
                   >
                     <p class="text-sm font-semibold text-blue-800 mb-1">Scan Azure</p>
                     <p class="text-xs text-gray-600">Select subscriptions, configure options, and generate a diagram from live resources.</p>
@@ -69,7 +69,7 @@ interface ConnectionType {
                   <button
                     type="button"
                     (click)="startEmptyCanvas()"
-                    class="text-left rounded-xl border border-gray-200 bg-gray-50 hover:bg-gray-100 transition-colors p-4"
+                    class="text-left rounded-xl border border-gray-200 bg-gray-50 hover:bg-gray-100 transition-colors p-4 cursor-pointer"
                   >
                     <p class="text-sm font-semibold text-gray-800 mb-1">Start Empty</p>
                     <p class="text-xs text-gray-600">Open an empty canvas and build your architecture manually.</p>

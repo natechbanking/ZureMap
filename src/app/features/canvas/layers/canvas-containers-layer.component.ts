@@ -10,6 +10,7 @@ import {
   ViewChild,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { DrawingTool } from '../../../core/models/annotation.model';
 import { IconRegistryService } from '../../../core/services/icon-registry.service';
 import { RgBound, SubscriptionBound, VmBound, RouteTableBound, SizeOffset, TagHighlightInfo, TagHighlightResizeDragState, SubscriptionDragState, VmDragState, RgDragState } from '../canvas.types';
 
@@ -35,7 +36,7 @@ export class CanvasContainersLayerComponent implements AfterViewChecked {
   @Input() tagHighlightResizeDrag: TagHighlightResizeDragState | null = null;
   @Input() renamingContainer: { type: 'rg' | 'sub' | 'vm' | 'rt'; id: string } | null = null;
   @Input() renamingValue = '';
-  @Input() activeTool = 'pointer';
+  @Input() activeTool: DrawingTool = 'pointer';
   @Input() subscriptionDragState: SubscriptionDragState | null = null;
   @Input() rgDragState: RgDragState | null = null;
   @Input() vmDragState: VmDragState | null = null;

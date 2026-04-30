@@ -88,9 +88,9 @@ export function polylinePointsString(points: { x: number; y: number }[]): string
   return points.map(p => `${p.x},${p.y}`).join(' ');
 }
 
-export function edgePolylinePoints(nodes: DiagramNode[], edge: Pick<DiagramEdge, 'sourceId' | 'targetId' | 'waypoints'>): { x: number; y: number }[] {
-  const src = nodes.find(n => n.id === edge.sourceId);
-  const tgt = nodes.find(n => n.id === edge.targetId);
+export function edgePolylinePoints(nodes: DiagramNode[], edge: Pick<DiagramEdge, 'sourceId' | 'targetId' | 'waypoints'>, nodeMap?: Map<string, DiagramNode>): { x: number; y: number }[] {
+  const src = nodeMap ? nodeMap.get(edge.sourceId) : nodes.find(n => n.id === edge.sourceId);
+  const tgt = nodeMap ? nodeMap.get(edge.targetId) : nodes.find(n => n.id === edge.targetId);
   if (!src || !tgt) return [];
 
   const waypoints = edge.waypoints ?? [];

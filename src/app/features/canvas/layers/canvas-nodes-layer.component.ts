@@ -8,6 +8,7 @@ import {
 import { CommonModule } from '@angular/common';
 import { DiagramNodeComponent } from '../diagram-node/diagram-node.component';
 import { DiagramNode } from '../../../core/models/diagram-node.model';
+import { DrawingTool } from '../../../core/models/annotation.model';
 import { NodeDragState } from '../canvas.types';
 import {
   ContextMenuRequest,
@@ -41,7 +42,7 @@ import {
 })
 export class CanvasNodesLayerComponent {
   @Input() visibleNodes: DiagramNode[] = [];
-  @Input() activeTool = 'pointer';
+  @Input() activeTool: DrawingTool = 'pointer';
   @Input() nodeDragState: NodeDragState | null = null;
   @Input() nodeTagHighlights: Map<string, string> = new Map<string, string>();
   @Input() childToParentMap: Map<string, string> = new Map<string, string>();

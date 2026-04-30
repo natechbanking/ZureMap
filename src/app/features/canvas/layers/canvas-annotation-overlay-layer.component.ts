@@ -6,7 +6,7 @@ import {
   Output,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { Annotation } from '../../../core/models/annotation.model';
+import { Annotation, DrawingTool } from '../../../core/models/annotation.model';
 import {
   annotationTextWidth,
   annotationTextHeight,
@@ -23,9 +23,18 @@ import {
 export class CanvasAnnotationOverlayLayerComponent {
   @Input() annotations: Annotation[] = [];
   @Input() selectedAnnotationId: string | null = null;
-  @Input() selectedAnnotationIds: string[] = [];
   @Input() editingAnnotation: Annotation | null = null;
-  @Input() activeTool = 'pointer';
+  @Input() activeTool: DrawingTool = 'pointer';
+
+  private _selectedAnnotationIdSet = new Set<string>();
+
+  @Input() set selectedAnnotationIds(ids: string[]) {
+    this._selectedAnnotationIdSet = new Set(ids);
+  }
+
+  get selectedAnnotationIds(): string[] {
+    return [...this._selectedAnnotationIdSet];
+  }
 
   @Output() annotationMouseDown = new EventEmitter<{ event: MouseEvent; ann: Annotation }>();
   @Output() annotationContextMenu = new EventEmitter<{ event: MouseEvent; ann: Annotation }>();
@@ -39,6 +48,6 @@ export class CanvasAnnotationOverlayLayerComponent {
   readonly annotationTransform = annotationTransform;
 
   isAnnotationSelected(id: string): boolean {
-    return this.selectedAnnotationIds.includes(id);
+    return this._selectedAnnotationIdSet.has(id);
   }
 }

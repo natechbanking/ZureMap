@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, EventEmitter, Input, Output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, EventEmitter, Input, OnChanges, Output, SimpleChanges } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Annotation, DrawingTool, EdgeMode, EdgeRouting, StrokeStyle } from '../../../core/models/annotation.model';
 import { DiagramEdge } from '../../../core/models/diagram-edge.model';
@@ -21,7 +21,7 @@ import {
   templateUrl: './canvas-svg-layer.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class CanvasSvgLayerComponent {
+export class CanvasSvgLayerComponent implements OnChanges {
   @Input() visibleEdges: DiagramEdge[] = [];
   @Input() annotations: Annotation[] = [];
   @Input() visibleNodes: DiagramNode[] = [];
@@ -55,10 +55,20 @@ export class CanvasSvgLayerComponent {
   @Output() annWaypointDblClick = new EventEmitter<{ event: MouseEvent; ann: Annotation; index: number }>();
   @Output() annotationShapeResizeMouseDown = new EventEmitter<{ event: MouseEvent; ann: Annotation; handle: 'nw'|'n'|'ne'|'e'|'se'|'s'|'sw'|'w' }>();
 
+  // ── Lifecycle ──────────────────────────────────────────────────────────────
+
+  private nodeMap = new Map<string, DiagramNode>();
+
+  ngOnChanges(changes: SimpleChanges): void {
+    if (changes['visibleNodes']) {
+      this.nodeMap = new Map(this.visibleNodes.map(n => [n.id, n]));
+    }
+  }
+
   // ── Edge geometry ──────────────────────────────────────────────────────────
 
   getEdgePoints(edge: DiagramEdge): { x: number; y: number }[] {
-    return edgePolylinePoints(this.visibleNodes, edge);
+    return edgePolylinePoints(this.visibleNodes, edge, this.nodeMap);
   }
 
   getEdgePolylineString(edge: DiagramEdge): string {

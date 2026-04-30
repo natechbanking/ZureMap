@@ -1,11 +1,13 @@
 import { Component, Input } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { NodeCostData } from '../../../core/models/cost-data.model';
+import { getCostBorderStyle } from '../../../core/utils/cost-thresholds';
+import { FormatCostPipe } from '../../pipes/format-cost.pipe';
 
 @Component({
   selector: 'app-cost-badge',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, FormatCostPipe],
   template: `
     @if (costData) {
       <span
@@ -13,7 +15,7 @@ import { NodeCostData } from '../../../core/models/cost-data.model';
         [style.background-color]="tierColor"
         [title]="'Cost for selected period: ' + costData.currency + ' ' + costData.monthlyCostUsd.toFixed(2)"
       >
-        {{ formatCost(costData.monthlyCostUsd) }}
+        {{ costData.monthlyCostUsd | formatCost }}
       </span>
     }
   `,
@@ -24,15 +26,6 @@ export class CostBadgeComponent {
 
   get tierColor(): string {
     const cost = this.costData?.monthlyCostUsd ?? 0;
-    if (cost < 10)  return '#107c10';
-    if (cost < 50)  return '#ffb900';
-    if (cost < 200) return '#ca5010';
-    return '#d13438';
-  }
-
-  formatCost(usd: number): string {
-    if (usd >= 1000) return `$${(usd / 1000).toFixed(1)}k`;
-    if (usd >= 100)  return `$${Math.round(usd)}`;
-    return `$${usd.toFixed(0)}`;
+    return getCostBorderStyle(cost).borderColor;
   }
 }

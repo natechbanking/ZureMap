@@ -2,7 +2,7 @@ export type DrawingTool = 'pointer' | 'draw' | 'line' | 'arrow' | 'text' | 'rect
 export type StrokeStyle = 'solid' | 'dashed' | 'dotted';
 export type EdgeRouting = 'straight' | 'elbow';
 export type EdgeMode = 'none' | 'start' | 'end' | 'both';
-export type AnnotationType = Exclude<DrawingTool, 'pointer' | 'resource'> | 'image';
+export type AnnotationType = 'draw' | 'line' | 'arrow' | 'text' | 'rect' | 'ellipse' | 'diamond' | 'sticky' | 'image';
 
 export interface Annotation {
   id: string;

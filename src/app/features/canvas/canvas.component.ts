@@ -280,6 +280,7 @@ export class CanvasComponent implements AfterViewInit {
   private annDragOrigin: { x: number; y: number; x2?: number; y2?: number } = { x: 0, y: 0 };
   private imageResizeDrag: { annId: string; startX: number; startY: number; startWidth: number; startHeight: number; aspect: number } | null = null;
   private annShapeResizeDrag: { annId: string; handle: 'nw'|'n'|'ne'|'e'|'se'|'s'|'sw'|'w'; startClientX: number; startClientY: number; startX: number; startY: number; startWidth: number; startHeight: number } | null = null;
+  private annRotateDrag: { annId: string; cx: number; cy: number } | null = null;
 
   // RG mouse drag (smooth, incremental)
   rgDragState: RgDragState | null = null;
@@ -531,6 +532,14 @@ export class CanvasComponent implements AfterViewInit {
       return;
     }
 
+    if (this.annRotateDrag) {
+      const drag = this.annRotateDrag;
+      const pt = this.svgPoint(e);
+      const angleDeg = (Math.atan2(pt.y - drag.cy, pt.x - drag.cx) * 180) / Math.PI + 90;
+      this.store.updateAnnotation(drag.annId, { rotation: Math.round(angleDeg) });
+      return;
+    }
+
     if (this.imageResizeDrag) {
       const drag = this.imageResizeDrag;
       const dx = (e.clientX - drag.startX) / this.zoomLevel;
@@ -638,6 +647,7 @@ export class CanvasComponent implements AfterViewInit {
     this.annWaypointDragState = null;
     this.imageResizeDrag = null;
     this.annShapeResizeDrag = null;
+    this.annRotateDrag = null;
   }
 
   // ── Tool management ────────────────────────────────────────────────────────
@@ -847,6 +857,20 @@ export class CanvasComponent implements AfterViewInit {
       startY: ann.y,
       startWidth: ann.width ?? 80,
       startHeight: ann.height ?? 60,
+    };
+  }
+
+  onAnnotationRotateMouseDown(e: MouseEvent, ann: Annotation): void {
+    if (this.activeTool !== 'pointer') return;
+    e.preventDefault();
+    e.stopPropagation();
+    this.store.pushUndo();
+    const width = this.annotationTextWidth(ann);
+    const height = this.annotationTextHeight(ann);
+    this.annRotateDrag = {
+      annId: ann.id,
+      cx: ann.x + width / 2,
+      cy: ann.y + height / 2,
     };
   }
 
@@ -2385,6 +2409,10 @@ export class CanvasComponent implements AfterViewInit {
     if (ann.type === 'arrow' || ann.type === 'line') return Math.max(ann.x, ann.x2 ?? ann.x);
     if (ann.type === 'rect' || ann.type === 'diamond' || ann.type === 'ellipse' || ann.type === 'image') return ann.x + (ann.width ?? 0);
     if (ann.type === 'draw' && ann.pathData) return this.pathMax(ann.pathData).x;
+    if ((ann.type === 'text' || ann.type === 'sticky') && (ann.rotation ?? 0) !== 0) {
+      const box = this.rotatedBounds(ann.x, ann.y, this.annotationTextWidth(ann), this.annotationTextHeight(ann), ann.rotation ?? 0);
+      return box.maxX;
+    }
     return ann.x + (ann.width ?? 200);
   }
 
@@ -2392,7 +2420,57 @@ export class CanvasComponent implements AfterViewInit {
     if (ann.type === 'arrow' || ann.type === 'line') return Math.max(ann.y, ann.y2 ?? ann.y);
     if (ann.type === 'rect' || ann.type === 'diamond' || ann.type === 'ellipse' || ann.type === 'image') return ann.y + (ann.height ?? 0);
     if (ann.type === 'draw' && ann.pathData) return this.pathMax(ann.pathData).y;
+    if ((ann.type === 'text' || ann.type === 'sticky') && (ann.rotation ?? 0) !== 0) {
+      const box = this.rotatedBounds(ann.x, ann.y, this.annotationTextWidth(ann), this.annotationTextHeight(ann), ann.rotation ?? 0);
+      return box.maxY;
+    }
     return ann.y + (ann.height ?? 80);
+  }
+
+  annotationTransform(ann: Annotation): string {
+    const rot = ann.rotation ?? 0;
+    if (!rot) return '';
+    return `rotate(${rot}deg)`;
+  }
+
+  annotationTextWidth(ann: Annotation): number {
+    return ann.width ?? (ann.type === 'sticky' ? 180 : 200);
+  }
+
+  annotationTextHeight(ann: Annotation): number {
+    return ann.height ?? (ann.type === 'sticky' ? 120 : 48);
+  }
+
+  private rotatedBounds(x: number, y: number, width: number, height: number, rotationDeg: number): {
+    minX: number;
+    maxX: number;
+    minY: number;
+    maxY: number;
+  } {
+    const theta = (rotationDeg * Math.PI) / 180;
+    const cos = Math.cos(theta);
+    const sin = Math.sin(theta);
+    const cx = x + width / 2;
+    const cy = y + height / 2;
+    const points = [
+      { x, y },
+      { x: x + width, y },
+      { x, y: y + height },
+      { x: x + width, y: y + height },
+    ].map(p => {
+      const dx = p.x - cx;
+      const dy = p.y - cy;
+      return {
+        x: cx + dx * cos - dy * sin,
+        y: cy + dx * sin + dy * cos,
+      };
+    });
+    return {
+      minX: Math.min(...points.map(p => p.x)),
+      maxX: Math.max(...points.map(p => p.x)),
+      minY: Math.min(...points.map(p => p.y)),
+      maxY: Math.max(...points.map(p => p.y)),
+    };
   }
 
   private pasteTargetPosition(width: number, height: number): { x: number; y: number } {

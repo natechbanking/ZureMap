@@ -843,6 +843,13 @@ export class CanvasComponent implements AfterViewInit {
   onAnnotationMouseDown(e: MouseEvent, ann: Annotation): void {
     if (this.activeTool !== 'pointer') return;
     if (e.button !== 0) return;
+    // Prefer node interactions when an annotation overlaps a node in screen space.
+    const canvasPt = this.canvasPointFromClient(e.clientX, e.clientY);
+    const nodeUnder = this.nodeAtCanvasPoint(canvasPt.x, canvasPt.y);
+    if (nodeUnder) {
+      this.onNodeMouseDown(e, nodeUnder);
+      return;
+    }
     e.stopPropagation();
     this.annotationContextMenu = null;
     this.contextMenu = null;
@@ -1517,6 +1524,21 @@ export class CanvasComponent implements AfterViewInit {
     };
   }
 
+  private nodeAtCanvasPoint(canvasX: number, canvasY: number): DiagramNode | undefined {
+    for (let i = this.visibleNodes.length - 1; i >= 0; i--) {
+      const node = this.visibleNodes[i];
+      if (
+        canvasX >= node.position.x &&
+        canvasX <= node.position.x + node.size.width &&
+        canvasY >= node.position.y &&
+        canvasY <= node.position.y + node.size.height
+      ) {
+        return node;
+      }
+    }
+    return undefined;
+  }
+
   get zoomLevel(): number {
     return this.store.zoomLevel();
   }
@@ -1718,6 +1740,14 @@ export class CanvasComponent implements AfterViewInit {
 
   onAnnotationContextMenu(event: MouseEvent, ann: Annotation): void {
     if (this.activeTool !== 'pointer') return;
+    const canvasPt = this.canvasPointFromClient(event.clientX, event.clientY);
+    const nodeUnder = this.nodeAtCanvasPoint(canvasPt.x, canvasPt.y);
+    if (nodeUnder) {
+      event.preventDefault();
+      event.stopPropagation();
+      this.onContextMenuRequested({ nodeId: nodeUnder.id, x: event.clientX, y: event.clientY });
+      return;
+    }
     event.preventDefault();
     event.stopPropagation();
     this.contextMenu = null;

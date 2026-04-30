@@ -7,6 +7,7 @@ import { ResourceMapperService } from '../../core/services/resource-mapper.servi
 import { ConnectionResolverService } from '../../core/services/connection-resolver.service';
 import { ELKLayoutService } from '../../core/services/elk-layout.service';
 import { ExportService, DiagramStateFile } from '../../core/services/export.service';
+import { AutosaveService } from '../../core/services/autosave.service';
 import { DiagramStore } from '../../core/store/diagram.store';
 import { AzureResource, AzureSubscription } from '../../core/models/azure-resource.model';
 import { SubscriptionSelectorComponent } from './subscription-selector/subscription-selector.component';
@@ -476,6 +477,7 @@ export class ScanComponent implements OnInit {
   private connectionResolver = inject(ConnectionResolverService);
   private elkLayout = inject(ELKLayoutService);
   private exportSvc = inject(ExportService);
+  private autosave = inject(AutosaveService);
   private router = inject(Router);
   private zone = inject(NgZone);
 
@@ -549,9 +551,11 @@ export class ScanComponent implements OnInit {
     this.store.activeSubscriptions.set([]);
     this.store.scanPhase.set('choosing-start');
     this.store.errorMessage.set(null);
+    void this.maybePromptAutosaveRecovery();
   }
 
   beginAzureScanFlow(): void {
+    void this.autosave.disable();
     this.needsLogin = false;
     this.store.scanPhase.set('idle');
     this.auth.checkLoginStatus().subscribe({
@@ -609,6 +613,7 @@ export class ScanComponent implements OnInit {
     const file = input.files?.[0];
     if (!file) return;
     try {
+      await this.autosave.disable();
       const state = await this.exportSvc.importFile(file);
       this.applyImportedState(state);
       input.value = '';
@@ -622,6 +627,7 @@ export class ScanComponent implements OnInit {
 
   async loadDemo(): Promise<void> {
     try {
+      await this.autosave.disable();
       const response = await fetch('demo/diagram.json');
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const state = await response.json() as DiagramStateFile;
@@ -639,7 +645,7 @@ export class ScanComponent implements OnInit {
     this.store.activeSubscriptions.set(state.subscriptions ?? []);
     this.store.setNodes(state.nodes ?? []);
     this.store.setEdges(state.edges ?? []);
-    this.store.annotations.set(state.annotations ?? []);
+    this.store.setAnnotations(state.annotations ?? []);
     this.store.loadBaseline(state.nodes ?? []);
     this.store.canvasSessionMode.set('scanned');
     this.router.navigate(['/canvas']);
@@ -663,6 +669,7 @@ export class ScanComponent implements OnInit {
     };
 
     this.zone.run(() => {
+      void this.autosave.disable();
       this.store.clearDiagram();
       this.store.scanPhase.set('scanning');
       this.progressLog.set([]);
@@ -775,11 +782,47 @@ export class ScanComponent implements OnInit {
     return Array.from(seen.values());
   }
 
-  startEmptyCanvas(): void {
+  async startEmptyCanvas(): Promise<void> {
+    if (!this.isDemo) {
+      if (this.autosave.supportsLocalFileAutosave()) {
+        const enable = confirm('Enable autosave to a local JSON file for crash recovery?');
+        if (enable) {
+          const enabled = await this.autosave.enableForEmptyDiagram();
+          if (!enabled) return;
+        } else {
+          await this.autosave.disable();
+        }
+      } else {
+        await this.autosave.disable();
+        alert('Local-file autosave is not supported in this browser. You can still export JSON manually.');
+      }
+    }
     this.store.clearDiagram();
     this.store.activeSubscriptions.set([]);
-    this.store.annotations.set([]);
+    this.store.setAnnotations([]);
     this.store.canvasSessionMode.set('empty');
     this.router.navigate(['/canvas']);
+  }
+
+  private async maybePromptAutosaveRecovery(): Promise<void> {
+    if (this.isDemo) return;
+    const candidate = await this.autosave.getRecoveryCandidate();
+    if (!candidate) return;
+    const suffix = candidate.lastSavedAt
+      ? `\nLast autosave: ${new Date(candidate.lastSavedAt).toLocaleString()}`
+      : '';
+    const shouldRestore = confirm(`Restore autosaved diagram "${candidate.fileName}"?${suffix}`);
+    if (!shouldRestore) return;
+    try {
+      const file = await this.autosave.restoreFile();
+      if (!file) {
+        await this.autosave.disable();
+        return;
+      }
+      const state = await this.exportSvc.importFile(file);
+      this.applyImportedState(state);
+    } catch {
+      await this.autosave.disable();
+    }
   }
 }

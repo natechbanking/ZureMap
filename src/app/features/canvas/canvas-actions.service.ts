@@ -1,9 +1,10 @@
 import { ElementRef, Injectable, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
-import { ExportService, ExportImageOptions } from '../../core/services/export.service';
+import { ExportService, ExportImageOptions, buildDiagramState } from '../../core/services/export.service';
 import { DiagramStore } from '../../core/store/diagram.store';
 import { CanvasFinopsService } from './canvas-finops.service';
 import { FinOpsPeriodPreset, FinOpsRequestParams, FinOpsV2Response } from '../../core/models/cost-data.model';
+import { AutosaveService } from '../../core/services/autosave.service';
 
 export type FinOpsLoadState = 'idle' | 'loading' | 'success' | 'partial' | 'error';
 
@@ -13,6 +14,7 @@ export class CanvasActionsService {
   private exportSvc = inject(ExportService);
   private finops = inject(CanvasFinopsService);
   private router = inject(Router);
+  private autosave = inject(AutosaveService);
 
   readonly finOpsDrawerOpen = signal(false);
   readonly finOpsState = signal<FinOpsLoadState>('idle');
@@ -205,14 +207,12 @@ export class CanvasActionsService {
   }
 
   async exportImage(exportRootRef: ElementRef, options: ExportImageOptions): Promise<void> {
-    const state = {
-      version: '1.0' as const,
-      exportedAt: new Date().toISOString(),
-      subscriptions: this.store.activeSubscriptions(),
-      nodes: this.store.nodes(),
-      edges: this.store.edges(),
-      annotations: this.store.annotations(),
-    };
+    const state = buildDiagramState(
+      this.store.nodes(),
+      this.store.edges(),
+      this.store.activeSubscriptions(),
+      this.store.annotations(),
+    );
     await this.exportSvc.exportImage(exportRootRef, options, state);
   }
 
@@ -227,7 +227,7 @@ export class CanvasActionsService {
       this.store.activeSubscriptions.set(state.subscriptions ?? []);
       this.store.setNodes(state.nodes ?? []);
       this.store.setEdges(state.edges ?? []);
-      this.store.annotations.set(state.annotations ?? []);
+      this.store.setAnnotations(state.annotations ?? []);
       this.store.loadBaseline(state.nodes ?? []);
       this.store.canvasSessionMode.set('scanned');
     } catch {
@@ -236,6 +236,7 @@ export class CanvasActionsService {
   }
 
   rescan(): void {
+    void this.autosave.disable();
     this.store.clearDiagram();
     this.router.navigate(['/scan']);
   }

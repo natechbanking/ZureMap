@@ -28,6 +28,7 @@ export type ScanPhase =
 
 @Injectable({ providedIn: 'root' })
 export class DiagramStore {
+  readonly revision = signal<number>(0);
   readonly canvasSessionMode = signal<'scanned' | 'empty' | null>(null);
   readonly nodes = signal<DiagramNode[]>([]);
   readonly edges = signal<DiagramEdge[]>([]);
@@ -83,6 +84,7 @@ export class DiagramStore {
       if (value) next.set(key, value); else next.delete(key);
       return next;
     });
+    this.bumpRevision();
   }
 
   // ── Undo / Redo ────────────────────────────────────────────────────────────
@@ -137,25 +139,51 @@ export class DiagramStore {
     this.customContainerNames.set(new Map(s.customNames));
     this.tagRules.set(s.tagRules);
     this.canvasSessionMode.set(s.canvasSessionMode);
+    this.bumpRevision();
   }
 
-  addAnnotation(a: Annotation): void { this.annotations.update(list => [...list, a]); }
+  addAnnotation(a: Annotation): void {
+    this.annotations.update(list => [...list, a]);
+    this.bumpRevision();
+  }
   updateAnnotation(id: string, changes: Partial<Annotation>): void {
     this.annotations.update(list => list.map(a => a.id === id ? { ...a, ...changes } : a));
+    this.bumpRevision();
   }
-  deleteAnnotation(id: string): void { this.annotations.update(list => list.filter(a => a.id !== id)); }
-  undoLastAnnotation(): void { this.annotations.update(list => list.slice(0, -1)); }
-  clearAnnotations(): void { this.annotations.set([]); }
+  deleteAnnotation(id: string): void {
+    this.annotations.update(list => list.filter(a => a.id !== id));
+    this.bumpRevision();
+  }
+  undoLastAnnotation(): void {
+    this.annotations.update(list => list.slice(0, -1));
+    this.bumpRevision();
+  }
+  clearAnnotations(): void {
+    this.annotations.set([]);
+    this.bumpRevision();
+  }
+  setAnnotations(annotations: Annotation[]): void {
+    this.annotations.set(annotations);
+    this.bumpRevision();
+  }
 
-  setNodes(nodes: DiagramNode[]): void { this.nodes.set(nodes); }
-  setEdges(edges: DiagramEdge[]): void { this.edges.set(edges); }
+  setNodes(nodes: DiagramNode[]): void {
+    this.nodes.set(nodes);
+    this.bumpRevision();
+  }
+  setEdges(edges: DiagramEdge[]): void {
+    this.edges.set(edges);
+    this.bumpRevision();
+  }
 
   appendNode(node: DiagramNode): void {
     this.nodes.update(current => [...current, node]);
+    this.bumpRevision();
   }
 
   appendNodes(nodes: DiagramNode[]): void {
     this.nodes.update(current => [...current, ...nodes]);
+    this.bumpRevision();
   }
 
   upsertNode(node: DiagramNode): void {
@@ -165,12 +193,14 @@ export class DiagramStore {
         ? current.map((n, i) => (i === idx ? node : n))
         : [...current, node];
     });
+    this.bumpRevision();
   }
 
   moveNode(nodeId: string, position: { x: number; y: number }): void {
     this.nodes.update(current =>
       current.map(n => n.id === nodeId ? { ...n, position } : n)
     );
+    this.bumpRevision();
   }
 
   moveNodes(moves: { id: string; position: { x: number; y: number } }[]): void {
@@ -178,6 +208,7 @@ export class DiagramStore {
     this.nodes.update(current =>
       current.map(n => posMap.has(n.id) ? { ...n, position: posMap.get(n.id)! } : n)
     );
+    this.bumpRevision();
   }
 
   moveNodeGroup(groupKey: string, delta: { dx: number; dy: number }): void {
@@ -190,6 +221,7 @@ export class DiagramStore {
         return { ...n, position: pos };
       })
     );
+    this.bumpRevision();
   }
 
   moveSubscriptionGroup(subscriptionId: string, delta: { dx: number; dy: number }): void {
@@ -200,6 +232,7 @@ export class DiagramStore {
         return { ...n, position: pos };
       })
     );
+    this.bumpRevision();
   }
 
   moveVmGroup(vmId: string, delta: { dx: number; dy: number }): void {
@@ -214,6 +247,7 @@ export class DiagramStore {
         return { ...n, position: pos };
       });
     });
+    this.bumpRevision();
   }
 
   detachNodeFromParent(childId: string, parentId: string): void {
@@ -228,6 +262,7 @@ export class DiagramStore {
         return n;
       })
     );
+    this.bumpRevision();
   }
 
   detachNodeFromResourceGroup(nodeId: string): void {
@@ -237,6 +272,7 @@ export class DiagramStore {
         : n
       )
     );
+    this.bumpRevision();
   }
 
   reattachNodeToParent(childId: string, parentId: string): void {
@@ -253,6 +289,7 @@ export class DiagramStore {
         return n;
       })
     );
+    this.bumpRevision();
   }
 
   reattachNodeToResourceGroup(nodeId: string): void {
@@ -264,6 +301,7 @@ export class DiagramStore {
         return { ...n, group: 'resourceGroup', groupId: rg };
       })
     );
+    this.bumpRevision();
   }
 
   deleteNode(nodeId: string): void {
@@ -279,6 +317,7 @@ export class DiagramStore {
     this.edges.update(current =>
       current.filter(e => e.sourceId !== nodeId && e.targetId !== nodeId)
     );
+    this.bumpRevision();
   }
 
   selectNode(nodeId: string | null): void {
@@ -316,6 +355,7 @@ export class DiagramStore {
     this.edges.update(current =>
       current.filter(e => !ids.has(e.sourceId) && !ids.has(e.targetId))
     );
+    this.bumpRevision();
   }
 
   loadBaseline(nodes: DiagramNode[]): void {
@@ -334,5 +374,10 @@ export class DiagramStore {
     this._redoStack.length = 0;
     this.canUndo.set(false);
     this.canRedo.set(false);
+    this.bumpRevision();
+  }
+
+  private bumpRevision(): void {
+    this.revision.update(v => v + 1);
   }
 }

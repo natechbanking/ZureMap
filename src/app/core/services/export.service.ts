@@ -22,6 +22,22 @@ export interface ExportImageOptions {
   canvasHeight: number;
 }
 
+export function buildDiagramState(
+  nodes: DiagramNode[],
+  edges: DiagramEdge[],
+  subscriptions: AzureSubscription[],
+  annotations: Annotation[],
+): DiagramStateFile {
+  return {
+    version: '1.0',
+    exportedAt: new Date().toISOString(),
+    subscriptions,
+    nodes,
+    edges,
+    annotations,
+  };
+}
+
 @Injectable({ providedIn: 'root' })
 export class ExportService {
 
@@ -68,14 +84,7 @@ export class ExportService {
   }
 
   exportJSON(nodes: DiagramNode[], edges: DiagramEdge[], subscriptions: AzureSubscription[], annotations: Annotation[]): void {
-    const state: DiagramStateFile = {
-      version: '1.0',
-      exportedAt: new Date().toISOString(),
-      subscriptions,
-      nodes,
-      edges,
-      annotations,
-    };
+    const state = buildDiagramState(nodes, edges, subscriptions, annotations);
     const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
     saveAs(blob, `zuremap-${this.timestamp()}.json`);
   }

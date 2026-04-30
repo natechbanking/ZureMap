@@ -1,6 +1,5 @@
-import { Injectable, inject } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
-import { firstValueFrom } from 'rxjs';
+import { Injectable } from '@angular/core';
+import { BaseHttpService } from './base-http.service';
 
 export interface DnsRecord {
   name: string;
@@ -14,16 +13,8 @@ export interface DnsZoneDetails {
 }
 
 @Injectable({ providedIn: 'root' })
-export class DnsRecordsService {
-  private http = inject(HttpClient);
-
-  private readonly base = '/api/az';
-
-  async getRecords(zoneId: string): Promise<DnsZoneDetails> {
-    return firstValueFrom(
-      this.http.get<DnsZoneDetails>(`${this.base}/dns-zone-records`, {
-        params: { zoneId },
-      })
-    );
+export class DnsRecordsService extends BaseHttpService {
+  getRecords(zoneId: string): Promise<DnsZoneDetails> {
+    return this.get('dns-zone-records', { zoneId });
   }
 }

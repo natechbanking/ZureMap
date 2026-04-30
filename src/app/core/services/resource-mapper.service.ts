@@ -2,6 +2,12 @@ import { Injectable, inject } from '@angular/core';
 import { AzureResource } from '../models/azure-resource.model';
 import { DiagramNode, LayoutGroup } from '../models/diagram-node.model';
 import { IconRegistryService } from './icon-registry.service';
+import {
+  AZURE_RESOURCE_TYPES,
+  STORAGE_SUB_TYPES,
+  STORAGE_SERVICE_TYPES,
+  StorageSubResourceBuckets,
+} from '../constants/azure-resource-types';
 
 @Injectable({ providedIn: 'root' })
 export class ResourceMapperService {
@@ -10,27 +16,7 @@ export class ResourceMapperService {
 
   mapResources(resources: AzureResource[]): DiagramNode[] {
     // ── Storage: absorb sub-resources into parent before mapping ──────────────
-    // Map resource types to their parent and which bucket they belong to
-    const STORAGE_SUB_TYPES: Record<string, keyof { containers: string[]; fileShares: string[]; tables: string[]; queues: string[] }> = {
-      'microsoft.storage/storageaccounts/blobservices/containers':  'containers',
-      'microsoft.storage/storageaccounts/fileservices/shares':       'fileShares',
-      'microsoft.storage/storageaccounts/tableservices/tables':      'tables',
-      'microsoft.storage/storageaccounts/queueservices/queues':      'queues',
-    };
-    // Also suppress intermediate service-level resources (e.g. blobServices/default)
-    const STORAGE_SERVICE_TYPES = new Set([
-      'microsoft.storage/storageaccounts/blobservices',
-      'microsoft.storage/storageaccounts/fileservices',
-      'microsoft.storage/storageaccounts/tableservices',
-      'microsoft.storage/storageaccounts/queueservices',
-    ]);
-
-    const storageIdx = new Map<string, {
-      containers: string[];
-      fileShares: string[];
-      tables: string[];
-      queues: string[];
-    }>();
+    const storageIdx = new Map<string, StorageSubResourceBuckets>();
     const storageSubIds = new Set<string>();
 
     for (const r of resources) {
@@ -60,7 +46,7 @@ export class ResourceMapperService {
 
     // Inject storage data into parent properties
     for (const r of resources) {
-      if (r.type.toLowerCase() !== 'microsoft.storage/storageaccounts') continue;
+      if (r.type.toLowerCase() !== AZURE_RESOURCE_TYPES.STORAGE_ACCOUNT) continue;
       const key = r.id.toLowerCase();
       const sub = storageIdx.get(key);
       if (sub) {
@@ -163,10 +149,10 @@ export class ResourceMapperService {
 
   resolveGroup(resource: AzureResource): { group: LayoutGroup; groupId: string } {
     const type = resource.type.toLowerCase();
-    if (type === 'microsoft.network/virtualnetworks') {
+    if (type === AZURE_RESOURCE_TYPES.VIRTUAL_NETWORK) {
       return { group: 'vnet', groupId: resource.id };
     }
-    if (type === 'microsoft.network/subnets') {
+    if (type === AZURE_RESOURCE_TYPES.SUBNET) {
       const vnetId = resource.id.split('/subnets/')[0];
       return { group: 'subnet', groupId: vnetId };
     }
@@ -175,7 +161,7 @@ export class ResourceMapperService {
 
   private resolveChildren(resource: AzureResource): string[] | undefined {
     const type = resource.type.toLowerCase();
-    if (type === 'microsoft.network/virtualnetworks') {
+    if (type === AZURE_RESOURCE_TYPES.VIRTUAL_NETWORK) {
       const subnets = (resource.properties['subnets'] as { id: string }[]) ?? [];
       return subnets.map(s => s.id).filter(Boolean);
     }
@@ -199,11 +185,11 @@ export class ResourceMapperService {
   }
 
   private isVirtualMachineType(type: string): boolean {
-    return type.toLowerCase() === 'microsoft.compute/virtualmachines';
+    return type.toLowerCase() === AZURE_RESOURCE_TYPES.VIRTUAL_MACHINE;
   }
 
   private isRouteTableType(type: string): boolean {
-    return type.toLowerCase() === 'microsoft.network/routetables';
+    return type.toLowerCase() === AZURE_RESOURCE_TYPES.ROUTE_TABLE;
   }
 
   private collectVmRelatedResourceIds(vm: AzureResource, resources: AzureResource[]): string[] {

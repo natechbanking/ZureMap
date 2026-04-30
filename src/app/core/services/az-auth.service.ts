@@ -1,15 +1,8 @@
 import { Injectable, inject } from '@angular/core';
-import { HttpClient, HttpErrorResponse } from '@angular/common/http';
-import { Observable, catchError, throwError } from 'rxjs';
+import { HttpClient } from '@angular/common/http';
+import { Observable, catchError } from 'rxjs';
 import { AzureAccount, AzureSubscription } from '../models/azure-resource.model';
-
-function liftAzError(httpErr: HttpErrorResponse): Observable<never> {
-  const body = httpErr.error as Record<string, unknown> | null;
-  const message = typeof body?.['error'] === 'string' ? body['error'] : httpErr.message;
-  const code = typeof body?.['code'] === 'string' ? body['code'] : 'SERVER_ERROR';
-  const detail = typeof body?.['detail'] === 'string' ? body['detail'] : '';
-  return throwError(() => Object.assign(new Error(message), { azCode: code, azDetail: detail }));
-}
+import { liftAzError } from '../utils/az-error.utils';
 
 @Injectable({ providedIn: 'root' })
 export class AzAuthService {

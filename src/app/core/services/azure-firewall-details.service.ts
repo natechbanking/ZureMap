@@ -1,6 +1,5 @@
-import { Injectable, inject } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
-import { firstValueFrom } from 'rxjs';
+import { Injectable } from '@angular/core';
+import { BaseHttpService } from './base-http.service';
 
 export interface AzureFirewallPolicyRuleCounts {
   applicationRules: number;
@@ -10,16 +9,8 @@ export interface AzureFirewallPolicyRuleCounts {
 }
 
 @Injectable({ providedIn: 'root' })
-export class AzureFirewallDetailsService {
-  private http = inject(HttpClient);
-
-  private readonly base = '/api/az';
-
-  async getPolicyRuleCounts(firewallId: string): Promise<AzureFirewallPolicyRuleCounts> {
-    return firstValueFrom(
-      this.http.get<AzureFirewallPolicyRuleCounts>(`${this.base}/firewall-policy-rule-counts`, {
-        params: { firewallId },
-      })
-    );
+export class AzureFirewallDetailsService extends BaseHttpService {
+  getPolicyRuleCounts(firewallId: string): Promise<AzureFirewallPolicyRuleCounts> {
+    return this.get('firewall-policy-rule-counts', { firewallId });
   }
 }

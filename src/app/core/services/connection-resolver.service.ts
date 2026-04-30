@@ -2,6 +2,7 @@ import { Injectable } from '@angular/core';
 import { AzureResource } from '../models/azure-resource.model';
 import { DiagramNode } from '../models/diagram-node.model';
 import { DiagramEdge, EdgeType, EDGE_STYLES } from '../models/diagram-edge.model';
+import { AZURE_RESOURCE_TYPES } from '../constants/azure-resource-types';
 
 @Injectable({ providedIn: 'root' })
 export class ConnectionResolverService {
@@ -23,7 +24,7 @@ export class ConnectionResolverService {
     const nodeIds = new Set(nodes.map(n => n.id));
 
     for (const r of resources) {
-      if (r.type.toLowerCase() !== 'microsoft.network/privateendpoints') continue;
+      if (r.type.toLowerCase() !== AZURE_RESOURCE_TYPES.PRIVATE_ENDPOINT) continue;
       const conns = (r.properties['privateLinkServiceConnections'] as {
         properties: { privateLinkServiceId: string };
       }[]) ?? [];
@@ -42,7 +43,7 @@ export class ConnectionResolverService {
     const nodeIds = new Set(nodes.map(n => n.id));
 
     for (const r of resources) {
-      if (r.type.toLowerCase() !== 'microsoft.network/virtualnetworks') continue;
+      if (r.type.toLowerCase() !== AZURE_RESOURCE_TYPES.VIRTUAL_NETWORK) continue;
       const subnets = (r.properties['subnets'] as { id: string }[]) ?? [];
       for (const subnet of subnets) {
         if (subnet.id && nodeIds.has(subnet.id)) {
@@ -59,7 +60,7 @@ export class ConnectionResolverService {
     const seen = new Set<string>();
 
     for (const r of resources) {
-      if (r.type.toLowerCase() !== 'microsoft.network/virtualnetworks') continue;
+      if (r.type.toLowerCase() !== AZURE_RESOURCE_TYPES.VIRTUAL_NETWORK) continue;
       const peerings = (r.properties['virtualNetworkPeerings'] as {
         properties: { remoteVirtualNetwork: { id: string } };
       }[]) ?? [];
@@ -82,7 +83,7 @@ export class ConnectionResolverService {
 
     for (const r of resources) {
       const type = r.type.toLowerCase();
-      if (type !== 'microsoft.network/networkinterfaces' && type !== 'microsoft.network/subnets') continue;
+      if (type !== AZURE_RESOURCE_TYPES.NETWORK_INTERFACE && type !== AZURE_RESOURCE_TYPES.SUBNET) continue;
       const nsgId = (r.properties['networkSecurityGroup'] as { id: string })?.id;
       if (nsgId && nodeIds.has(nsgId) && nodeIds.has(r.id)) {
         edges.push(this.createEdge(r.id, nsgId, 'nsgAssociation', false));
@@ -96,7 +97,7 @@ export class ConnectionResolverService {
     const nodeIds = new Set(nodes.map(n => n.id));
 
     for (const r of resources) {
-      if (!r.type.toLowerCase().includes('microsoft.sql/servers/databases')) continue;
+      if (!r.type.toLowerCase().includes(AZURE_RESOURCE_TYPES.SQL_DATABASE)) continue;
       const serverId = r.id.split('/databases/')[0];
       if (serverId && nodeIds.has(serverId) && nodeIds.has(r.id)) {
         edges.push(this.createEdge(serverId, r.id, 'dependency', false));

@@ -6,10 +6,11 @@ import { ResourceGraphService } from '../../core/services/resource-graph.service
 import { ResourceMapperService } from '../../core/services/resource-mapper.service';
 import { ConnectionResolverService } from '../../core/services/connection-resolver.service';
 import { ELKLayoutService } from '../../core/services/elk-layout.service';
-import { ExportService } from '../../core/services/export.service';
+import { ExportService, DiagramStateFile } from '../../core/services/export.service';
 import { DiagramStore } from '../../core/store/diagram.store';
 import { AzureResource, AzureSubscription } from '../../core/models/azure-resource.model';
 import { SubscriptionSelectorComponent } from './subscription-selector/subscription-selector.component';
+import { environment } from '../../../environments/environment';
 
 interface ConnectionType {
   color: string;
@@ -45,23 +46,35 @@ interface ConnectionType {
               </div>
 
               <div class="grid grid-cols-1 gap-3">
-                <button
-                  type="button"
-                  (click)="beginAzureScanFlow()"
-                  class="text-left rounded-xl border border-blue-200 bg-blue-50/50 hover:bg-blue-50 transition-colors p-4"
-                >
-                  <p class="text-sm font-semibold text-blue-800 mb-1">Scan Azure</p>
-                  <p class="text-xs text-gray-600">Select subscriptions, configure options, and generate a diagram from live resources.</p>
-                </button>
+                @if (isDemo) {
+                  <button
+                    type="button"
+                    (click)="loadDemo()"
+                    class="text-left rounded-xl border border-green-200 bg-green-50/50 hover:bg-green-50 transition-colors p-4"
+                  >
+                    <p class="text-sm font-semibold text-green-800 mb-1">▶ Try the Demo</p>
+                    <p class="text-xs text-gray-600">Load a sample Contoso production environment to explore ZureMap's features.</p>
+                  </button>
+                }
+                @if (!isDemo) {
+                  <button
+                    type="button"
+                    (click)="beginAzureScanFlow()"
+                    class="text-left rounded-xl border border-blue-200 bg-blue-50/50 hover:bg-blue-50 transition-colors p-4"
+                  >
+                    <p class="text-sm font-semibold text-blue-800 mb-1">Scan Azure</p>
+                    <p class="text-xs text-gray-600">Select subscriptions, configure options, and generate a diagram from live resources.</p>
+                  </button>
 
-                <button
-                  type="button"
-                  (click)="startEmptyCanvas()"
-                  class="text-left rounded-xl border border-gray-200 bg-gray-50 hover:bg-gray-100 transition-colors p-4"
-                >
-                  <p class="text-sm font-semibold text-gray-800 mb-1">Start Empty</p>
-                  <p class="text-xs text-gray-600">Open an empty canvas and build your architecture manually.</p>
-                </button>
+                  <button
+                    type="button"
+                    (click)="startEmptyCanvas()"
+                    class="text-left rounded-xl border border-gray-200 bg-gray-50 hover:bg-gray-100 transition-colors p-4"
+                  >
+                    <p class="text-sm font-semibold text-gray-800 mb-1">Start Empty</p>
+                    <p class="text-xs text-gray-600">Open an empty canvas and build your architecture manually.</p>
+                  </button>
+                }
               </div>
 
               <div class="pt-2">
@@ -466,6 +479,7 @@ export class ScanComponent implements OnInit {
   private router = inject(Router);
   private zone = inject(NgZone);
 
+  readonly isDemo = environment.isDemo;
   needsLogin = false;
   showAdvancedOptions = false;
   optionsGenerateConnections = true;
@@ -596,21 +610,39 @@ export class ScanComponent implements OnInit {
     if (!file) return;
     try {
       const state = await this.exportSvc.importFile(file);
-      this.store.clearDiagram();
-      this.store.activeSubscriptions.set(state.subscriptions ?? []);
-      this.store.setNodes(state.nodes ?? []);
-      this.store.setEdges(state.edges ?? []);
-      this.store.annotations.set(state.annotations ?? []);
-      this.store.loadBaseline(state.nodes ?? []);
-      this.store.canvasSessionMode.set('scanned');
+      this.applyImportedState(state);
       input.value = '';
-      this.router.navigate(['/canvas']);
     } catch {
       input.value = '';
       this.store.scanPhase.set('error');
       this.store.errorMessage.set('Failed to import file. Please use a valid ZureMap JSON or embedded PNG.');
       this.scanError.set({ code: 'SERVER_ERROR', detail: 'Invalid or unsupported import file.' });
     }
+  }
+
+  async loadDemo(): Promise<void> {
+    try {
+      const response = await fetch('demo/diagram.json');
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const state = await response.json() as DiagramStateFile;
+      if (state.version !== '1.0') throw new Error(`Unsupported version: ${state.version}`);
+      this.applyImportedState(state);
+    } catch (err) {
+      this.store.scanPhase.set('error');
+      this.store.errorMessage.set('Failed to load demo diagram.');
+      this.scanError.set({ code: 'SERVER_ERROR', detail: err instanceof Error ? err.message : 'Could not fetch demo/diagram.json.' });
+    }
+  }
+
+  private applyImportedState(state: DiagramStateFile): void {
+    this.store.clearDiagram();
+    this.store.activeSubscriptions.set(state.subscriptions ?? []);
+    this.store.setNodes(state.nodes ?? []);
+    this.store.setEdges(state.edges ?? []);
+    this.store.annotations.set(state.annotations ?? []);
+    this.store.loadBaseline(state.nodes ?? []);
+    this.store.canvasSessionMode.set('scanned');
+    this.router.navigate(['/canvas']);
   }
 
   private async runScan(subscriptionIds: string[]): Promise<void> {

@@ -1079,19 +1079,21 @@ export class CanvasComponent implements AfterViewInit {
   }
 
   markerStart(ann: Annotation): string | null {
-    return this.annotationSvc.markerStart(ann);
+    const mode = ann.edgeMode ?? (ann.type === 'arrow' ? 'end' : 'none');
+    return mode === 'start' || mode === 'both' ? this.annMarkerUrl(ann.color) : null;
   }
 
   markerEnd(ann: Annotation): string | null {
-    return this.annotationSvc.markerEnd(ann);
+    const mode = ann.edgeMode ?? (ann.type === 'arrow' ? 'end' : 'none');
+    return mode === 'end' || mode === 'both' ? this.annMarkerUrl(ann.color) : null;
   }
 
   previewMarkerStart(): string | null {
-    return this.annotationSvc.previewMarkerStart(this.activeEdgeMode);
+    return this.activeEdgeMode === 'start' || this.activeEdgeMode === 'both' ? this.annMarkerUrl(this.activeColor) : null;
   }
 
   previewMarkerEnd(): string | null {
-    return this.annotationSvc.previewMarkerEnd(this.activeEdgeMode);
+    return this.activeEdgeMode === 'end' || this.activeEdgeMode === 'both' ? this.annMarkerUrl(this.activeColor) : null;
   }
 
   arrowHead(x1: number, y1: number, x2: number, y2: number): string {
@@ -1606,6 +1608,42 @@ export class CanvasComponent implements AfterViewInit {
 
   getEdgePolylineString(edge: DiagramEdge): string {
     return polylinePointsString(this.getEdgePoints(edge));
+  }
+
+  edgeMarkerColors(): string[] {
+    const colors = new Set<string>();
+    for (const edge of this.visibleEdges) {
+      if (edge.style.markerEnd === 'arrow') colors.add(edge.style.strokeColor);
+    }
+    return Array.from(colors).sort();
+  }
+
+  edgeMarkerId(color: string): string {
+    return `edge-arrow-${color.replace(/[^a-zA-Z0-9_-]/g, '_')}`;
+  }
+
+  edgeMarkerUrl(color: string): string {
+    return `url(#${this.edgeMarkerId(color)})`;
+  }
+
+  annMarkerColors(): string[] {
+    const colors = new Set<string>();
+    for (const ann of this.store.annotations()) {
+      if (ann.type === 'arrow' || ann.type === 'line') {
+        const mode = ann.edgeMode ?? (ann.type === 'arrow' ? 'end' : 'none');
+        if (mode !== 'none') colors.add(ann.color);
+      }
+    }
+    if (this.activeEdgeMode !== 'none') colors.add(this.activeColor);
+    return Array.from(colors).sort();
+  }
+
+  annMarkerId(color: string): string {
+    return `ann-arrow-${color.replace(/[^a-zA-Z0-9_-]/g, '_')}`;
+  }
+
+  annMarkerUrl(color: string): string {
+    return `url(#${this.annMarkerId(color)})`;
   }
 
   getEdgeHandles(edge: DiagramEdge): { x: number; y: number; index: number }[] {

@@ -1207,10 +1207,6 @@ export class DrawingToolbarComponent implements OnInit {
     const tool = map[e.key.toLowerCase()];
     if (!hasModifier && tool) { e.preventDefault(); this.toolChange.emit(tool); }
     if (e.key === 'Escape') this.toolChange.emit('pointer');
-    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
-      e.preventDefault();
-      this.undo.emit();
-    }
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd') {
       e.preventDefault();
       this.duplicateSelected.emit();

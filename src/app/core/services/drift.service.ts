@@ -1,5 +1,6 @@
 import { Injectable } from '@angular/core';
 import { DiagramNode } from '../models/diagram-node.model';
+import { getCostBorderStyle, CostBorderStyle } from '../utils/cost-thresholds';
 
 @Injectable({ providedIn: 'root' })
 export class DriftService {
@@ -24,10 +25,7 @@ export class DriftService {
     return [...enrichedLive, ...missingNodes];
   }
 
-  getCostBorderStyle(monthlyCostUsd: number): { borderWidth: string; borderColor: string } {
-    if (monthlyCostUsd < 10)  return { borderWidth: '1px', borderColor: '#107c10' };
-    if (monthlyCostUsd < 50)  return { borderWidth: '2px', borderColor: '#ffb900' };
-    if (monthlyCostUsd < 200) return { borderWidth: '3px', borderColor: '#ca5010' };
-    return                          { borderWidth: '4px', borderColor: '#d13438' };
+  getCostBorderStyle(monthlyCostUsd: number): CostBorderStyle {
+    return getCostBorderStyle(monthlyCostUsd);
   }
 }

@@ -1,7 +1,6 @@
-import { Injectable, inject } from '@angular/core';
+import { Injectable } from '@angular/core';
 import { DiagramNode } from '../../core/models/diagram-node.model';
 import { AzureSubscription } from '../../core/models/azure-resource.model';
-import { CanvasVisibilityService } from './canvas-visibility.service';
 import { SubscriptionBound } from './canvas.types';
 
 interface ResolveParams {
@@ -17,8 +16,6 @@ interface ResolveParams {
 
 @Injectable({ providedIn: 'root' })
 export class CanvasOverlapService {
-  private visibilitySvc = inject(CanvasVisibilityService);
-
   private isResolvingSubscriptionOverlaps = false;
 
   resolveSubscriptionContainerOverlaps(params: ResolveParams): void {
@@ -27,24 +24,22 @@ export class CanvasOverlapService {
     if (bounds.length < 2) return;
 
     const gap = 24;
-    const maxIters = 16;
+    const maxIters = 24;
     this.isResolvingSubscriptionOverlaps = true;
     try {
+      // Work against a lightweight bounds snapshot and only apply node moves once.
+      // Recomputing bounds from all nodes each pass can be extremely expensive for
+      // large subscriptions and may trigger OOM during drag-collision resolution.
+      const current = bounds
+        .filter(b => !!b.subscriptionId)
+        .map(b => ({ ...b }));
+      if (current.length < 2) return;
+
+      const totalDelta = new Map<string, { dx: number; dy: number }>();
+
       for (let iter = 0; iter < maxIters; iter++) {
         let moved = false;
-        const current = this.visibilitySvc.computeSubscriptionBounds(
-          this.visibilitySvc.computeRgBounds(
-            params.nodes.filter(n => !params.collapsedSubscriptions.has(n.metadata?.subscriptionId || '')),
-            params.collapsedResourceGroups,
-            params.customContainerNames,
-          ),
-          params.nodes,
-          params.activeSubscriptions,
-          params.collapsedSubscriptions,
-          params.customContainerNames,
-        );
 
-        outer:
         for (let i = 0; i < current.length; i++) {
           for (let j = i + 1; j < current.length; j++) {
             const a = current[i];
@@ -71,20 +66,30 @@ export class CanvasOverlapService {
               // Resolve horizontally
               const pushTarget = aIsDragged || (!bIsDragged && a.x <= b.x) ? b : a;
               const sign = pushTarget === b ? 1 : -1;
-              params.moveSubscriptionGroup(pushTarget.subscriptionId, { dx: moveX * sign, dy: 0 });
+              const dx = moveX * sign;
+              pushTarget.x += dx;
+              const prev = totalDelta.get(pushTarget.subscriptionId) ?? { dx: 0, dy: 0 };
+              totalDelta.set(pushTarget.subscriptionId, { dx: prev.dx + dx, dy: prev.dy });
             } else {
               // Resolve vertically
               const pushTarget = aIsDragged || (!bIsDragged && a.y <= b.y) ? b : a;
               const sign = pushTarget === b ? 1 : -1;
-              params.moveSubscriptionGroup(pushTarget.subscriptionId, { dx: 0, dy: moveY * sign });
+              const dy = moveY * sign;
+              pushTarget.y += dy;
+              const prev = totalDelta.get(pushTarget.subscriptionId) ?? { dx: 0, dy: 0 };
+              totalDelta.set(pushTarget.subscriptionId, { dx: prev.dx, dy: prev.dy + dy });
             }
 
             moved = true;
-            break outer;
           }
         }
 
         if (!moved) break;
+      }
+
+      for (const [subscriptionId, delta] of totalDelta) {
+        if (!delta.dx && !delta.dy) continue;
+        params.moveSubscriptionGroup(subscriptionId, delta);
       }
     } finally {
       this.isResolvingSubscriptionOverlaps = false;

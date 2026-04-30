@@ -1,8 +1,10 @@
-import { Component, inject, effect, ViewChild, ElementRef, HostListener, computed, AfterViewInit } from '@angular/core';
+import { Component, inject, effect, ViewChild, ElementRef, HostListener, computed, AfterViewInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { DiagramStore } from '../../core/store/diagram.store';
 import { ELKLayoutService } from '../../core/services/elk-layout.service';
 import { IconRegistryService } from '../../core/services/icon-registry.service';
+import { AutosaveService } from '../../core/services/autosave.service';
+import { buildDiagramState } from '../../core/services/export.service';
 import {
   ContextMenuRequest,
   InternalItemMoveRequest,
@@ -118,7 +120,7 @@ const AZURE_RESOURCE_DND_TYPE = 'application/x-zuremap-azure-resource';
   templateUrl: "./canvas.component.html",
   styleUrl: "./canvas.component.scss",
 })
-export class CanvasComponent implements AfterViewInit {
+export class CanvasComponent implements AfterViewInit, OnDestroy {
   @ViewChild('canvasHost', { read: ElementRef }) canvasHostRef!: ElementRef;
   @ViewChild('exportRoot', { read: ElementRef }) exportRootRef!: ElementRef;
 
@@ -135,6 +137,7 @@ export class CanvasComponent implements AfterViewInit {
   private overlapSvc = inject(CanvasOverlapService);
   private nodeExpansion = inject(CanvasNodeExpansionService);
   private tagVisualization = inject(CanvasTagVisualizationService);
+  private autosave = inject(AutosaveService);
   readonly ctxMenuSvc = inject(CanvasContextMenuService);
   readonly childToParentMap = computed(() => {
     const map = new Map<string, string>();
@@ -181,12 +184,26 @@ export class CanvasComponent implements AfterViewInit {
   private collapsedVmGroups = new Set<string>();
   private collapsedRouteTableGroups = new Set<string>();
   private isResolvingRgOverlaps = false;
+  private autosaveTimer: number | null = null;
 
   constructor() {
     effect(() => {
       const nodes = this.store.nodes();
       const edges = this.store.edges();
       this.refreshVisibility(nodes, edges);
+    });
+    effect(() => {
+      const revision = this.store.revision();
+      if (!this.autosave.enabled() || revision === 0) return;
+      if (this.autosaveTimer !== null) window.clearTimeout(this.autosaveTimer);
+      this.autosaveTimer = window.setTimeout(() => {
+        this.autosave.queueSave(buildDiagramState(
+          this.store.nodes(),
+          this.store.edges(),
+          this.store.activeSubscriptions(),
+          this.store.annotations(),
+        ));
+      }, 200);
     });
   }
 
@@ -195,6 +212,13 @@ export class CanvasComponent implements AfterViewInit {
     if (host) {
       this.minimapViewportWidth = host.clientWidth;
       this.minimapViewportHeight = host.clientHeight;
+    }
+  }
+
+  ngOnDestroy(): void {
+    if (this.autosaveTimer !== null) {
+      window.clearTimeout(this.autosaveTimer);
+      this.autosaveTimer = null;
     }
   }
 
@@ -941,7 +965,7 @@ export class CanvasComponent implements AfterViewInit {
     if (!ids.length) return;
     this.store.pushUndo();
     const idSet = new Set(ids);
-    this.store.annotations.update(list => list.filter(a => !idSet.has(a.id)));
+    this.store.setAnnotations(this.store.annotations().filter(a => !idSet.has(a.id)));
     this.selectedAnnotationId = null;
     this.selectedAnnotationIds = [];
   }
@@ -970,14 +994,14 @@ export class CanvasComponent implements AfterViewInit {
     if (!this.selectedAnnotationId) return;
     const selectedId = this.selectedAnnotationId;
     this.store.pushUndo();
-    this.store.annotations.update(list => this.annotationSvc.bringToFront(list, selectedId));
+    this.store.setAnnotations(this.annotationSvc.bringToFront(this.store.annotations(), selectedId));
   }
 
   sendSelectedAnnotationToBack(): void {
     if (!this.selectedAnnotationId) return;
     const selectedId = this.selectedAnnotationId;
     this.store.pushUndo();
-    this.store.annotations.update(list => this.annotationSvc.sendToBack(list, selectedId));
+    this.store.setAnnotations(this.annotationSvc.sendToBack(this.store.annotations(), selectedId));
   }
 
   clearAllAnnotations(): void {

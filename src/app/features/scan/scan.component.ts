@@ -7,6 +7,7 @@ import { ResourceMapperService } from '../../core/services/resource-mapper.servi
 import { ConnectionResolverService } from '../../core/services/connection-resolver.service';
 import { ELKLayoutService } from '../../core/services/elk-layout.service';
 import { ExportService, DiagramStateFile } from '../../core/services/export.service';
+import { AutosaveService } from '../../core/services/autosave.service';
 import { DiagramStore } from '../../core/store/diagram.store';
 import { AzureResource, AzureSubscription } from '../../core/models/azure-resource.model';
 import { SubscriptionSelectorComponent } from './subscription-selector/subscription-selector.component';
@@ -145,6 +146,40 @@ interface ConnectionType {
                 </div>
               </div>
 
+              @if (!isDemo) {
+                <div class="bg-blue-50/40 border border-blue-200 rounded-xl p-4">
+                  <div class="flex items-start justify-between gap-4">
+                    <div>
+                      <h3 class="text-sm font-semibold text-blue-900">Crash Recovery Autosave</h3>
+                      <p class="text-xs text-gray-600 mt-1 max-w-sm">
+                        Save every change to a local JSON file after scan completes.
+                      </p>
+                      @if (!supportsAutosavePicker) {
+                        <p class="text-[11px] text-amber-600 mt-1">
+                          Local-file autosave is not supported in this browser.
+                        </p>
+                      }
+                    </div>
+                    <button
+                      type="button"
+                      (click)="toggleAutosaveOption()"
+                      class="relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-azure-blue"
+                      [class.bg-azure-blue]="optionsEnableAutosave"
+                      [class.bg-gray-300]="!optionsEnableAutosave"
+                      [class.opacity-50]="!supportsAutosavePicker"
+                      [class.cursor-not-allowed]="!supportsAutosavePicker"
+                      [attr.aria-disabled]="!supportsAutosavePicker"
+                    >
+                      <span
+                        class="inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform duration-200"
+                        [class.translate-x-6]="optionsEnableAutosave"
+                        [class.translate-x-1]="!optionsEnableAutosave"
+                      ></span>
+                    </button>
+                  </div>
+                </div>
+              }
+
               <div>
                 <button
                   type="button"
@@ -241,6 +276,7 @@ interface ConnectionType {
                         ></span>
                       </button>
                     </div>
+
                   </div>
                 }
               </div>
@@ -476,6 +512,7 @@ export class ScanComponent implements OnInit {
   private connectionResolver = inject(ConnectionResolverService);
   private elkLayout = inject(ELKLayoutService);
   private exportSvc = inject(ExportService);
+  private autosave = inject(AutosaveService);
   private router = inject(Router);
   private zone = inject(NgZone);
 
@@ -487,6 +524,7 @@ export class ScanComponent implements OnInit {
   optionsIncludeNetworkInterfaces = false;
   optionsUserAssignedIdentityEdges = false;
   optionsIncludeVirtualNetworkLinks = false;
+  optionsEnableAutosave = false;
   progressLog = signal<string[]>([]);
   scanSteps = signal<{ name: string; status: 'pending' | 'active' | 'done' }[]>([]);
   private scanError = signal<{ code: string; detail: string } | null>(null);
@@ -536,6 +574,10 @@ export class ScanComponent implements OnInit {
     this.enterStartChoice();
   }
 
+  get supportsAutosavePicker(): boolean {
+    return this.autosave.supportsLocalFileAutosave();
+  }
+
   enterStartChoice(): void {
     this.needsLogin = false;
     this.optionsGenerateConnections = true;
@@ -543,15 +585,18 @@ export class ScanComponent implements OnInit {
     this.optionsIncludeNetworkInterfaces = false;
     this.optionsUserAssignedIdentityEdges = false;
     this.optionsIncludeVirtualNetworkLinks = false;
+    this.optionsEnableAutosave = false;
     this.progressLog.set([]);
     this.scanSteps.set([]);
     this.scanError.set(null);
     this.store.activeSubscriptions.set([]);
     this.store.scanPhase.set('choosing-start');
     this.store.errorMessage.set(null);
+    void this.maybePromptAutosaveRecovery();
   }
 
   beginAzureScanFlow(): void {
+    void this.autosave.disable();
     this.needsLogin = false;
     this.store.scanPhase.set('idle');
     this.auth.checkLoginStatus().subscribe({
@@ -599,7 +644,19 @@ export class ScanComponent implements OnInit {
     this.store.scanPhase.set('selecting-options');
   }
 
-  confirmOptions(): void {
+  async confirmOptions(): Promise<void> {
+    if (!this.isDemo) {
+      if (!this.optionsEnableAutosave) {
+        await this.autosave.disable();
+      } else {
+        if (!this.supportsAutosavePicker) {
+          alert('Local-file autosave is not supported in this browser.');
+          return;
+        }
+        const enabled = await this.autosave.enableForEmptyDiagram();
+        if (!enabled) return;
+      }
+    }
     const subIds = this.store.activeSubscriptions().map(s => s.subscriptionId);
     this.runScan(subIds);
   }
@@ -609,6 +666,7 @@ export class ScanComponent implements OnInit {
     const file = input.files?.[0];
     if (!file) return;
     try {
+      await this.autosave.disable();
       const state = await this.exportSvc.importFile(file);
       this.applyImportedState(state);
       input.value = '';
@@ -622,6 +680,7 @@ export class ScanComponent implements OnInit {
 
   async loadDemo(): Promise<void> {
     try {
+      await this.autosave.disable();
       const response = await fetch('demo/diagram.json');
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const state = await response.json() as DiagramStateFile;
@@ -639,7 +698,7 @@ export class ScanComponent implements OnInit {
     this.store.activeSubscriptions.set(state.subscriptions ?? []);
     this.store.setNodes(state.nodes ?? []);
     this.store.setEdges(state.edges ?? []);
-    this.store.annotations.set(state.annotations ?? []);
+    this.store.setAnnotations(state.annotations ?? []);
     this.store.loadBaseline(state.nodes ?? []);
     this.store.canvasSessionMode.set('scanned');
     this.router.navigate(['/canvas']);
@@ -663,6 +722,7 @@ export class ScanComponent implements OnInit {
     };
 
     this.zone.run(() => {
+      void this.autosave.disable();
       this.store.clearDiagram();
       this.store.scanPhase.set('scanning');
       this.progressLog.set([]);
@@ -752,8 +812,8 @@ export class ScanComponent implements OnInit {
         this.scanSteps.update(steps => steps.map(s => ({ ...s, status: 'done' })));
         this.store.scanPhase.set('ready');
         this.store.canvasSessionMode.set('scanned');
-        this.router.navigate(['/canvas']);
       });
+      this.zone.run(() => this.router.navigate(['/canvas']));
     } catch (err: unknown) {
       this.zone.run(() => {
         const e = err as Record<string, unknown>;
@@ -775,11 +835,59 @@ export class ScanComponent implements OnInit {
     return Array.from(seen.values());
   }
 
-  startEmptyCanvas(): void {
+  async startEmptyCanvas(): Promise<void> {
+    const proceed = await this.promptAutosaveForNewDiagram({ allowAbortOnPickerCancel: true });
+    if (!proceed) return;
     this.store.clearDiagram();
     this.store.activeSubscriptions.set([]);
-    this.store.annotations.set([]);
+    this.store.setAnnotations([]);
     this.store.canvasSessionMode.set('empty');
     this.router.navigate(['/canvas']);
+  }
+
+  private async promptAutosaveForNewDiagram(opts: { allowAbortOnPickerCancel: boolean }): Promise<boolean> {
+    if (this.isDemo) return true;
+    if (!this.autosave.supportsLocalFileAutosave()) {
+      await this.autosave.disable();
+      alert('Local-file autosave is not supported in this browser. You can still export JSON manually.');
+      return true;
+    }
+
+    const enable = confirm('Enable autosave to a local JSON file for crash recovery?');
+    if (!enable) {
+      await this.autosave.disable();
+      return true;
+    }
+
+    const enabled = await this.autosave.enableForEmptyDiagram();
+    if (enabled) return true;
+    return !opts.allowAbortOnPickerCancel;
+  }
+
+  toggleAutosaveOption(): void {
+    if (!this.supportsAutosavePicker) return;
+    this.optionsEnableAutosave = !this.optionsEnableAutosave;
+  }
+
+  private async maybePromptAutosaveRecovery(): Promise<void> {
+    if (this.isDemo) return;
+    const candidate = await this.autosave.getRecoveryCandidate();
+    if (!candidate) return;
+    const suffix = candidate.lastSavedAt
+      ? `\nLast autosave: ${new Date(candidate.lastSavedAt).toLocaleString()}`
+      : '';
+    const shouldRestore = confirm(`Restore autosaved diagram "${candidate.fileName}"?${suffix}`);
+    if (!shouldRestore) return;
+    try {
+      const file = await this.autosave.restoreFile();
+      if (!file) {
+        await this.autosave.disable();
+        return;
+      }
+      const state = await this.exportSvc.importFile(file);
+      this.applyImportedState(state);
+    } catch {
+      await this.autosave.disable();
+    }
   }
 }

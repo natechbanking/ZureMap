@@ -93,6 +93,8 @@
           style="background-image: radial-gradient(circle, #d2d0ce 1px, transparent 1px); background-size: 24px 24px;"
           (wheel)="onCanvasWheel($event)"
           (mousedown)="onCanvasBackgroundMouseDown($event)"
+          (dragover)="onCanvasDragOver($event)"
+          (drop)="onCanvasDrop($event)"
           (scroll)="onCanvasScroll()"
         >
           <div
@@ -792,6 +794,8 @@
                 (mousedown)="onDrawMouseDown($event)"
                 (mousemove)="onDrawMouseMove($event)"
                 (mouseup)="onDrawMouseUp($event)"
+                (dragover)="onCanvasDragOver($event)"
+                (drop)="onCanvasDrop($event)"
               ></div>
             }
 

@@ -22,6 +22,8 @@ interface ResourceCatalogEntry {
   category: string;
 }
 
+const AZURE_RESOURCE_DND_TYPE = 'application/x-zuremap-azure-resource';
+
 const TOOLS: Tool[] = [
   { id: 'pointer',  label: 'Select',    key: 'V', icon: 'M4 2 L4 14 L7 11 L9 16 L11 15 L9 10 L13 10 Z', category: 'select' },
   { id: 'draw',     label: 'Pen',       key: 'P', icon: 'M14 2 L18 6 L7 17 L3 18 L4 14 Z M14 2 L18 6', category: 'draw' },
@@ -660,6 +662,7 @@ const EDGE_MODES: EdgeMode[] = ['none', 'start', 'end', 'both'];
               <div class="grid grid-cols-3 gap-1.5 max-h-[280px] overflow-y-auto pr-0.5">
                 @for (entry of filteredResources; track entry.type) {
                   <button
+                    draggable="true"
                     class="flex flex-col items-center gap-1 p-2 rounded-xl border-2 transition-all text-center"
                     [class.border-blue-400]="activeResourceType === entry.type"
                     [class.bg-blue-50]="activeResourceType === entry.type"
@@ -668,6 +671,7 @@ const EDGE_MODES: EdgeMode[] = ['none', 'start', 'end', 'both'];
                     [class.hover:border-gray-200]="activeResourceType !== entry.type"
                     [class.hover:bg-gray-50]="activeResourceType !== entry.type"
                     [title]="entry.label + ' (' + entry.type + ')'"
+                    (dragstart)="onResourceDragStart($event, entry)"
                     (click)="selectResourceType(entry)"
                   >
                     <img [src]="entry.iconUrl" class="w-7 h-7 object-contain" alt="" />
@@ -956,6 +960,15 @@ export class DrawingToolbarComponent implements OnInit {
     this.resourceTypeChange.emit(entry.type);
     this.toolChange.emit('resource');
     this.activeTab = 'azure';
+  }
+
+  onResourceDragStart(event: DragEvent, entry: ResourceCatalogEntry): void {
+    if (!event.dataTransfer) return;
+    event.dataTransfer.effectAllowed = 'copy';
+    event.dataTransfer.setData(
+      AZURE_RESOURCE_DND_TYPE,
+      JSON.stringify({ type: entry.type, label: entry.label }),
+    );
   }
 
   readonly ruleTargets: { id: TagRule['target']; label: string }[] = [

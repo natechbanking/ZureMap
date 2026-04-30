@@ -89,6 +89,7 @@ interface TagHighlightInfo {
   sizeOffset?: SizeOffset;
 }
 const ZERO_OFFSET: SizeOffset = { top: 0, right: 0, bottom: 0, left: 0 };
+const AZURE_RESOURCE_DND_TYPE = 'application/x-zuremap-azure-resource';
 
 @Component({
   selector: 'app-canvas',
@@ -651,6 +652,29 @@ export class CanvasComponent implements AfterViewInit {
     this.activeResourceType = type;
   }
 
+  onCanvasDragOver(event: DragEvent): void {
+    if (!event.dataTransfer) return;
+    if (!event.dataTransfer.types.includes(AZURE_RESOURCE_DND_TYPE)) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'copy';
+  }
+
+  onCanvasDrop(event: DragEvent): void {
+    if (!event.dataTransfer) return;
+    const raw = event.dataTransfer.getData(AZURE_RESOURCE_DND_TYPE);
+    if (!raw) return;
+    let payload: { type?: string; label?: string } | null = null;
+    try {
+      payload = JSON.parse(raw) as { type?: string; label?: string };
+    } catch {
+      return;
+    }
+    if (!payload?.type) return;
+    event.preventDefault();
+    const pos = this.canvasPointFromClient(event.clientX, event.clientY);
+    this.startResourcePlacement(payload.type, pos);
+  }
+
   onCreateResourceConfirm(data: ResourceCreationData): void {
     if (!this.resourcePlacementPosition || !this.activeResourceType) return;
     const iconUrl = this.iconRegistryService.getIconUrl(this.activeResourceType);
@@ -747,8 +771,7 @@ export class CanvasComponent implements AfterViewInit {
     e.preventDefault();
     if (this.activeTool === 'resource') {
       const pt = this.svgPoint(e);
-      this.resourcePlacementPosition = { x: pt.x, y: pt.y };
-      this.showCreateResourceModal = true;
+      this.startResourcePlacement(this.activeResourceType, pt);
       return;
     }
     const pt = this.svgPoint(e);
@@ -1387,6 +1410,23 @@ export class CanvasComponent implements AfterViewInit {
     const x = (event.clientX - rect.left - this.dragOffset.x + canvas.scrollLeft) / this.zoomLevel;
     const y = (event.clientY - rect.top - this.dragOffset.y + canvas.scrollTop) / this.zoomLevel;
     this.store.moveNode(node.id, { x: Math.max(0, x), y: Math.max(0, y) });
+  }
+
+  private startResourcePlacement(type: string, position: { x: number; y: number }): void {
+    if (!type) return;
+    this.activeResourceType = type;
+    this.resourcePlacementPosition = position;
+    this.showCreateResourceModal = true;
+  }
+
+  private canvasPointFromClient(clientX: number, clientY: number): { x: number; y: number } {
+    const host = this.canvasHostRef?.nativeElement as HTMLElement | undefined;
+    if (!host) return { x: 0, y: 0 };
+    const rect = host.getBoundingClientRect();
+    return {
+      x: (clientX - rect.left + host.scrollLeft) / this.zoomLevel,
+      y: (clientY - rect.top + host.scrollTop) / this.zoomLevel,
+    };
   }
 
   get zoomLevel(): number {

@@ -25,5 +25,7 @@ export interface Annotation {
   waypoints?: { x: number; y: number }[];
   text?: string;      // text / sticky content
   fontSize?: number;
+  fontFamily?: string;
+  rotation?: number;  // degrees, clockwise
   imageDataUrl?: string;
 }

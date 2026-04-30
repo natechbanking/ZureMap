@@ -15,6 +15,7 @@ export interface DrawingRuntimeState {
 export interface DrawingStyleState {
   activeTool: DrawingTool;
   activeColor: string;
+  activeFontFamily: string;
   activeStrokeWidth: number;
   activeStrokeStyle: StrokeStyle;
   activeSloppiness: number;
@@ -48,7 +49,14 @@ export function resetDrawingRuntime(state: DrawingRuntimeState): DrawingRuntimeS
 export function onDrawStart(runtime: DrawingRuntimeState, style: DrawingStyleState, pt: { x: number; y: number }): DrawingResult {
   if (style.activeTool === 'text' || style.activeTool === 'sticky') {
     const ann = createAnnotation(style, 'text', pt.x, pt.y);
-    if (style.activeTool === 'sticky') ann.type = 'sticky';
+    if (style.activeTool === 'sticky') {
+      ann.type = 'sticky';
+      ann.width = 180;
+      ann.height = 120;
+    } else {
+      ann.width = 200;
+      ann.height = 48;
+    }
     return { next: runtime, createdAnnotation: ann, shouldStartEdit: true };
   }
 
@@ -133,6 +141,8 @@ function createAnnotation(style: DrawingStyleState, type: Annotation['type'], x:
     x,
     y,
     fontSize: 14,
+    fontFamily: style.activeFontFamily,
+    rotation: 0,
   };
 }
 

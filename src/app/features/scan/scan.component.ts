@@ -146,6 +146,40 @@ interface ConnectionType {
                 </div>
               </div>
 
+              @if (!isDemo) {
+                <div class="bg-blue-50/40 border border-blue-200 rounded-xl p-4">
+                  <div class="flex items-start justify-between gap-4">
+                    <div>
+                      <h3 class="text-sm font-semibold text-blue-900">Crash Recovery Autosave</h3>
+                      <p class="text-xs text-gray-600 mt-1 max-w-sm">
+                        Save every change to a local JSON file after scan completes.
+                      </p>
+                      @if (!supportsAutosavePicker) {
+                        <p class="text-[11px] text-amber-600 mt-1">
+                          Local-file autosave is not supported in this browser.
+                        </p>
+                      }
+                    </div>
+                    <button
+                      type="button"
+                      (click)="toggleAutosaveOption()"
+                      class="relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-azure-blue"
+                      [class.bg-azure-blue]="optionsEnableAutosave"
+                      [class.bg-gray-300]="!optionsEnableAutosave"
+                      [class.opacity-50]="!supportsAutosavePicker"
+                      [class.cursor-not-allowed]="!supportsAutosavePicker"
+                      [attr.aria-disabled]="!supportsAutosavePicker"
+                    >
+                      <span
+                        class="inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform duration-200"
+                        [class.translate-x-6]="optionsEnableAutosave"
+                        [class.translate-x-1]="!optionsEnableAutosave"
+                      ></span>
+                    </button>
+                  </div>
+                </div>
+              }
+
               <div>
                 <button
                   type="button"
@@ -243,37 +277,6 @@ interface ConnectionType {
                       </button>
                     </div>
 
-                    @if (!isDemo) {
-                      <div class="flex items-start justify-between gap-4">
-                        <div>
-                          <h4 class="text-xs font-semibold text-gray-700">Crash Recovery Autosave</h4>
-                          <p class="text-[11px] text-gray-500 mt-0.5">
-                            Save every change to a local JSON file after scan completes.
-                          </p>
-                          @if (!supportsAutosavePicker) {
-                            <p class="text-[11px] text-amber-600 mt-0.5">
-                              Local-file autosave is not supported in this browser.
-                            </p>
-                          }
-                        </div>
-                        <button
-                          type="button"
-                          (click)="toggleAutosaveOption()"
-                          class="relative inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full transition-colors focus:outline-none"
-                          [class.bg-azure-blue]="optionsEnableAutosave"
-                          [class.bg-gray-300]="!optionsEnableAutosave"
-                          [class.opacity-50]="!supportsAutosavePicker"
-                          [class.cursor-not-allowed]="!supportsAutosavePicker"
-                          [attr.aria-disabled]="!supportsAutosavePicker"
-                        >
-                          <span
-                            class="inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform duration-200"
-                            [class.translate-x-4.5]="optionsEnableAutosave"
-                            [class.translate-x-0.5]="!optionsEnableAutosave"
-                          ></span>
-                        </button>
-                      </div>
-                    }
                   </div>
                 }
               </div>

@@ -365,6 +365,9 @@ export class DiagramStore {
   clearDiagram(): void {
     this.nodes.set([]);
     this.edges.set([]);
+    this.annotations.set([]);
+    this.customContainerNames.set(new Map());
+    this.tagRules.set([]);
     this.selectedNodeIds.set([]);
     this.sidebarOpen.set(false);
     this.scanPhase.set('idle');

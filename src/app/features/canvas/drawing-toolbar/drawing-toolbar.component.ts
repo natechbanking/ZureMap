@@ -930,6 +930,7 @@ export class DrawingToolbarComponent implements OnInit {
   @Input() activeFill = 'none';
   @Input() activeFillOpacity = 0.2;
   @Input() canEditTextStyle = false;
+  @Input() canEditFillStyle = false;
   @Input() hasSelection = false;
   @Input() annotationCount = 0;
   @Input() tagRules: TagRule[] = [];
@@ -1166,7 +1167,7 @@ export class DrawingToolbarComponent implements OnInit {
   }
 
   isShapeTool(): boolean {
-    return ['rect', 'ellipse', 'diamond', 'sticky'].includes(this.activeTool);
+    return ['rect', 'ellipse', 'diamond'].includes(this.activeTool) || this.canEditFillStyle;
   }
 
   isLineTool(): boolean {

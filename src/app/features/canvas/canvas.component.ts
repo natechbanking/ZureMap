@@ -1045,6 +1045,12 @@ export class CanvasComponent implements AfterViewInit {
     return ann?.type === 'text' || ann?.type === 'sticky';
   }
 
+  get canEditSelectedFillStyle(): boolean {
+    if (!this.selectedAnnotationId) return false;
+    const ann = this.annotationById(this.selectedAnnotationId);
+    return ann?.type === 'rect' || ann?.type === 'ellipse' || ann?.type === 'diamond';
+  }
+
   diamondPoints(ann: Annotation): string {
     if (!ann.width || !ann.height) return '';
     return diamondPointsFromRectUtil({ x: ann.x, y: ann.y, w: ann.width, h: ann.height });

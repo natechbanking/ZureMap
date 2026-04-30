@@ -863,8 +863,9 @@
                     [class.border]="ann.type === 'sticky'"
                     [class.border-yellow-300]="ann.type === 'sticky'"
                     [class.bg-yellow-100]="ann.type === 'sticky'"
+                    [class.opacity-0]="editingAnnotation?.id === ann.id"
                   >{{ ann.text || '…' }}</div>
-                  @if (selectedAnnotationId === ann.id && activeTool === 'pointer') {
+                  @if (selectedAnnotationId === ann.id && activeTool === 'pointer' && editingAnnotation?.id !== ann.id) {
                     @for (rh of [
                       {h:'nw', cls:'-left-1 -top-1', cur:'nw-resize'},
                       {h:'n', cls:'left-1/2 -translate-x-1/2 -top-1', cur:'n-resize'},

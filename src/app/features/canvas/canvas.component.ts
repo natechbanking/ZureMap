@@ -1454,7 +1454,6 @@ export class CanvasComponent implements AfterViewInit {
   onCanvasBackgroundMouseDown(event: MouseEvent): void {
     if (this.activeTool !== 'pointer') return;
     if (event.button !== 0) return;
-    if (this.editingAnnotation) this.finishEdit();
     this.closeContextMenu();
     this.selectedAnnotationId = null;
     this.selectedAnnotationIds = [];

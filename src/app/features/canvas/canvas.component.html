@@ -587,11 +587,14 @@
                       [attr.marker-end]="markerEnd(ann)"
                       fill="none"
                       stroke-linecap="round"
+                      stroke-linejoin="round"
                     />
                     <!-- wider invisible hit area -->
                     <polyline
                       [attr.points]="linePoints(ann)"
+                      fill="none"
                       stroke="transparent" stroke-width="12"
+                      stroke-linejoin="round"
                     />
                   </g>
                   <!-- Waypoint handles for selected arrow -->
@@ -634,10 +637,13 @@
                       [attr.marker-end]="markerEnd(ann)"
                       fill="none"
                       stroke-linecap="round"
+                      stroke-linejoin="round"
                     />
                     <polyline
                       [attr.points]="linePoints(ann)"
+                      fill="none"
                       stroke="transparent" stroke-width="12"
+                      stroke-linejoin="round"
                     />
                   </g>
                   <!-- Waypoint handles for selected line -->
@@ -756,7 +762,7 @@
                     [attr.filter]="sloppyFilter(undefined, activeSloppiness)"
                     [attr.marker-start]="previewMarkerStart()"
                     [attr.marker-end]="previewMarkerEnd()"
-                    fill="none" stroke-linecap="round" />
+                    fill="none" stroke-linecap="round" stroke-linejoin="round" />
                 </g>
               }
               @if (previewLine) {
@@ -767,7 +773,7 @@
                   [attr.marker-start]="previewMarkerStart()"
                   [attr.marker-end]="previewMarkerEnd()"
                   [style.color]="activeColor"
-                  fill="none" stroke-linecap="round" pointer-events="none" />
+                  fill="none" stroke-linecap="round" stroke-linejoin="round" pointer-events="none" />
               }
               @if (previewRect) {
                 <rect [attr.x]="previewRect.x" [attr.y]="previewRect.y"

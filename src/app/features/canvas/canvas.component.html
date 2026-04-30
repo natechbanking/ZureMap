@@ -83,7 +83,7 @@
             (edgeModeChange)="onToolbarEdgeModeChange($event)"
             (fillChange)="onToolbarFillChange($event)"
             (fillOpacityChange)="onToolbarFillOpacityChange($event)"
-            (undo)="store.undoLastAnnotation()"
+            (undo)="store.undo()"
             (clearAll)="clearAllAnnotations()"
             (deleteSelected)="deleteSelectedAnnotation()"
             (duplicateSelected)="duplicateSelectedAnnotation()"

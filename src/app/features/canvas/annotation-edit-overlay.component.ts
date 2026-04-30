@@ -23,7 +23,7 @@ import { Annotation } from '../../core/models/annotation.model';
         #editTextarea
         class="absolute z-50 resize p-1.5 rounded border-2 border-blue-400 shadow-lg outline-none text-sm"
         [class.bg-transparent]="editingAnnotation.type === 'text'"
-        [class.bg-yellow-100]="editingAnnotation.type === 'sticky'"
+        [class.bg-amber-50]="editingAnnotation.type === 'sticky'"
         [style.left.px]="editingAnnotation.x"
         [style.top.px]="editingAnnotation.y"
         [style.width.px]="editingAnnotation.width ?? 160"

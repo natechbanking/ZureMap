@@ -860,13 +860,13 @@
                   (dblclick)="startEditAnnotation(ann)"
                 >
                   <div
-                    class="w-full h-full whitespace-pre-wrap break-words"
+                    class="w-full h-full whitespace-pre-wrap break-words leading-relaxed"
                     [class.p-3]="ann.type === 'sticky'"
-                    [class.rounded-lg]="ann.type === 'sticky'"
-                    [class.shadow-md]="ann.type === 'sticky'"
+                    [class.rounded-xl]="ann.type === 'sticky'"
+                    [class.shadow-lg]="ann.type === 'sticky'"
                     [class.border]="ann.type === 'sticky'"
-                    [class.border-yellow-300]="ann.type === 'sticky'"
-                    [class.bg-yellow-100]="ann.type === 'sticky'"
+                    [class.border-amber-200]="ann.type === 'sticky'"
+                    [class.bg-amber-50]="ann.type === 'sticky'"
                     [class.opacity-0]="editingAnnotation?.id === ann.id"
                   >{{ ann.text || '…' }}</div>
                   @if (selectedAnnotationId === ann.id && activeTool === 'pointer' && editingAnnotation?.id !== ann.id) {
@@ -893,10 +893,15 @@
                     <button
                       type="button"
                       data-export-hide
-                      class="absolute left-1/2 -translate-x-1/2 -top-7 w-3.5 h-3.5 rounded-full border border-blue-300 bg-white shadow-sm cursor-grab hover:border-blue-500 hover:bg-blue-50"
+                      class="absolute left-1/2 -translate-x-1/2 -top-7 w-4 h-4 rounded-full border border-blue-300 bg-white shadow-sm cursor-grab hover:border-blue-500 hover:bg-blue-50 flex items-center justify-center"
                       aria-label="Rotate text"
                       (mousedown)="onAnnotationRotateMouseDown($event, ann)"
-                    ></button>
+                    >
+                      <svg viewBox="0 0 16 16" class="w-2.5 h-2.5 text-gray-500" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M13.5 6A6 6 0 1 0 10 12.5" />
+                        <polyline points="13.5 2 13.5 6 9.5 6" />
+                      </svg>
+                    </button>
                   }
                 </div>
               }

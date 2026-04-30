@@ -219,6 +219,7 @@ export class CanvasComponent implements AfterViewInit {
   // ── Drawing tool state ─────────────────────────────────────────────────────
   activeTool: DrawingTool = 'pointer';
   activeColor = '#1e1e1e';
+  activeFontFamily = 'Arial, sans-serif';
   activeStrokeWidth = 2;
   activeStrokeStyle: StrokeStyle = 'solid';
   activeSloppiness = 0;
@@ -258,6 +259,7 @@ export class CanvasComponent implements AfterViewInit {
   resourcePlacementPosition: { x: number; y: number } | null = null;
 
   selectedAnnotationId: string | null = null;
+  selectedAnnotationIds: string[] = [];
   editingAnnotation: Annotation | null = null;
   editingTextValue = '';
 
@@ -373,7 +375,7 @@ export class CanvasComponent implements AfterViewInit {
       this.sendSelectedAnnotationToBack();
       return;
     }
-    if ((e.key === 'Delete' || e.key === 'Backspace') && this.selectedAnnotationId) {
+    if ((e.key === 'Delete' || e.key === 'Backspace') && (this.selectedAnnotationId || this.selectedAnnotationIds.length > 0)) {
       e.preventDefault();
       this.deleteSelectedAnnotation();
       return;
@@ -406,6 +408,7 @@ export class CanvasComponent implements AfterViewInit {
       this.closeContextMenu();
       this.cancelRename();
       this.selectedAnnotationId = null;
+      this.selectedAnnotationIds = [];
       this.selectedTagHighlightRuleId = null;
       if (this.editingAnnotation) this.cancelEdit();
       if (this.store.selectedNodeIds().length > 0) this.store.selectNodes([]);
@@ -445,6 +448,7 @@ export class CanvasComponent implements AfterViewInit {
       this.store.pushUndo();
       this.store.addAnnotation(annotation);
       this.selectedAnnotationId = annotation.id;
+      this.selectedAnnotationIds = [annotation.id];
       this.syncToolbarFromAnnotation(annotation);
     } catch (err) {
       console.warn('[ZureMap] Failed to paste image annotation:', err);
@@ -626,13 +630,22 @@ export class CanvasComponent implements AfterViewInit {
             n.position.y < y + h
           )
           .map(n => n.id);
+        const intersectedAnnotations = this.store.annotations()
+          .filter(a => {
+            const b = this.annotationBounds(a);
+            return b.maxX > x && b.minX < x + w && b.maxY > y && b.minY < y + h;
+          })
+          .map(a => a.id);
         if (this.marqueeState.ctrlHeld) {
           const existing = this.store.selectedNodeIds();
           const merged = Array.from(new Set([...existing, ...intersected]));
           this.store.selectNodes(merged);
+          this.selectedAnnotationIds = Array.from(new Set([...this.selectedAnnotationIds, ...intersectedAnnotations]));
         } else {
           this.store.selectNodes(intersected);
+          this.selectedAnnotationIds = intersectedAnnotations;
         }
+        this.selectedAnnotationId = this.selectedAnnotationIds[0] ?? null;
       }
       this.marqueeState = null;
     }
@@ -654,6 +667,7 @@ export class CanvasComponent implements AfterViewInit {
   setTool(tool: DrawingTool): void {
     this.activeTool = tool;
     this.selectedAnnotationId = null;
+    this.selectedAnnotationIds = [];
     this.selectedEdgeId = null;
     this.applyDrawingRuntime(resetDrawingRuntime(this.currentDrawingRuntime()));
   }
@@ -741,6 +755,11 @@ export class CanvasComponent implements AfterViewInit {
     this.updateSelectedAnnotation({ color });
   }
 
+  onToolbarFontFamilyChange(fontFamily: string): void {
+    this.activeFontFamily = fontFamily;
+    this.updateSelectedAnnotation({ fontFamily }, ['text', 'sticky']);
+  }
+
   onToolbarStrokeWidthChange(strokeWidth: number): void {
     this.activeStrokeWidth = strokeWidth;
     this.updateSelectedAnnotation({ strokeWidth });
@@ -817,7 +836,21 @@ export class CanvasComponent implements AfterViewInit {
     this.annotationContextMenu = null;
     this.contextMenu = null;
     this.selectedEdgeId = null;
+    if (e.ctrlKey || e.metaKey) {
+      if (this.selectedAnnotationIds.includes(ann.id)) {
+        this.selectedAnnotationIds = this.selectedAnnotationIds.filter(id => id !== ann.id);
+      } else {
+        this.selectedAnnotationIds = [...this.selectedAnnotationIds, ann.id];
+      }
+      this.selectedAnnotationId = this.selectedAnnotationIds[0] ?? null;
+      if (this.selectedAnnotationId) {
+        const selected = this.annotationById(this.selectedAnnotationId);
+        if (selected) this.syncToolbarFromAnnotation(selected);
+      }
+      return;
+    }
     this.selectedAnnotationId = ann.id;
+    this.selectedAnnotationIds = [ann.id];
     this.syncToolbarFromAnnotation(ann);
     const pt = this.svgPoint(e);
     this.store.pushUndo();
@@ -879,8 +912,9 @@ export class CanvasComponent implements AfterViewInit {
     this.editingTextValue = ann.text ?? '';
   }
 
-  finishEdit(): void {
+  finishEdit(nextText?: string): void {
     if (!this.editingAnnotation) return;
+    if (typeof nextText === 'string') this.editingTextValue = nextText;
     const text = this.editingTextValue.trim();
     this.store.pushUndo();
     if (text) {
@@ -908,11 +942,15 @@ export class CanvasComponent implements AfterViewInit {
   }
 
   deleteSelectedAnnotation(): void {
-    if (this.selectedAnnotationId) {
-      this.store.pushUndo();
-      this.store.deleteAnnotation(this.selectedAnnotationId);
-      this.selectedAnnotationId = null;
-    }
+    const ids = this.selectedAnnotationIds.length
+      ? this.selectedAnnotationIds
+      : (this.selectedAnnotationId ? [this.selectedAnnotationId] : []);
+    if (!ids.length) return;
+    this.store.pushUndo();
+    const idSet = new Set(ids);
+    this.store.annotations.update(list => list.filter(a => !idSet.has(a.id)));
+    this.selectedAnnotationId = null;
+    this.selectedAnnotationIds = [];
   }
 
   deleteSelectedEdge(): void {
@@ -931,6 +969,7 @@ export class CanvasComponent implements AfterViewInit {
     this.store.pushUndo();
     this.store.addAnnotation(duplicated);
     this.selectedAnnotationId = duplicated.id;
+    this.selectedAnnotationIds = [duplicated.id];
     this.syncToolbarFromAnnotation(duplicated);
   }
 
@@ -955,6 +994,7 @@ export class CanvasComponent implements AfterViewInit {
     this.store.pushUndo();
     this.store.clearAnnotations();
     this.selectedAnnotationId = null;
+    this.selectedAnnotationIds = [];
     this.editingAnnotation = null;
     this.editingTextValue = '';
   }
@@ -975,6 +1015,16 @@ export class CanvasComponent implements AfterViewInit {
   get selectedAnnotationForDelete(): Annotation | null {
     if (!this.selectedAnnotationId || this.activeTool !== 'pointer') return null;
     return this.annotationById(this.selectedAnnotationId) ?? null;
+  }
+
+  isAnnotationSelected(id: string): boolean {
+    return this.selectedAnnotationIds.includes(id);
+  }
+
+  get canEditSelectedTextStyle(): boolean {
+    if (!this.selectedAnnotationId) return false;
+    const ann = this.annotationById(this.selectedAnnotationId);
+    return ann?.type === 'text' || ann?.type === 'sticky';
   }
 
   diamondPoints(ann: Annotation): string {
@@ -1326,6 +1376,7 @@ export class CanvasComponent implements AfterViewInit {
     event.stopPropagation();
     this.selectedTagHighlightRuleId = ruleId;
     this.selectedAnnotationId = null;
+    this.selectedAnnotationIds = [];
     this.store.selectNodes([]);
   }
 
@@ -1385,6 +1436,7 @@ export class CanvasComponent implements AfterViewInit {
     event.preventDefault();
     event.stopPropagation();
     this.selectedAnnotationId = null;
+    this.selectedAnnotationIds = [];
     this.selectedEdgeId = null;
 
     if (event.ctrlKey || event.metaKey) {
@@ -1402,8 +1454,10 @@ export class CanvasComponent implements AfterViewInit {
   onCanvasBackgroundMouseDown(event: MouseEvent): void {
     if (this.activeTool !== 'pointer') return;
     if (event.button !== 0) return;
+    if (this.editingAnnotation) this.finishEdit();
     this.closeContextMenu();
     this.selectedAnnotationId = null;
+    this.selectedAnnotationIds = [];
     this.selectedEdgeId = null;
 
     const host = this.canvasHostRef?.nativeElement as HTMLElement;
@@ -1502,6 +1556,7 @@ export class CanvasComponent implements AfterViewInit {
     if (this.activeTool !== 'pointer') return;
     event.stopPropagation();
     this.selectedAnnotationId = null;
+    this.selectedAnnotationIds = [];
     this.store.selectNode(null);
     this.selectedEdgeId = edge.id;
   }
@@ -1659,6 +1714,7 @@ export class CanvasComponent implements AfterViewInit {
     this.selectedEdgeId = null;
     this.store.selectNode(null);
     this.selectedAnnotationId = ann.id;
+    this.selectedAnnotationIds = [ann.id];
     this.syncToolbarFromAnnotation(ann);
     this.annotationContextMenu = { x: event.clientX, y: event.clientY, annotationId: ann.id };
   }
@@ -1872,6 +1928,7 @@ export class CanvasComponent implements AfterViewInit {
   ctxAnnDuplicate(): void {
     if (!this.annotationContextMenu) return;
     this.selectedAnnotationId = this.annotationContextMenu.annotationId;
+    this.selectedAnnotationIds = [this.annotationContextMenu.annotationId];
     this.duplicateSelectedAnnotation();
     this.closeContextMenu();
   }
@@ -1879,6 +1936,7 @@ export class CanvasComponent implements AfterViewInit {
   ctxAnnBringFront(): void {
     if (!this.annotationContextMenu) return;
     this.selectedAnnotationId = this.annotationContextMenu.annotationId;
+    this.selectedAnnotationIds = [this.annotationContextMenu.annotationId];
     this.bringSelectedAnnotationToFront();
     this.closeContextMenu();
   }
@@ -1886,6 +1944,7 @@ export class CanvasComponent implements AfterViewInit {
   ctxAnnSendBack(): void {
     if (!this.annotationContextMenu) return;
     this.selectedAnnotationId = this.annotationContextMenu.annotationId;
+    this.selectedAnnotationIds = [this.annotationContextMenu.annotationId];
     this.sendSelectedAnnotationToBack();
     this.closeContextMenu();
   }
@@ -1911,6 +1970,7 @@ export class CanvasComponent implements AfterViewInit {
     this.store.pushUndo();
     this.store.deleteAnnotation(this.annotationContextMenu.annotationId);
     if (this.selectedAnnotationId === this.annotationContextMenu.annotationId) this.selectedAnnotationId = null;
+    this.selectedAnnotationIds = this.selectedAnnotationIds.filter(id => id !== this.annotationContextMenu!.annotationId);
     this.closeContextMenu();
   }
 
@@ -2396,6 +2456,7 @@ export class CanvasComponent implements AfterViewInit {
 
   private syncToolbarFromAnnotation(ann: Annotation): void {
     this.activeColor = ann.color;
+    this.activeFontFamily = ann.fontFamily ?? 'Arial, sans-serif';
     this.activeStrokeWidth = ann.strokeWidth;
     this.activeStrokeStyle = ann.strokeStyle ?? 'solid';
     this.activeSloppiness = ann.sloppiness ?? 0;
@@ -2425,6 +2486,17 @@ export class CanvasComponent implements AfterViewInit {
       return box.maxY;
     }
     return ann.y + (ann.height ?? 80);
+  }
+
+  private annotationBounds(ann: Annotation): { minX: number; minY: number; maxX: number; maxY: number } {
+    const minX = ann.type === 'arrow' || ann.type === 'line' ? Math.min(ann.x, ann.x2 ?? ann.x) : ann.x;
+    const minY = ann.type === 'arrow' || ann.type === 'line' ? Math.min(ann.y, ann.y2 ?? ann.y) : ann.y;
+    return {
+      minX,
+      minY,
+      maxX: this.annotationMaxX(ann),
+      maxY: this.annotationMaxY(ann),
+    };
   }
 
   annotationTransform(ann: Annotation): string {
@@ -2633,6 +2705,7 @@ export class CanvasComponent implements AfterViewInit {
     return {
       activeTool: this.activeTool,
       activeColor: this.activeColor,
+      activeFontFamily: this.activeFontFamily,
       activeStrokeWidth: this.activeStrokeWidth,
       activeStrokeStyle: this.activeStrokeStyle,
       activeSloppiness: this.activeSloppiness,

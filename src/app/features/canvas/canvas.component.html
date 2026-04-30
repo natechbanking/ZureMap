@@ -55,6 +55,7 @@
           <app-drawing-toolbar
             [activeTool]="activeTool"
             [activeColor]="activeColor"
+            [activeFontFamily]="activeFontFamily"
             [activeStrokeWidth]="activeStrokeWidth"
             [activeStrokeStyle]="activeStrokeStyle"
             [activeSloppiness]="activeSloppiness"
@@ -62,7 +63,8 @@
             [activeEdgeMode]="activeEdgeMode"
             [activeFill]="activeFill"
             [activeFillOpacity]="activeFillOpacity"
-            [hasSelection]="selectedAnnotationId !== null"
+            [canEditTextStyle]="canEditSelectedTextStyle"
+            [hasSelection]="selectedAnnotationIds.length > 0"
             [annotationCount]="store.annotations().length"
             [tagRules]="store.tagRules()"
             [availableTags]="availableTags"
@@ -70,6 +72,7 @@
             (toolChange)="setTool($event)"
             (resourceTypeChange)="onResourceTypeChange($event)"
             (colorChange)="onToolbarColorChange($event)"
+            (fontFamilyChange)="onToolbarFontFamilyChange($event)"
             (strokeWidthChange)="onToolbarStrokeWidthChange($event)"
             (strokeStyleChange)="onToolbarStrokeStyleChange($event)"
             (sloppinessChange)="onToolbarSloppinessChange($event)"
@@ -804,8 +807,8 @@
               @if (ann.type === 'image' && ann.imageDataUrl) {
                 <div
                   class="absolute select-none"
-                  [class.ring-2]="selectedAnnotationId === ann.id"
-                  [class.ring-blue-400]="selectedAnnotationId === ann.id"
+                  [class.ring-2]="isAnnotationSelected(ann.id)"
+                  [class.ring-blue-400]="isAnnotationSelected(ann.id)"
                   [style.left.px]="ann.x"
                   [style.top.px]="ann.y"
                   [style.width.px]="ann.width ?? 240"
@@ -835,8 +838,8 @@
               @if (ann.type === 'text' || ann.type === 'sticky') {
                 <div
                   class="absolute select-none"
-                  [class.ring-2]="selectedAnnotationId === ann.id"
-                  [class.ring-blue-400]="selectedAnnotationId === ann.id"
+                  [class.ring-2]="isAnnotationSelected(ann.id)"
+                  [class.ring-blue-400]="isAnnotationSelected(ann.id)"
                   [style.left.px]="ann.x"
                   [style.top.px]="ann.y"
                   [style.width.px]="annotationTextWidth(ann)"
@@ -844,6 +847,7 @@
                   [style.transform]="annotationTransform(ann)"
                   style="transform-origin: center center;"
                   [style.font-size.px]="ann.fontSize ?? 14"
+                  [style.font-family]="ann.fontFamily ?? 'Arial, sans-serif'"
                   [style.color]="ann.color"
                   [style.pointer-events]="activeTool === 'pointer' ? 'auto' : 'none'"
                   [style.cursor]="activeTool === 'pointer' ? 'move' : 'default'"
@@ -901,7 +905,7 @@
               [editingText]="editingTextValue"
               (deleteSelected)="deleteSelectedAnnotation()"
               (editingTextChange)="editingTextValue = $event"
-              (finishEdit)="finishEdit()"
+              (finishEdit)="finishEdit($event)"
               (editKeyDown)="onEditKeyDown($event)"
             />
 

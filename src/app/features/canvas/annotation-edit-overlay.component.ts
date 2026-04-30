@@ -21,17 +21,20 @@ import { Annotation } from '../../core/models/annotation.model';
     @if (editingAnnotation) {
       <textarea
         #editTextarea
-        class="absolute z-50 resize p-1.5 rounded border-2 border-blue-400 shadow-lg outline-none bg-white/90 text-sm"
+        class="absolute z-50 resize p-1.5 rounded border-2 border-blue-400 shadow-lg outline-none text-sm"
+        [class.bg-transparent]="editingAnnotation.type === 'text'"
+        [class.bg-yellow-100]="editingAnnotation.type === 'sticky'"
         [style.left.px]="editingAnnotation.x"
         [style.top.px]="editingAnnotation.y"
         [style.min-width.px]="160"
         [style.min-height.px]="editingAnnotation.type === 'sticky' ? 80 : 36"
         [style.font-size.px]="editingAnnotation.fontSize ?? 14"
+        [style.font-family]="editingAnnotation.fontFamily ?? 'Arial, sans-serif'"
         [style.color]="editingAnnotation.color"
         [value]="editingText"
         placeholder="Type here…"
         (input)="editingTextChange.emit(textValue($event))"
-        (blur)="finishEdit.emit()"
+        (blur)="onBlur($event)"
         (keydown)="editKeyDown.emit($event)"
         (mousedown)="$event.stopPropagation()"
       ></textarea>
@@ -49,7 +52,7 @@ export class AnnotationEditOverlayComponent implements AfterViewInit, OnChanges 
 
   @Output() deleteSelected = new EventEmitter<void>();
   @Output() editingTextChange = new EventEmitter<string>();
-  @Output() finishEdit = new EventEmitter<void>();
+  @Output() finishEdit = new EventEmitter<string>();
   @Output() editKeyDown = new EventEmitter<KeyboardEvent>();
 
   ngAfterViewInit(): void {
@@ -64,6 +67,12 @@ export class AnnotationEditOverlayComponent implements AfterViewInit, OnChanges 
 
   textValue(event: Event): string {
     return (event.target as HTMLTextAreaElement).value ?? '';
+  }
+
+  onBlur(event: FocusEvent): void {
+    const value = this.textValue(event);
+    this.editingTextChange.emit(value);
+    this.finishEdit.emit(value);
   }
 
   private focusTextarea(): void {

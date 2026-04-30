@@ -45,6 +45,12 @@ const WIDTHS = [1, 2, 4, 6, 8];
 const STROKE_STYLES: StrokeStyle[] = ['solid', 'dashed', 'dotted'];
 const EDGE_ROUTINGS: EdgeRouting[] = ['straight', 'elbow'];
 const EDGE_MODES: EdgeMode[] = ['none', 'start', 'end', 'both'];
+const FONT_FAMILIES = [
+  { value: 'Arial, sans-serif', label: 'Arial' },
+  { value: '"Trebuchet MS", sans-serif', label: 'Trebuchet' },
+  { value: 'Georgia, serif', label: 'Georgia' },
+  { value: '"Courier New", monospace', label: 'Courier New' },
+];
 
 @Component({
   selector: 'app-drawing-toolbar',
@@ -205,6 +211,22 @@ const EDGE_MODES: EdgeMode[] = ['none', 'start', 'end', 'both'];
                   }
                 </div>
               </div>
+
+              <!-- Font (text/sticky) -->
+              @if (isTextTool()) {
+                <div>
+                  <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2">Font</p>
+                  <select
+                    class="w-full h-9 rounded-lg border-2 border-gray-100 hover:border-gray-200 px-2 text-xs bg-white text-gray-700"
+                    [value]="activeFontFamily"
+                    (change)="fontFamilyChange.emit(stringValue($event))"
+                  >
+                    @for (font of fontFamilies; track font.value) {
+                      <option [value]="font.value">{{ font.label }}</option>
+                    }
+                  </select>
+                </div>
+              }
 
               <!-- Stroke Width - Visual Preview -->
               <div>
@@ -886,6 +908,7 @@ export class DrawingToolbarComponent implements OnInit {
 
   @Input() activeTool: DrawingTool = 'pointer';
   @Input() activeColor = '#1e1e1e';
+  @Input() activeFontFamily = 'Arial, sans-serif';
   @Input() activeStrokeWidth = 2;
   @Input() activeStrokeStyle: StrokeStyle = 'solid';
   @Input() activeSloppiness = 0;
@@ -893,6 +916,7 @@ export class DrawingToolbarComponent implements OnInit {
   @Input() activeEdgeMode: EdgeMode = 'end';
   @Input() activeFill = 'none';
   @Input() activeFillOpacity = 0.2;
+  @Input() canEditTextStyle = false;
   @Input() hasSelection = false;
   @Input() annotationCount = 0;
   @Input() tagRules: TagRule[] = [];
@@ -903,6 +927,7 @@ export class DrawingToolbarComponent implements OnInit {
 
   @Output() toolChange = new EventEmitter<DrawingTool>();
   @Output() colorChange = new EventEmitter<string>();
+  @Output() fontFamilyChange = new EventEmitter<string>();
   @Output() strokeWidthChange = new EventEmitter<number>();
   @Output() strokeStyleChange = new EventEmitter<StrokeStyle>();
   @Output() sloppinessChange = new EventEmitter<number>();
@@ -924,6 +949,7 @@ export class DrawingToolbarComponent implements OnInit {
   readonly strokeStyles = STROKE_STYLES;
   readonly edgeRoutings = EDGE_ROUTINGS;
   readonly edgeModes = EDGE_MODES;
+  readonly fontFamilies = FONT_FAMILIES;
 
   readonly tabs: { id: TabId; label: string }[] = [
     { id: 'tools', label: 'Tools' },
@@ -1132,6 +1158,10 @@ export class DrawingToolbarComponent implements OnInit {
     return ['line', 'arrow'].includes(this.activeTool);
   }
 
+  isTextTool(): boolean {
+    return this.activeTool === 'text' || this.activeTool === 'sticky' || this.canEditTextStyle;
+  }
+
   onCustomColor(event: Event): void {
     const value = (event.target as HTMLInputElement).value;
     if (value) this.colorChange.emit(value);
@@ -1147,6 +1177,10 @@ export class DrawingToolbarComponent implements OnInit {
 
   colorValue(event: Event): string {
     return (event.target as HTMLInputElement).value || this.activeColor;
+  }
+
+  stringValue(event: Event): string {
+    return (event.target as HTMLInputElement).value || '';
   }
 
   @HostListener('window:keydown', ['$event'])

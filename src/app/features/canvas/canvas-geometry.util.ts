@@ -105,3 +105,93 @@ export function edgePolylinePoints(nodes: DiagramNode[], edge: Pick<DiagramEdge,
 
   return [srcAnchor, ...waypoints, tgtAnchor];
 }
+
+export function pathMax(pathData: string): { x: number; y: number } {
+  const nums = pathData.match(/-?\d+(?:\.\d+)?/g);
+  if (!nums || nums.length < 2) return { x: 0, y: 0 };
+  let maxX = Number.NEGATIVE_INFINITY;
+  let maxY = Number.NEGATIVE_INFINITY;
+  for (let i = 0; i < nums.length - 1; i += 2) {
+    const x = Number(nums[i]);
+    const y = Number(nums[i + 1]);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+    maxX = Math.max(maxX, x);
+    maxY = Math.max(maxY, y);
+  }
+  if (!Number.isFinite(maxX) || !Number.isFinite(maxY)) return { x: 0, y: 0 };
+  return { x: maxX, y: maxY };
+}
+
+export function rotatedBounds(
+  x: number, y: number, width: number, height: number, rotationDeg: number,
+): { minX: number; maxX: number; minY: number; maxY: number } {
+  const theta = (rotationDeg * Math.PI) / 180;
+  const cos = Math.cos(theta);
+  const sin = Math.sin(theta);
+  const cx = x + width / 2;
+  const cy = y + height / 2;
+  const points = [
+    { x, y },
+    { x: x + width, y },
+    { x, y: y + height },
+    { x: x + width, y: y + height },
+  ].map(p => {
+    const dx = p.x - cx;
+    const dy = p.y - cy;
+    return { x: cx + dx * cos - dy * sin, y: cy + dx * sin + dy * cos };
+  });
+  return {
+    minX: Math.min(...points.map(p => p.x)),
+    maxX: Math.max(...points.map(p => p.x)),
+    minY: Math.min(...points.map(p => p.y)),
+    maxY: Math.max(...points.map(p => p.y)),
+  };
+}
+
+export function annotationTextWidth(ann: Annotation): number {
+  return ann.width ?? (ann.type === 'sticky' ? 180 : 200);
+}
+
+export function annotationTextHeight(ann: Annotation): number {
+  return ann.height ?? (ann.type === 'sticky' ? 120 : 48);
+}
+
+export function annotationTransform(ann: Annotation): string {
+  const rot = ann.rotation ?? 0;
+  if (!rot) return '';
+  return `rotate(${rot}deg)`;
+}
+
+export function annotationMaxX(ann: Annotation): number {
+  if (ann.type === 'arrow' || ann.type === 'line') return Math.max(ann.x, ann.x2 ?? ann.x);
+  if (ann.type === 'rect' || ann.type === 'diamond' || ann.type === 'ellipse' || ann.type === 'image') return ann.x + (ann.width ?? 0);
+  if (ann.type === 'draw' && ann.pathData) return pathMax(ann.pathData).x;
+  if (ann.type === 'text' || ann.type === 'sticky') {
+    if ((ann.rotation ?? 0) !== 0) {
+      const box = rotatedBounds(ann.x, ann.y, annotationTextWidth(ann), annotationTextHeight(ann), ann.rotation ?? 0);
+      return box.maxX;
+    }
+    return ann.x + annotationTextWidth(ann);
+  }
+  return ann.x + (ann.width ?? 200);
+}
+
+export function annotationMaxY(ann: Annotation): number {
+  if (ann.type === 'arrow' || ann.type === 'line') return Math.max(ann.y, ann.y2 ?? ann.y);
+  if (ann.type === 'rect' || ann.type === 'diamond' || ann.type === 'ellipse' || ann.type === 'image') return ann.y + (ann.height ?? 0);
+  if (ann.type === 'draw' && ann.pathData) return pathMax(ann.pathData).y;
+  if (ann.type === 'text' || ann.type === 'sticky') {
+    if ((ann.rotation ?? 0) !== 0) {
+      const box = rotatedBounds(ann.x, ann.y, annotationTextWidth(ann), annotationTextHeight(ann), ann.rotation ?? 0);
+      return box.maxY;
+    }
+    return ann.y + annotationTextHeight(ann);
+  }
+  return ann.y + (ann.height ?? 80);
+}
+
+export function annotationBounds(ann: Annotation): { minX: number; minY: number; maxX: number; maxY: number } {
+  const minX = ann.type === 'arrow' || ann.type === 'line' ? Math.min(ann.x, ann.x2 ?? ann.x) : ann.x;
+  const minY = ann.type === 'arrow' || ann.type === 'line' ? Math.min(ann.y, ann.y2 ?? ann.y) : ann.y;
+  return { minX, minY, maxX: annotationMaxX(ann), maxY: annotationMaxY(ann) };
+}

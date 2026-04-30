@@ -1,0 +1,302 @@
+<!-- Edges (pass-through) -->
+@for (edge of visibleEdges; track edge.id) {
+  @let edgePts = getEdgePolylineString(edge);
+  <svg:g>
+    @if (selectedEdgeId === edge.id) {
+      <svg:polyline
+        pointer-events="none"
+        [attr.points]="edgePts"
+        fill="none"
+        stroke="#2563eb"
+        [attr.stroke-width]="edge.style.strokeWidth + 4"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        opacity="0.25"
+      />
+    }
+    <svg:polyline
+      [attr.pointer-events]="activeTool === 'pointer' ? 'stroke' : 'none'"
+      [attr.points]="edgePts"
+      fill="none"
+      [attr.stroke]="edge.style.strokeColor"
+      [attr.stroke-width]="edge.style.strokeWidth"
+      [attr.stroke-dasharray]="edge.style.dashArray ?? null"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      [attr.marker-end]="edge.style.markerEnd === 'arrow' ? edgeMarkerUrl(edge.style.strokeColor) : null"
+      [class.animate-pulse]="edge.animated"
+      style="cursor: pointer"
+      (click)="edgeClicked.emit({ event: $event, edge: edge })"
+    />
+    @if (selectedEdgeId === edge.id && activeTool === 'pointer') {
+      @let edgeAllPts = getEdgePoints(edge);
+      @if (edgeAllPts.length > 0) {
+        <svg:circle
+          [attr.cx]="edgeAllPts[0].x" [attr.cy]="edgeAllPts[0].y"
+          [attr.r]="5 / zoomLevel" fill="#3b82f6" stroke="white" [attr.stroke-width]="1.5 / zoomLevel"
+          pointer-events="none"
+        />
+        <svg:circle
+          [attr.cx]="edgeAllPts[edgeAllPts.length - 1].x" [attr.cy]="edgeAllPts[edgeAllPts.length - 1].y"
+          [attr.r]="5 / zoomLevel" fill="#3b82f6" stroke="white" [attr.stroke-width]="1.5 / zoomLevel"
+          pointer-events="none"
+        />
+      }
+      @for (mid of getEdgeMidHandles(edge); track mid.segmentIndex) {
+        <svg:circle
+          [attr.cx]="mid.x" [attr.cy]="mid.y"
+          [attr.r]="4 / zoomLevel" fill="#bfdbfe" stroke="#3b82f6" [attr.stroke-width]="1.5 / zoomLevel"
+          style="cursor: crosshair; pointer-events: all"
+          (mousedown)="edgeMidpointMouseDown.emit({ event: $event, edge: edge, segmentIndex: mid.segmentIndex })"
+        />
+      }
+      @for (handle of getEdgeHandles(edge); track handle.index) {
+        <svg:circle
+          [attr.cx]="handle.x" [attr.cy]="handle.y"
+          [attr.r]="6 / zoomLevel" fill="white" stroke="#3b82f6" [attr.stroke-width]="2 / zoomLevel"
+          style="cursor: move; pointer-events: all"
+          (mousedown)="edgeWaypointMouseDown.emit({ event: $event, edge: edge, index: handle.index })"
+          (dblclick)="edgeWaypointDblClick.emit({ event: $event, edge: edge, index: handle.index })"
+        />
+      }
+    }
+  </svg:g>
+}
+
+<!-- Saved annotations -->
+@for (ann of annotations; track ann.id) {
+  @if (ann.type === 'draw' && ann.pathData) {
+    <svg:path
+      [attr.d]="ann.pathData"
+      [attr.stroke]="ann.color"
+      [attr.stroke-width]="ann.strokeWidth"
+      [attr.stroke-dasharray]="strokeDashArray(ann)"
+      [attr.filter]="sloppyFilter(ann)"
+      fill="none"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      [attr.pointer-events]="activeTool === 'pointer' ? 'stroke' : 'none'"
+      [class.cursor-move]="activeTool === 'pointer'"
+      (mousedown)="annotationMouseDown.emit({ event: $event, ann: ann })"
+      (contextmenu)="annotationContextMenu.emit({ event: $event, ann: ann })"
+    />
+  }
+  @if (ann.type === 'arrow') {
+    <svg:g
+      [attr.pointer-events]="activeTool === 'pointer' ? 'all' : 'none'"
+      [class.cursor-move]="activeTool === 'pointer'"
+      [style.color]="ann.color"
+      (mousedown)="annotationMouseDown.emit({ event: $event, ann: ann })"
+      (contextmenu)="annotationContextMenu.emit({ event: $event, ann: ann })"
+    >
+      <svg:polyline
+        [attr.points]="linePoints(ann)"
+        [attr.stroke]="ann.color" [attr.stroke-width]="ann.strokeWidth"
+        [attr.stroke-dasharray]="strokeDashArray(ann)"
+        [attr.filter]="sloppyFilter(ann)"
+        [attr.marker-start]="markerStart(ann)"
+        [attr.marker-end]="markerEnd(ann)"
+        fill="none"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      />
+      <svg:polyline
+        [attr.points]="linePoints(ann)"
+        fill="none"
+        stroke="transparent" stroke-width="12"
+        stroke-linejoin="round"
+      />
+    </svg:g>
+    @if (selectedAnnotationId === ann.id && activeTool === 'pointer') {
+      @for (mid of getAnnMidHandles(ann); track mid.segmentIndex) {
+        <svg:circle
+          [attr.cx]="mid.x" [attr.cy]="mid.y"
+          [attr.r]="4 / zoomLevel" fill="#bfdbfe" stroke="#3b82f6" [attr.stroke-width]="1.5 / zoomLevel"
+          style="cursor: crosshair; pointer-events: all"
+          (mousedown)="annMidpointMouseDown.emit({ event: $event, ann: ann, segmentIndex: mid.segmentIndex })"
+        />
+      }
+      @for (handle of getAnnHandles(ann); track handle.index) {
+        <svg:circle
+          [attr.cx]="handle.x" [attr.cy]="handle.y"
+          [attr.r]="6 / zoomLevel" fill="white" stroke="#3b82f6" [attr.stroke-width]="2 / zoomLevel"
+          style="cursor: move; pointer-events: all"
+          (mousedown)="annWaypointMouseDown.emit({ event: $event, ann: ann, index: handle.index })"
+          (dblclick)="annWaypointDblClick.emit({ event: $event, ann: ann, index: handle.index })"
+        />
+      }
+    }
+  }
+  @if (ann.type === 'line') {
+    <svg:g
+      [attr.pointer-events]="activeTool === 'pointer' ? 'all' : 'none'"
+      [class.cursor-move]="activeTool === 'pointer'"
+      [style.color]="ann.color"
+      (mousedown)="annotationMouseDown.emit({ event: $event, ann: ann })"
+      (contextmenu)="annotationContextMenu.emit({ event: $event, ann: ann })"
+    >
+      <svg:polyline
+        [attr.points]="linePoints(ann)"
+        [attr.stroke]="ann.color" [attr.stroke-width]="ann.strokeWidth"
+        [attr.stroke-dasharray]="strokeDashArray(ann)"
+        [attr.filter]="sloppyFilter(ann)"
+        [attr.marker-start]="markerStart(ann)"
+        [attr.marker-end]="markerEnd(ann)"
+        fill="none"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      />
+      <svg:polyline
+        [attr.points]="linePoints(ann)"
+        fill="none"
+        stroke="transparent" stroke-width="12"
+        stroke-linejoin="round"
+      />
+    </svg:g>
+    @if (selectedAnnotationId === ann.id && activeTool === 'pointer') {
+      @for (mid of getAnnMidHandles(ann); track mid.segmentIndex) {
+        <svg:circle
+          [attr.cx]="mid.x" [attr.cy]="mid.y"
+          [attr.r]="4 / zoomLevel" fill="#bfdbfe" stroke="#3b82f6" [attr.stroke-width]="1.5 / zoomLevel"
+          style="cursor: crosshair; pointer-events: all"
+          (mousedown)="annMidpointMouseDown.emit({ event: $event, ann: ann, segmentIndex: mid.segmentIndex })"
+        />
+      }
+      @for (handle of getAnnHandles(ann); track handle.index) {
+        <svg:circle
+          [attr.cx]="handle.x" [attr.cy]="handle.y"
+          [attr.r]="6 / zoomLevel" fill="white" stroke="#3b82f6" [attr.stroke-width]="2 / zoomLevel"
+          style="cursor: move; pointer-events: all"
+          (mousedown)="annWaypointMouseDown.emit({ event: $event, ann: ann, index: handle.index })"
+          (dblclick)="annWaypointDblClick.emit({ event: $event, ann: ann, index: handle.index })"
+        />
+      }
+    }
+  }
+  @if (ann.type === 'rect' && ann.width && ann.height) {
+    <svg:rect
+      [attr.x]="ann.x" [attr.y]="ann.y"
+      [attr.width]="ann.width" [attr.height]="ann.height"
+      [attr.stroke]="ann.color" [attr.stroke-width]="ann.strokeWidth"
+      [attr.stroke-dasharray]="strokeDashArray(ann)"
+      [attr.filter]="sloppyFilter(ann)"
+      [attr.fill]="ann.fill" rx="3"
+      [attr.fill-opacity]="ann.fill !== 'none' ? (ann.fillOpacity ?? 1) : null"
+      [attr.pointer-events]="activeTool === 'pointer' ? 'all' : 'none'"
+      [class.cursor-move]="activeTool === 'pointer'"
+      (mousedown)="annotationMouseDown.emit({ event: $event, ann: ann })"
+      (contextmenu)="annotationContextMenu.emit({ event: $event, ann: ann })"
+    />
+  }
+  @if (ann.type === 'ellipse' && ann.width && ann.height) {
+    <svg:ellipse
+      [attr.cx]="ann.x + ann.width / 2"
+      [attr.cy]="ann.y + ann.height / 2"
+      [attr.rx]="ann.width / 2"
+      [attr.ry]="ann.height / 2"
+      [attr.stroke]="ann.color" [attr.stroke-width]="ann.strokeWidth"
+      [attr.stroke-dasharray]="strokeDashArray(ann)"
+      [attr.filter]="sloppyFilter(ann)"
+      [attr.fill]="ann.fill"
+      [attr.fill-opacity]="ann.fill !== 'none' ? (ann.fillOpacity ?? 1) : null"
+      [attr.pointer-events]="activeTool === 'pointer' ? 'all' : 'none'"
+      [class.cursor-move]="activeTool === 'pointer'"
+      (mousedown)="annotationMouseDown.emit({ event: $event, ann: ann })"
+      (contextmenu)="annotationContextMenu.emit({ event: $event, ann: ann })"
+    />
+  }
+  @if (ann.type === 'diamond' && ann.width && ann.height) {
+    <svg:polygon
+      [attr.points]="diamondPoints(ann)"
+      [attr.stroke]="ann.color" [attr.stroke-width]="ann.strokeWidth"
+      [attr.stroke-dasharray]="strokeDashArray(ann)"
+      [attr.filter]="sloppyFilter(ann)"
+      [attr.fill]="ann.fill"
+      [attr.fill-opacity]="ann.fill !== 'none' ? (ann.fillOpacity ?? 1) : null"
+      [attr.pointer-events]="activeTool === 'pointer' ? 'all' : 'none'"
+      [class.cursor-move]="activeTool === 'pointer'"
+      (mousedown)="annotationMouseDown.emit({ event: $event, ann: ann })"
+      (contextmenu)="annotationContextMenu.emit({ event: $event, ann: ann })"
+    />
+  }
+  <!-- Selection highlight + resize handles for shapes -->
+  @if (selectedAnnotationId === ann.id && activeTool === 'pointer') {
+    @if (ann.type === 'rect' || ann.type === 'ellipse' || ann.type === 'diamond') {
+      <svg:rect
+        [attr.x]="ann.x - 4" [attr.y]="ann.y - 4"
+        [attr.width]="(ann.width ?? 0) + 8" [attr.height]="(ann.height ?? 0) + 8"
+        fill="none" stroke="#3b82f6" stroke-width="1.5" stroke-dasharray="4 3" rx="5"
+        pointer-events="none"
+      />
+      @for (rh of [
+        {h:'nw', cx: ann.x - 4,                       cy: ann.y - 4,                        cur:'nw-resize'},
+        {h:'n',  cx: ann.x + (ann.width ?? 0) / 2,    cy: ann.y - 4,                        cur:'n-resize'},
+        {h:'ne', cx: ann.x + (ann.width ?? 0) + 4,    cy: ann.y - 4,                        cur:'ne-resize'},
+        {h:'e',  cx: ann.x + (ann.width ?? 0) + 4,    cy: ann.y + (ann.height ?? 0) / 2,   cur:'e-resize'},
+        {h:'se', cx: ann.x + (ann.width ?? 0) + 4,    cy: ann.y + (ann.height ?? 0) + 4,   cur:'se-resize'},
+        {h:'s',  cx: ann.x + (ann.width ?? 0) / 2,    cy: ann.y + (ann.height ?? 0) + 4,   cur:'s-resize'},
+        {h:'sw', cx: ann.x - 4,                       cy: ann.y + (ann.height ?? 0) + 4,   cur:'sw-resize'},
+        {h:'w',  cx: ann.x - 4,                       cy: ann.y + (ann.height ?? 0) / 2,   cur:'w-resize'}
+      ]; track rh.h) {
+        <svg:rect
+          [attr.x]="rh.cx - 4" [attr.y]="rh.cy - 4"
+          width="8" height="8" rx="1"
+          fill="white" stroke="#3b82f6" stroke-width="1.5"
+          [style.cursor]="rh.cur"
+          style="pointer-events: all"
+          (mousedown)="annotationShapeResizeMouseDown.emit({ event: $event, ann: ann, handle: $any(rh.h) })"
+        />
+      }
+    }
+  }
+}
+
+<!-- In-progress drawing previews -->
+@if (previewPath) {
+  <svg:path [attr.d]="previewPath"
+    [attr.stroke]="activeColor" [attr.stroke-width]="activeStrokeWidth"
+    fill="none" stroke-linecap="round" stroke-linejoin="round" pointer-events="none" />
+}
+@if (previewArrow) {
+  <svg:g pointer-events="none" [style.color]="activeColor">
+    <svg:polyline [attr.points]="linePointsFromCoords(previewArrow.x1, previewArrow.y1, previewArrow.x2, previewArrow.y2, activeEdgeRouting)"
+      [attr.stroke]="activeColor" [attr.stroke-width]="activeStrokeWidth"
+      [attr.stroke-dasharray]="activeStrokeStyle === 'solid' ? '6 3' : strokeDashArray(undefined, activeStrokeStyle)"
+      [attr.filter]="sloppyFilter(undefined, activeSloppiness)"
+      [attr.marker-start]="previewMarkerStart()"
+      [attr.marker-end]="previewMarkerEnd()"
+      fill="none" stroke-linecap="round" stroke-linejoin="round" />
+  </svg:g>
+}
+@if (previewLine) {
+  <svg:polyline [attr.points]="linePointsFromCoords(previewLine.x1, previewLine.y1, previewLine.x2, previewLine.y2, activeEdgeRouting)"
+    [attr.stroke]="activeColor" [attr.stroke-width]="activeStrokeWidth"
+    [attr.stroke-dasharray]="activeStrokeStyle === 'solid' ? '6 3' : strokeDashArray(undefined, activeStrokeStyle)"
+    [attr.filter]="sloppyFilter(undefined, activeSloppiness)"
+    [attr.marker-start]="previewMarkerStart()"
+    [attr.marker-end]="previewMarkerEnd()"
+    [style.color]="activeColor"
+    fill="none" stroke-linecap="round" stroke-linejoin="round" pointer-events="none" />
+}
+@if (previewRect) {
+  <svg:rect [attr.x]="previewRect.x" [attr.y]="previewRect.y"
+    [attr.width]="previewRect.w" [attr.height]="previewRect.h"
+    [attr.stroke]="activeColor" [attr.stroke-width]="activeStrokeWidth"
+    [attr.fill]="activeFill" [attr.fill-opacity]="activeFill !== 'none' ? activeFillOpacity : null" stroke-dasharray="6 3" rx="3" pointer-events="none" />
+}
+@if (previewDiamond) {
+  <svg:polygon
+    [attr.points]="diamondPointsFromRect(previewDiamond)"
+    [attr.stroke]="activeColor" [attr.stroke-width]="activeStrokeWidth"
+    [attr.fill]="activeFill"
+    [attr.fill-opacity]="activeFill !== 'none' ? activeFillOpacity : null"
+    stroke-dasharray="6 3" pointer-events="none"
+  />
+}
+@if (previewEllipse) {
+  <svg:ellipse
+    [attr.cx]="previewEllipse.cx" [attr.cy]="previewEllipse.cy"
+    [attr.rx]="previewEllipse.rx" [attr.ry]="previewEllipse.ry"
+    [attr.stroke]="activeColor" [attr.stroke-width]="activeStrokeWidth"
+    [attr.fill]="activeFill" [attr.fill-opacity]="activeFill !== 'none' ? activeFillOpacity : null" stroke-dasharray="6 3" pointer-events="none" />
+}

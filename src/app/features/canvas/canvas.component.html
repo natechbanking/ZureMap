@@ -116,345 +116,73 @@
               [style.transform]="'scale(' + zoomLevel + ')'"
           >
 
-            <!-- Subscription boxes (shown for multi-subscription views) -->
-            @for (bound of subscriptionBounds; track bound.id) {
-              @let subHL = subTagHighlights.get(bound.subscriptionId);
-              @let subHLB = getHighlightBounds(bound, subHL);
-              @let subOff = getEffectiveSizeOffset(subHL);
-              <div
-                class="absolute rounded-2xl border-2"
-                [class.border-dashed]="!subHL || selectedTagHighlightRuleId !== subHL.ruleId"
-                [class.border-solid]="subHL && selectedTagHighlightRuleId === subHL.ruleId"
-                [class.pointer-events-none]="!subHL"
-                [class.pointer-events-auto]="!!subHL"
-                [class.cursor-pointer]="!!subHL && selectedTagHighlightRuleId !== subHL.ruleId"
-                [style.border-color]="subHL ? subHL.borderColor : '#fcd34d'"
-                [style.background-color]="subHL ? subHL.bgColor : 'rgba(255,251,235,0.3)'"
-                [style.left.px]="subHLB.x"
-                [style.top.px]="subHLB.y"
-                [style.width.px]="subHLB.w"
-                [style.height.px]="subHLB.h"
-                [style.box-shadow]="subHL && selectedTagHighlightRuleId === subHL.ruleId ? '0 0 0 3px ' + subHL.borderColor + '66' : null"
-                [attr.tabindex]="subHL ? 0 : -1"
-                (click)="subHL ? selectTagHighlight(subHL.ruleId, $event) : null"
-                (keydown.enter)="subHL ? selectTagHighlight(subHL.ruleId, $event) : null"
-              >
-                <div
-                  class="absolute flex items-center gap-2 px-3 py-2 rounded-t-2xl select-none pointer-events-auto hover:bg-amber-100/60 transition-colors"
-                  [style.top.px]="subOff.top"
-                  [style.left.px]="subOff.left"
-                  [style.right.px]="subOff.right"
-                  [class.cursor-grab]="activeTool === 'pointer' && !isSubscriptionDragging"
-                  [class.cursor-grabbing]="isSubscriptionDragging && subscriptionDragState?.subscriptionId === bound.subscriptionId"
-                  [class.cursor-crosshair]="activeTool !== 'pointer'"
-                  style="z-index: 10; height: 36px"
-                  role="presentation"
-                  (mousedown)="onSubscriptionMouseDown($event, bound.subscriptionId)"
-                  (click)="$event.stopPropagation()"
-                  (keydown)="$event.stopPropagation()"
-                >
-                  <img [src]="subscriptionIconUrl" alt="" class="w-4 h-4 object-contain flex-shrink-0 opacity-90" (error)="$any($event.target).style.display='none'" />
-                  @if (renamingContainer?.type === 'sub' && renamingContainer?.id === bound.subscriptionId) {
-                    <input
-                      #renameInput
-                      class="text-xs font-semibold text-amber-700 bg-transparent border-b border-amber-400 outline-none min-w-0 flex-1"
-                      [value]="renamingValue"
-                      (input)="renamingValue = $any($event.target).value"
-                      (blur)="commitRename()"
-                      (keydown.enter)="commitRename()"
-                      (keydown.escape)="$event.stopPropagation(); cancelRename()"
-                      (mousedown)="$event.stopPropagation()"
-                      (click)="$event.stopPropagation()"
-                    />
-                  } @else {
-                    <span
-                      class="text-xs font-semibold text-amber-700 tracking-wide truncate flex-1"
-                      title="Double-click to rename"
-                      (dblclick)="$event.stopPropagation(); startRename('sub', bound.subscriptionId, bound.name)"
-                    >{{ bound.name }}</span>
-                    @if (subHL?.badgeLabel) {
-                      <span class="ml-1 px-1.5 py-0.5 rounded text-[9px] font-bold text-white" [style.background-color]="subHL!.borderColor">{{ subHL!.badgeLabel }}</span>
-                    }
-                  }
-                  <button
-                    type="button"
-                    data-export-hide
-                    class="ml-auto w-5 h-5 rounded text-amber-700 hover:bg-amber-200/70 transition-colors"
-                    [title]="bound.collapsed ? 'Expand subscription' : 'Collapse subscription'"
-                    (mousedown)="$event.stopPropagation()"
-                    (click)="toggleSubscriptionCollapsed(bound.subscriptionId); $event.stopPropagation()"
-                  >
-                    {{ bound.collapsed ? '+' : '-' }}
-                  </button>
-                </div>
-                @if (subHL && selectedTagHighlightRuleId === subHL.ruleId) {
-                  @for (rh of resizeHandles; track rh.id) {
-                    <div
-                      class="absolute w-3 h-3 bg-white border-2 rounded-sm pointer-events-auto z-50"
-                      data-export-hide
-                      [style.border-color]="subHL.borderColor"
-                      [style.cursor]="rh.cursor"
-                      [style.left]="rh.left"
-                      [style.top]="rh.top"
-                      [style.transform]="'translate(-50%, -50%)'"
-                      (mousedown)="onTagHighlightResizeMouseDown($event, subHL.ruleId, rh.id)"
-                    ></div>
-                  }
-                }
-              </div>
-            }
-
-            <!-- Resource group boxes -->
-            @for (bound of rgBounds; track bound.id) {
-              @let rgHL = rgTagHighlights.get(bound.id);
-              @let rgHLB = getHighlightBounds(bound, rgHL);
-              @let rgOff = getEffectiveSizeOffset(rgHL);
-              <div
-                class="absolute rounded-xl border"
-                [class.border-dashed]="!rgHL || selectedTagHighlightRuleId !== rgHL.ruleId"
-                [class.border-solid]="rgHL && selectedTagHighlightRuleId === rgHL.ruleId"
-                [class.pointer-events-none]="!rgHL"
-                [class.pointer-events-auto]="!!rgHL"
-                [class.cursor-pointer]="!!rgHL && selectedTagHighlightRuleId !== rgHL.ruleId"
-                [style.border-color]="rgHL ? rgHL.borderColor : '#93c5fd'"
-                [style.background-color]="rgHL ? rgHL.bgColor : 'rgba(239,246,255,0.25)'"
-                [style.left.px]="rgHLB.x"
-                [style.top.px]="rgHLB.y"
-                [style.width.px]="rgHLB.w"
-                [style.height.px]="rgHLB.h"
-                [style.box-shadow]="rgHL && selectedTagHighlightRuleId === rgHL.ruleId ? '0 0 0 3px ' + rgHL.borderColor + '66' : null"
-                [attr.tabindex]="rgHL ? 0 : -1"
-                (click)="rgHL ? selectTagHighlight(rgHL.ruleId, $event) : null"
-                (keydown.enter)="rgHL ? selectTagHighlight(rgHL.ruleId, $event) : null"
-              >
-                <div
-                  class="absolute flex items-center gap-2 px-3 py-1.5 rounded-t-xl select-none pointer-events-auto hover:bg-blue-100/50 transition-colors"
-                  [style.top.px]="rgOff.top"
-                  [style.left.px]="rgOff.left"
-                  [style.right.px]="rgOff.right"
-                  [class.cursor-grab]="activeTool === 'pointer' && !isRgDragging"
-                  [class.cursor-grabbing]="isRgDragging && rgDragState?.id === bound.id"
-                  [class.cursor-crosshair]="activeTool !== 'pointer'"
-                  style="z-index: 20; height: 32px"
-                  role="presentation"
-                  (mousedown)="onRgMouseDown($event, bound.id)"
-                  (contextmenu)="onRgContextMenu($event, bound)"
-                  (click)="$event.stopPropagation()"
-                  (keydown)="$event.stopPropagation()"
-                >
-                  <img [src]="rgIconUrl" alt="" class="w-4 h-4 object-contain flex-shrink-0" (error)="$any($event.target).style.display='none'" />
-                  @if (renamingContainer?.type === 'rg' && renamingContainer?.id === bound.id) {
-                    <input
-                      #renameInput
-                      class="text-xs font-semibold text-blue-500 bg-transparent border-b border-blue-400 outline-none min-w-0 flex-1"
-                      [value]="renamingValue"
-                      (input)="renamingValue = $any($event.target).value"
-                      (blur)="commitRename()"
-                      (keydown.enter)="commitRename()"
-                      (keydown.escape)="$event.stopPropagation(); cancelRename()"
-                      (mousedown)="$event.stopPropagation()"
-                      (click)="$event.stopPropagation()"
-                    />
-                  } @else {
-                    <span
-                      class="text-xs font-semibold text-blue-500 tracking-wide truncate flex-1"
-                      title="Double-click to rename"
-                      (dblclick)="$event.stopPropagation(); startRename('rg', bound.id, bound.name)"
-                    >{{ bound.name }}</span>
-                    @if (rgHL?.badgeLabel) {
-                      <span class="ml-1 px-1.5 py-0.5 rounded text-[9px] font-bold text-white" [style.background-color]="rgHL!.borderColor">{{ rgHL!.badgeLabel }}</span>
-                    }
-                  }
-                  <button
-                    type="button"
-                    data-export-hide
-                    class="ml-auto w-5 h-5 rounded text-blue-600 hover:bg-blue-200/70 transition-colors"
-                    [title]="bound.collapsed ? 'Expand resource group' : 'Collapse resource group'"
-                    (mousedown)="$event.stopPropagation()"
-                    (click)="toggleRgCollapsed(bound.id); $event.stopPropagation()"
-                  >
-                    {{ bound.collapsed ? '+' : '-' }}
-                  </button>
-                </div>
-                @if (rgHL && selectedTagHighlightRuleId === rgHL.ruleId) {
-                  @for (rh of resizeHandles; track rh.id) {
-                    <div
-                      class="absolute w-3 h-3 bg-white border-2 rounded-sm pointer-events-auto z-50"
-                      data-export-hide
-                      [style.border-color]="rgHL.borderColor"
-                      [style.cursor]="rh.cursor"
-                      [style.left]="rh.left"
-                      [style.top]="rh.top"
-                      [style.transform]="'translate(-50%, -50%)'"
-                      (mousedown)="onTagHighlightResizeMouseDown($event, rgHL.ruleId, rh.id)"
-                    ></div>
-                  }
-                }
-              </div>
-            }
-
-            <!-- VM sub-containers (VM + related resources) -->
-            @for (bound of vmBounds; track bound.id) {
-              <div
-                class="absolute rounded-lg border border-dashed border-slate-300 bg-slate-50/40 pointer-events-none"
-                [style.left.px]="bound.x"
-                [style.top.px]="bound.y"
-                [style.width.px]="bound.width"
-                [style.height.px]="bound.height"
-              >
-                <div
-                  class="absolute top-0 left-0 right-0 flex items-center gap-2 px-2 py-1 text-[10px] font-semibold text-slate-500 bg-slate-100/70 rounded-t-lg select-none pointer-events-auto"
-                  [class.cursor-grab]="activeTool === 'pointer' && !isVmDragging"
-                  [class.cursor-grabbing]="isVmDragging && vmDragState?.vmId === bound.id"
-                  [class.cursor-crosshair]="activeTool !== 'pointer'"
-                  style="z-index: 25; height: 24px"
-                  (mousedown)="onVmMouseDown($event, bound.id)"
-                >
-                  @if (renamingContainer?.type === 'vm' && renamingContainer?.id === bound.id) {
-                    <input
-                      #renameInput
-                      class="text-[10px] font-semibold text-slate-500 bg-transparent border-b border-slate-400 outline-none min-w-0 flex-1"
-                      [value]="renamingValue"
-                      (input)="renamingValue = $any($event.target).value"
-                      (blur)="commitRename()"
-                      (keydown.enter)="commitRename()"
-                      (keydown.escape)="$event.stopPropagation(); cancelRename()"
-                      (mousedown)="$event.stopPropagation()"
-                      (click)="$event.stopPropagation()"
-                    />
-                  } @else {
-                    <span
-                      class="truncate flex-1"
-                      title="Double-click to rename"
-                      (dblclick)="$event.stopPropagation(); startRename('vm', bound.id, bound.name)"
-                    >VM Group: {{ bound.name }}</span>
-                  }
-                  <button
-                    type="button"
-                    data-export-hide
-                    class="ml-auto w-4 h-4 rounded text-slate-600 hover:bg-slate-200/70 transition-colors"
-                    [title]="bound.collapsed ? 'Expand VM group' : 'Collapse VM group'"
-                    (mousedown)="$event.stopPropagation()"
-                    (click)="toggleVmCollapsed(bound.id); $event.stopPropagation()"
-                  >
-                    {{ bound.collapsed ? '+' : '-' }}
-                  </button>
-                </div>
-              </div>
-            }
-
-            <!-- Route table route sub-containers -->
-            @for (bound of routeTableBounds; track bound.id) {
-              <div
-                class="absolute rounded-lg border border-dashed border-cyan-300 bg-cyan-50/35 pointer-events-none"
-                [style.left.px]="bound.x"
-                [style.top.px]="bound.y"
-                [style.width.px]="bound.width"
-                [style.height.px]="bound.height"
-              >
-                <div
-                  class="absolute top-0 left-0 right-0 flex items-center gap-2 px-2 py-1 text-[10px] font-semibold text-cyan-700 bg-cyan-100/70 rounded-t-lg select-none pointer-events-auto"
-                  [class.cursor-crosshair]="activeTool !== 'pointer'"
-                  style="z-index: 25; height: 24px"
-                >
-                  @if (renamingContainer?.type === 'rt' && renamingContainer?.id === bound.id) {
-                    <input
-                      #renameInput
-                      class="text-[10px] font-semibold text-cyan-700 bg-transparent border-b border-cyan-400 outline-none min-w-0 flex-1"
-                      [value]="renamingValue"
-                      (input)="renamingValue = $any($event.target).value"
-                      (blur)="commitRename()"
-                      (keydown.enter)="commitRename()"
-                      (keydown.escape)="$event.stopPropagation(); cancelRename()"
-                      (mousedown)="$event.stopPropagation()"
-                      (click)="$event.stopPropagation()"
-                    />
-                  } @else {
-                    <span
-                      class="truncate flex-1"
-                      title="Double-click to rename"
-                      (dblclick)="$event.stopPropagation(); startRename('rt', bound.id, bound.name)"
-                    >Routes: {{ bound.name }}</span>
-                  }
-                  <button
-                    type="button"
-                    data-export-hide
-                    class="ml-auto w-4 h-4 rounded text-cyan-700 hover:bg-cyan-200/70 transition-colors"
-                    [title]="bound.collapsed ? 'Expand routes' : 'Collapse routes'"
-                    (mousedown)="$event.stopPropagation()"
-                    (click)="toggleRouteTableCollapsed(bound.id); $event.stopPropagation()"
-                  >
-                    {{ bound.collapsed ? '+' : '-' }}
-                  </button>
-                </div>
-              </div>
-            }
+            <app-canvas-containers-layer
+              [subscriptionBounds]="subscriptionBounds"
+              [rgBounds]="rgBounds"
+              [vmBounds]="vmBounds"
+              [routeTableBounds]="routeTableBounds"
+              [subTagHighlights]="subTagHighlights"
+              [rgTagHighlights]="rgTagHighlights"
+              [selectedTagHighlightRuleId]="selectedTagHighlightRuleId"
+              [tagHighlightResizeDrag]="tagHighlightResizeDrag"
+              [renamingContainer]="renamingContainer"
+              [renamingValue]="renamingValue"
+              [activeTool]="activeTool"
+              [subscriptionDragState]="subscriptionDragState"
+              [rgDragState]="rgDragState"
+              [vmDragState]="vmDragState"
+              (subscriptionMouseDown)="onSubscriptionMouseDown($event.event, $event.subscriptionId)"
+              (rgMouseDown)="onRgMouseDown($event.event, $event.rgId)"
+              (rgContextMenu)="onRgContextMenu($event.event, $event.bound)"
+              (vmMouseDown)="onVmMouseDown($event.event, $event.vmId)"
+              (toggleSubscriptionCollapsed)="toggleSubscriptionCollapsed($event)"
+              (toggleRgCollapsed)="toggleRgCollapsed($event)"
+              (toggleVmCollapsed)="toggleVmCollapsed($event)"
+              (toggleRouteTableCollapsed)="toggleRouteTableCollapsed($event)"
+              (tagHighlightSelected)="selectTagHighlight($event.ruleId, $event.event)"
+              (tagHighlightResizeMouseDown)="onTagHighlightResizeMouseDown($event.event, $event.ruleId, $event.handle)"
+              (renameValueChange)="renamingValue = $event"
+              (commitRename)="commitRename()"
+              (cancelRename)="cancelRename()"
+              (startRename)="startRename($event.type, $event.id, $event.name)"
+            ></app-canvas-containers-layer>
 
             <!-- Azure resource nodes -->
-            @for (node of visibleNodes; track node.id) {
-              @let nodeHL = nodeTagHighlights.get(node.id) ?? null;
-              @let detachParentId = childToParentMap().get(node.id);
-              <div
-                class="absolute group"
-                [style.left.px]="node.position.x"
-                [style.top.px]="node.position.y"
-                [style.transform]="node.angle ? 'rotate(' + node.angle + 'deg)' : null"
-                style="transform-origin: center center;"
-                [style.pointer-events]="activeTool === 'pointer' ? 'auto' : 'none'"
-                [class.cursor-grab]="activeTool === 'pointer' && nodeDragState?.id !== node.id"
-                [class.cursor-grabbing]="nodeDragState?.id === node.id"
-                (mousedown)="onNodeMouseDown($event, node)"
-              >
-                <app-diagram-node
-                  [node]="node"
-                  [finOpsActive]="store.finOpsLayerActive()"
-                  [zoomLevel]="zoomLevel"
-                  [tagHighlightColor]="nodeHL"
-                  (clicked)="store.selectNode($event)"
-                  (editRequested)="openResourceEditor($event)"
-                  (internalItemMoved)="onInternalItemMoved($event)"
-                  (nodeResized)="onNodeResized($event)"
-                  (nodeRotateStarted)="store.pushUndo()"
-                  (nodeRotated)="onNodeRotated($event)"
-                  (routeTableExpansionChanged)="onRouteTableExpansionChanged($event)"
-                  (virtualNetworkExpansionChanged)="onVirtualNetworkExpansionChanged($event)"
-                  (nsgExpansionChanged)="onNsgExpansionChanged($event)"
-                  (storageAccountExpansionChanged)="onStorageAccountExpansionChanged($event)"
-                  (aksExpansionChanged)="onAksExpansionChanged($event)"
-                  (vmExpansionChanged)="onVmExpansionChanged($event)"
-                  (uaiExpansionChanged)="onUaiExpansionChanged($event)"
-                  (hostingEnvironmentExpansionChanged)="onHostingEnvironmentExpansionChanged($event)"
-                  (serverFarmExpansionChanged)="onServerFarmExpansionChanged($event)"
-                  (publicIpExpansionChanged)="onPublicIpExpansionChanged($event)"
-                  (scheduleExpansionChanged)="onScheduleExpansionChanged($event)"
-                  (diskExpansionChanged)="onDiskExpansionChanged($event)"
-                  (azureFirewallExpansionChanged)="onAzureFirewallExpansionChanged($event)"
-                  (applicationGatewayExpansionChanged)="onApplicationGatewayExpansionChanged($event)"
-                  (connectionExpansionChanged)="onConnectionExpansionChanged($event)"
-                  (dnsZoneExpansionChanged)="onDnsZoneExpansionChanged($event)"
-                  (contextMenuRequested)="onContextMenuRequested($event)"
-                />
-                @if (detachParentId || canDetachFromResourceGroup(node)) {
-                  <button
-                    type="button"
-                    class="absolute top-0.5 right-0.5 z-10 flex items-center justify-center w-5 h-5 rounded
-                           transition-opacity duration-150 group-hover:opacity-100
-                           bg-white/80 border border-gray-300 text-gray-400
-                           hover:text-red-500 hover:border-red-400 hover:bg-red-50 cursor-pointer"
-                    [class.opacity-0]="nodeDragState?.id !== node.id"
-                    [title]="breakOutTitle(node, detachParentId ?? null)"
-                    (mousedown)="$event.stopPropagation()"
-                    (click)="$event.stopPropagation(); breakOutNode(node.id, detachParentId ?? null)"
-                  >
-                    <svg class="w-3 h-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
-                      <rect x="2.5" y="5.5" width="8" height="8" rx="1.5"/>
-                      <path d="M8 2.5h5.5V8"/>
-                      <path d="M13.5 2.5L7.5 8.5"/>
-                    </svg>
-                  </button>
-                }
-              </div>
-            }
+            <app-canvas-nodes-layer
+              [visibleNodes]="visibleNodes"
+              [activeTool]="activeTool"
+              [nodeDragState]="nodeDragState"
+              [nodeTagHighlights]="nodeTagHighlights"
+              [childToParentMap]="childToParentMap()"
+              [parentLabelById]="parentLabelById()"
+              [finOpsActive]="store.finOpsLayerActive()"
+              [zoomLevel]="zoomLevel"
+              (nodeMouseDown)="onNodeMouseDown($event.event, $event.node)"
+              (nodeClicked)="store.selectNode($event)"
+              (editRequested)="openResourceEditor($event)"
+              (internalItemMoved)="onInternalItemMoved($event)"
+              (nodeResized)="onNodeResized($event)"
+              (nodeRotateStarted)="store.pushUndo()"
+              (nodeRotated)="onNodeRotated($event)"
+              (contextMenuRequested)="onContextMenuRequested($event)"
+              (breakOut)="breakOutNode($event.nodeId, $event.parentId)"
+              (routeTableExpansionChanged)="onRouteTableExpansionChanged($event)"
+              (virtualNetworkExpansionChanged)="onVirtualNetworkExpansionChanged($event)"
+              (nsgExpansionChanged)="onNsgExpansionChanged($event)"
+              (storageAccountExpansionChanged)="onStorageAccountExpansionChanged($event)"
+              (aksExpansionChanged)="onAksExpansionChanged($event)"
+              (vmExpansionChanged)="onVmExpansionChanged($event)"
+              (uaiExpansionChanged)="onUaiExpansionChanged($event)"
+              (hostingEnvironmentExpansionChanged)="onHostingEnvironmentExpansionChanged($event)"
+              (serverFarmExpansionChanged)="onServerFarmExpansionChanged($event)"
+              (publicIpExpansionChanged)="onPublicIpExpansionChanged($event)"
+              (scheduleExpansionChanged)="onScheduleExpansionChanged($event)"
+              (diskExpansionChanged)="onDiskExpansionChanged($event)"
+              (azureFirewallExpansionChanged)="onAzureFirewallExpansionChanged($event)"
+              (applicationGatewayExpansionChanged)="onApplicationGatewayExpansionChanged($event)"
+              (connectionExpansionChanged)="onConnectionExpansionChanged($event)"
+              (dnsZoneExpansionChanged)="onDnsZoneExpansionChanged($event)"
+            ></app-canvas-nodes-layer>
 
             <!-- SVG: edges + annotations + drawing layer (pointer-events-none so HTML elements below receive events; SVG children with explicit pointer-events still work) -->
             <svg
@@ -487,320 +215,40 @@
                 </filter>
               </defs>
 
-              <!-- Edges (pass-through) -->
-              @for (edge of visibleEdges; track edge.id) {
-                @let edgePts = getEdgePolylineString(edge);
-                <g>
-                  @if (selectedEdgeId === edge.id) {
-                    <polyline
-                      pointer-events="none"
-                      [attr.points]="edgePts"
-                      fill="none"
-                      stroke="#2563eb"
-                      [attr.stroke-width]="edge.style.strokeWidth + 4"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      opacity="0.25"
-                    />
-                  }
-                  <polyline
-                    [attr.pointer-events]="activeTool === 'pointer' ? 'stroke' : 'none'"
-                    [attr.points]="edgePts"
-                    fill="none"
-                    [attr.stroke]="edge.style.strokeColor"
-                    [attr.stroke-width]="edge.style.strokeWidth"
-                    [attr.stroke-dasharray]="edge.style.dashArray ?? null"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    [attr.marker-end]="edge.style.markerEnd === 'arrow' ? edgeMarkerUrl(edge.style.strokeColor) : null"
-                    [class.animate-pulse]="edge.animated"
-                    style="cursor: pointer"
-                    (click)="onEdgeClick($event, edge)"
-                  />
-                  <!-- Waypoint handles (shown when selected and pointer tool active) -->
-                  @if (selectedEdgeId === edge.id && activeTool === 'pointer') {
-                    @let edgeAllPts = getEdgePoints(edge);
-                    <!-- Endpoint anchors (visual only) -->
-                    @if (edgeAllPts.length > 0) {
-                      <circle
-                        [attr.cx]="edgeAllPts[0].x" [attr.cy]="edgeAllPts[0].y"
-                        [attr.r]="5 / zoomLevel" fill="#3b82f6" stroke="white" [attr.stroke-width]="1.5 / zoomLevel"
-                        pointer-events="none"
-                      />
-                      <circle
-                        [attr.cx]="edgeAllPts[edgeAllPts.length - 1].x" [attr.cy]="edgeAllPts[edgeAllPts.length - 1].y"
-                        [attr.r]="5 / zoomLevel" fill="#3b82f6" stroke="white" [attr.stroke-width]="1.5 / zoomLevel"
-                        pointer-events="none"
-                      />
-                    }
-                    <!-- Virtual midpoint handles (insert new waypoint) -->
-                    @for (mid of getEdgeMidHandles(edge); track mid.segmentIndex) {
-                      <circle
-                        [attr.cx]="mid.x" [attr.cy]="mid.y"
-                        [attr.r]="4 / zoomLevel" fill="#bfdbfe" stroke="#3b82f6" [attr.stroke-width]="1.5 / zoomLevel"
-                        style="cursor: crosshair; pointer-events: all"
-                        (mousedown)="onEdgeMidpointMouseDown($event, edge, mid.segmentIndex)"
-                      />
-                    }
-                    <!-- Real waypoint handles (drag to move, dblclick to delete) -->
-                    @for (handle of getEdgeHandles(edge); track handle.index) {
-                      <circle
-                        [attr.cx]="handle.x" [attr.cy]="handle.y"
-                        [attr.r]="6 / zoomLevel" fill="white" stroke="#3b82f6" [attr.stroke-width]="2 / zoomLevel"
-                        style="cursor: move; pointer-events: all"
-                        (mousedown)="onEdgeWaypointMouseDown($event, edge, handle.index)"
-                        (dblclick)="onEdgeWaypointDblClick($event, edge, handle.index)"
-                      />
-                    }
-                  }
-                </g>
-              }
-
-              <!-- Saved annotations -->
-              @for (ann of store.annotations(); track ann.id) {
-                @if (ann.type === 'draw' && ann.pathData) {
-                  <path
-                    [attr.d]="ann.pathData"
-                    [attr.stroke]="ann.color"
-                    [attr.stroke-width]="ann.strokeWidth"
-                    [attr.stroke-dasharray]="strokeDashArray(ann)"
-                    [attr.filter]="sloppyFilter(ann)"
-                    fill="none"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    [attr.pointer-events]="activeTool === 'pointer' ? 'stroke' : 'none'"
-                    [class.cursor-move]="activeTool === 'pointer'"
-                    (mousedown)="onAnnotationMouseDown($event, ann)"
-                    (contextmenu)="onAnnotationContextMenu($event, ann)"
-                  />
-                }
-                @if (ann.type === 'arrow') {
-                  <g
-                    [attr.pointer-events]="activeTool === 'pointer' ? 'all' : 'none'"
-                    [class.cursor-move]="activeTool === 'pointer'"
-                    [style.color]="ann.color"
-                    (mousedown)="onAnnotationMouseDown($event, ann)"
-                    (contextmenu)="onAnnotationContextMenu($event, ann)"
-                  >
-                    <polyline
-                      [attr.points]="linePoints(ann)"
-                      [attr.stroke]="ann.color" [attr.stroke-width]="ann.strokeWidth"
-                      [attr.stroke-dasharray]="strokeDashArray(ann)"
-                      [attr.filter]="sloppyFilter(ann)"
-                      [attr.marker-start]="markerStart(ann)"
-                      [attr.marker-end]="markerEnd(ann)"
-                      fill="none"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    />
-                    <!-- wider invisible hit area -->
-                    <polyline
-                      [attr.points]="linePoints(ann)"
-                      fill="none"
-                      stroke="transparent" stroke-width="12"
-                      stroke-linejoin="round"
-                    />
-                  </g>
-                  <!-- Waypoint handles for selected arrow -->
-                  @if (selectedAnnotationId === ann.id && activeTool === 'pointer') {
-                    <!-- Virtual midpoint handles -->
-                    @for (mid of getAnnMidHandles(ann); track mid.segmentIndex) {
-                      <circle
-                        [attr.cx]="mid.x" [attr.cy]="mid.y"
-                        [attr.r]="4 / zoomLevel" fill="#bfdbfe" stroke="#3b82f6" [attr.stroke-width]="1.5 / zoomLevel"
-                        style="cursor: crosshair; pointer-events: all"
-                        (mousedown)="onAnnMidpointMouseDown($event, ann, mid.segmentIndex)"
-                      />
-                    }
-                    <!-- Real waypoint handles -->
-                    @for (handle of getAnnHandles(ann); track handle.index) {
-                      <circle
-                        [attr.cx]="handle.x" [attr.cy]="handle.y"
-                        [attr.r]="6 / zoomLevel" fill="white" stroke="#3b82f6" [attr.stroke-width]="2 / zoomLevel"
-                        style="cursor: move; pointer-events: all"
-                        (mousedown)="onAnnWaypointMouseDown($event, ann, handle.index)"
-                        (dblclick)="onAnnWaypointDblClick($event, ann, handle.index)"
-                      />
-                    }
-                  }
-                }
-                @if (ann.type === 'line') {
-                  <g
-                    [attr.pointer-events]="activeTool === 'pointer' ? 'all' : 'none'"
-                    [class.cursor-move]="activeTool === 'pointer'"
-                    [style.color]="ann.color"
-                    (mousedown)="onAnnotationMouseDown($event, ann)"
-                    (contextmenu)="onAnnotationContextMenu($event, ann)"
-                  >
-                    <polyline
-                      [attr.points]="linePoints(ann)"
-                      [attr.stroke]="ann.color" [attr.stroke-width]="ann.strokeWidth"
-                      [attr.stroke-dasharray]="strokeDashArray(ann)"
-                      [attr.filter]="sloppyFilter(ann)"
-                      [attr.marker-start]="markerStart(ann)"
-                      [attr.marker-end]="markerEnd(ann)"
-                      fill="none"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    />
-                    <polyline
-                      [attr.points]="linePoints(ann)"
-                      fill="none"
-                      stroke="transparent" stroke-width="12"
-                      stroke-linejoin="round"
-                    />
-                  </g>
-                  <!-- Waypoint handles for selected line -->
-                  @if (selectedAnnotationId === ann.id && activeTool === 'pointer') {
-                    <!-- Virtual midpoint handles -->
-                    @for (mid of getAnnMidHandles(ann); track mid.segmentIndex) {
-                      <circle
-                        [attr.cx]="mid.x" [attr.cy]="mid.y"
-                        [attr.r]="4 / zoomLevel" fill="#bfdbfe" stroke="#3b82f6" [attr.stroke-width]="1.5 / zoomLevel"
-                        style="cursor: crosshair; pointer-events: all"
-                        (mousedown)="onAnnMidpointMouseDown($event, ann, mid.segmentIndex)"
-                      />
-                    }
-                    <!-- Real waypoint handles -->
-                    @for (handle of getAnnHandles(ann); track handle.index) {
-                      <circle
-                        [attr.cx]="handle.x" [attr.cy]="handle.y"
-                        [attr.r]="6 / zoomLevel" fill="white" stroke="#3b82f6" [attr.stroke-width]="2 / zoomLevel"
-                        style="cursor: move; pointer-events: all"
-                        (mousedown)="onAnnWaypointMouseDown($event, ann, handle.index)"
-                        (dblclick)="onAnnWaypointDblClick($event, ann, handle.index)"
-                      />
-                    }
-                  }
-                }
-                @if (ann.type === 'rect' && ann.width && ann.height) {
-                  <rect
-                    [attr.x]="ann.x" [attr.y]="ann.y"
-                    [attr.width]="ann.width" [attr.height]="ann.height"
-                    [attr.stroke]="ann.color" [attr.stroke-width]="ann.strokeWidth"
-                    [attr.stroke-dasharray]="strokeDashArray(ann)"
-                    [attr.filter]="sloppyFilter(ann)"
-                    [attr.fill]="ann.fill" rx="3"
-                    [attr.fill-opacity]="ann.fill !== 'none' ? (ann.fillOpacity ?? 1) : null"
-                    [attr.pointer-events]="activeTool === 'pointer' ? 'all' : 'none'"
-                    [class.cursor-move]="activeTool === 'pointer'"
-                    (mousedown)="onAnnotationMouseDown($event, ann)"
-                    (contextmenu)="onAnnotationContextMenu($event, ann)"
-                  />
-                }
-                @if (ann.type === 'ellipse' && ann.width && ann.height) {
-                  <ellipse
-                    [attr.cx]="ann.x + ann.width / 2"
-                    [attr.cy]="ann.y + ann.height / 2"
-                    [attr.rx]="ann.width / 2"
-                    [attr.ry]="ann.height / 2"
-                    [attr.stroke]="ann.color" [attr.stroke-width]="ann.strokeWidth"
-                    [attr.stroke-dasharray]="strokeDashArray(ann)"
-                    [attr.filter]="sloppyFilter(ann)"
-                    [attr.fill]="ann.fill"
-                    [attr.fill-opacity]="ann.fill !== 'none' ? (ann.fillOpacity ?? 1) : null"
-                    [attr.pointer-events]="activeTool === 'pointer' ? 'all' : 'none'"
-                    [class.cursor-move]="activeTool === 'pointer'"
-                    (mousedown)="onAnnotationMouseDown($event, ann)"
-                    (contextmenu)="onAnnotationContextMenu($event, ann)"
-                  />
-                }
-                @if (ann.type === 'diamond' && ann.width && ann.height) {
-                  <polygon
-                    [attr.points]="diamondPoints(ann)"
-                    [attr.stroke]="ann.color" [attr.stroke-width]="ann.strokeWidth"
-                    [attr.stroke-dasharray]="strokeDashArray(ann)"
-                    [attr.filter]="sloppyFilter(ann)"
-                    [attr.fill]="ann.fill"
-                    [attr.fill-opacity]="ann.fill !== 'none' ? (ann.fillOpacity ?? 1) : null"
-                    [attr.pointer-events]="activeTool === 'pointer' ? 'all' : 'none'"
-                    [class.cursor-move]="activeTool === 'pointer'"
-                    (mousedown)="onAnnotationMouseDown($event, ann)"
-                    (contextmenu)="onAnnotationContextMenu($event, ann)"
-                  />
-                }
-                <!-- Selection highlight + resize handles -->
-                @if (selectedAnnotationId === ann.id && activeTool === 'pointer') {
-                  @if (ann.type === 'rect' || ann.type === 'ellipse' || ann.type === 'diamond') {
-                    <rect
-                      [attr.x]="ann.x - 4" [attr.y]="ann.y - 4"
-                      [attr.width]="(ann.width ?? 0) + 8" [attr.height]="(ann.height ?? 0) + 8"
-                      fill="none" stroke="#3b82f6" stroke-width="1.5" stroke-dasharray="4 3" rx="5"
-                      pointer-events="none"
-                    />
-                    <!-- 8 resize handles: corners + edge midpoints -->
-                    @for (rh of [
-                      {h:'nw', cx: ann.x - 4,                       cy: ann.y - 4,                        cur:'nw-resize'},
-                      {h:'n',  cx: ann.x + (ann.width ?? 0) / 2,    cy: ann.y - 4,                        cur:'n-resize'},
-                      {h:'ne', cx: ann.x + (ann.width ?? 0) + 4,    cy: ann.y - 4,                        cur:'ne-resize'},
-                      {h:'e',  cx: ann.x + (ann.width ?? 0) + 4,    cy: ann.y + (ann.height ?? 0) / 2,   cur:'e-resize'},
-                      {h:'se', cx: ann.x + (ann.width ?? 0) + 4,    cy: ann.y + (ann.height ?? 0) + 4,   cur:'se-resize'},
-                      {h:'s',  cx: ann.x + (ann.width ?? 0) / 2,    cy: ann.y + (ann.height ?? 0) + 4,   cur:'s-resize'},
-                      {h:'sw', cx: ann.x - 4,                       cy: ann.y + (ann.height ?? 0) + 4,   cur:'sw-resize'},
-                      {h:'w',  cx: ann.x - 4,                       cy: ann.y + (ann.height ?? 0) / 2,   cur:'w-resize'}
-                    ]; track rh.h) {
-                      <rect
-                        [attr.x]="rh.cx - 4" [attr.y]="rh.cy - 4"
-                        width="8" height="8" rx="1"
-                        fill="white" stroke="#3b82f6" stroke-width="1.5"
-                        [style.cursor]="rh.cur"
-                        style="pointer-events: all"
-                        (mousedown)="onAnnotationShapeResizeMouseDown($event, ann, $any(rh.h))"
-                      />
-                    }
-                  }
-                }
-              }
-
-              <!-- In-progress drawing previews -->
-              @if (previewPath) {
-                <path [attr.d]="previewPath"
-                  [attr.stroke]="activeColor" [attr.stroke-width]="activeStrokeWidth"
-                  fill="none" stroke-linecap="round" stroke-linejoin="round" pointer-events="none" />
-              }
-              @if (previewArrow) {
-                <g pointer-events="none" [style.color]="activeColor">
-                  <polyline [attr.points]="linePointsFromCoords(previewArrow.x1, previewArrow.y1, previewArrow.x2, previewArrow.y2, activeEdgeRouting)"
-                    [attr.stroke]="activeColor" [attr.stroke-width]="activeStrokeWidth"
-                    [attr.stroke-dasharray]="activeStrokeStyle === 'solid' ? '6 3' : strokeDashArray(undefined, activeStrokeStyle)"
-                    [attr.filter]="sloppyFilter(undefined, activeSloppiness)"
-                    [attr.marker-start]="previewMarkerStart()"
-                    [attr.marker-end]="previewMarkerEnd()"
-                    fill="none" stroke-linecap="round" stroke-linejoin="round" />
-                </g>
-              }
-              @if (previewLine) {
-                <polyline [attr.points]="linePointsFromCoords(previewLine.x1, previewLine.y1, previewLine.x2, previewLine.y2, activeEdgeRouting)"
-                  [attr.stroke]="activeColor" [attr.stroke-width]="activeStrokeWidth"
-                  [attr.stroke-dasharray]="activeStrokeStyle === 'solid' ? '6 3' : strokeDashArray(undefined, activeStrokeStyle)"
-                  [attr.filter]="sloppyFilter(undefined, activeSloppiness)"
-                  [attr.marker-start]="previewMarkerStart()"
-                  [attr.marker-end]="previewMarkerEnd()"
-                  [style.color]="activeColor"
-                  fill="none" stroke-linecap="round" stroke-linejoin="round" pointer-events="none" />
-              }
-              @if (previewRect) {
-                <rect [attr.x]="previewRect.x" [attr.y]="previewRect.y"
-                  [attr.width]="previewRect.w" [attr.height]="previewRect.h"
-                  [attr.stroke]="activeColor" [attr.stroke-width]="activeStrokeWidth"
-                  [attr.fill]="activeFill" [attr.fill-opacity]="activeFill !== 'none' ? activeFillOpacity : null" stroke-dasharray="6 3" rx="3" pointer-events="none" />
-              }
-              @if (previewDiamond) {
-                <polygon
-                  [attr.points]="diamondPointsFromRect(previewDiamond)"
-                  [attr.stroke]="activeColor" [attr.stroke-width]="activeStrokeWidth"
-                  [attr.fill]="activeFill"
-                  [attr.fill-opacity]="activeFill !== 'none' ? activeFillOpacity : null"
-                  stroke-dasharray="6 3" pointer-events="none"
-                />
-              }
-              @if (previewEllipse) {
-                <ellipse
-                  [attr.cx]="previewEllipse.cx" [attr.cy]="previewEllipse.cy"
-                  [attr.rx]="previewEllipse.rx" [attr.ry]="previewEllipse.ry"
-                  [attr.stroke]="activeColor" [attr.stroke-width]="activeStrokeWidth"
-                  [attr.fill]="activeFill" [attr.fill-opacity]="activeFill !== 'none' ? activeFillOpacity : null" stroke-dasharray="6 3" pointer-events="none" />
-              }
+              <!-- SVG body delegated to CanvasSvgLayerComponent -->
+              <g appCanvasSvgLayer
+                [visibleEdges]="visibleEdges"
+                [annotations]="store.annotations()"
+                [visibleNodes]="store.nodes()"
+                [selectedEdgeId]="selectedEdgeId"
+                [selectedAnnotationId]="selectedAnnotationId"
+                [activeTool]="activeTool"
+                [zoomLevel]="zoomLevel"
+                [activeColor]="activeColor"
+                [activeStrokeWidth]="activeStrokeWidth"
+                [activeStrokeStyle]="activeStrokeStyle"
+                [activeSloppiness]="activeSloppiness"
+                [activeEdgeRouting]="activeEdgeRouting"
+                [activeEdgeMode]="activeEdgeMode"
+                [activeFill]="activeFill"
+                [activeFillOpacity]="activeFillOpacity"
+                [previewPath]="previewPath"
+                [previewArrow]="previewArrow"
+                [previewLine]="previewLine"
+                [previewRect]="previewRect"
+                [previewDiamond]="previewDiamond"
+                [previewEllipse]="previewEllipse"
+                (edgeClicked)="onEdgeClick($event.event, $event.edge)"
+                (edgeWaypointMouseDown)="onEdgeWaypointMouseDown($event.event, $event.edge, $event.index)"
+                (edgeMidpointMouseDown)="onEdgeMidpointMouseDown($event.event, $event.edge, $event.segmentIndex)"
+                (edgeWaypointDblClick)="onEdgeWaypointDblClick($event.event, $event.edge, $event.index)"
+                (annotationMouseDown)="onAnnotationMouseDown($event.event, $event.ann)"
+                (annotationContextMenu)="onAnnotationContextMenu($event.event, $event.ann)"
+                (annWaypointMouseDown)="onAnnWaypointMouseDown($event.event, $event.ann, $event.index)"
+                (annMidpointMouseDown)="onAnnMidpointMouseDown($event.event, $event.ann, $event.segmentIndex)"
+                (annWaypointDblClick)="onAnnWaypointDblClick($event.event, $event.ann, $event.index)"
+                (annotationShapeResizeMouseDown)="onAnnotationShapeResizeMouseDown($event.event, $event.ann, $event.handle)"
+              ></g>
 
             </svg>
 
@@ -819,106 +267,20 @@
               ></div>
             }
 
-            <!-- HTML overlays: text + sticky annotations -->
-            @for (ann of store.annotations(); track ann.id) {
-              @if (ann.type === 'image' && ann.imageDataUrl) {
-                <div
-                  class="absolute select-none"
-                  [class.ring-2]="isAnnotationSelected(ann.id)"
-                  [class.ring-blue-400]="isAnnotationSelected(ann.id)"
-                  [style.left.px]="ann.x"
-                  [style.top.px]="ann.y"
-                  [style.width.px]="ann.width ?? 240"
-                  [style.height.px]="ann.height ?? 180"
-                  [style.pointer-events]="activeTool === 'pointer' ? 'auto' : 'none'"
-                  [style.cursor]="activeTool === 'pointer' ? 'move' : 'default'"
-                  (mousedown)="onAnnotationMouseDown($event, ann)"
-                  (contextmenu)="onAnnotationContextMenu($event, ann)"
-                >
-                  <img
-                    [src]="ann.imageDataUrl"
-                    alt=""
-                    class="w-full h-full object-contain rounded border border-gray-200"
-                    draggable="false"
-                  />
-                  @if (selectedAnnotationId === ann.id && activeTool === 'pointer') {
-                    <button
-                      type="button"
-                      data-export-hide
-                      class="absolute -right-1 -bottom-1 w-3.5 h-3.5 rounded-sm border border-blue-300 bg-white shadow-sm cursor-se-resize hover:border-blue-500 hover:bg-blue-50"
-                      aria-label="Resize image"
-                      (mousedown)="onImageResizeMouseDown($event, ann)"
-                    ></button>
-                  }
-                </div>
-              }
-              @if (ann.type === 'text' || ann.type === 'sticky') {
-                <div
-                  class="absolute select-none"
-                  [class.ring-2]="isAnnotationSelected(ann.id)"
-                  [class.ring-blue-400]="isAnnotationSelected(ann.id)"
-                  [style.left.px]="ann.x"
-                  [style.top.px]="ann.y"
-                  [style.width.px]="annotationTextWidth(ann)"
-                  [style.height.px]="annotationTextHeight(ann)"
-                  [style.transform]="annotationTransform(ann)"
-                  style="transform-origin: center center;"
-                  [style.font-size.px]="ann.fontSize ?? 14"
-                  [style.font-family]="ann.fontFamily ?? 'Arial, sans-serif'"
-                  [style.color]="ann.color"
-                  [style.pointer-events]="activeTool === 'pointer' ? 'auto' : 'none'"
-                  [style.cursor]="activeTool === 'pointer' ? 'move' : 'default'"
-                  (mousedown)="onAnnotationMouseDown($event, ann)"
-                  (contextmenu)="onAnnotationContextMenu($event, ann)"
-                  (dblclick)="startEditAnnotation(ann)"
-                >
-                  <div
-                    class="w-full h-full whitespace-pre-wrap break-words leading-relaxed"
-                    [class.p-3]="ann.type === 'sticky'"
-                    [class.rounded-xl]="ann.type === 'sticky'"
-                    [class.shadow-lg]="ann.type === 'sticky'"
-                    [class.border]="ann.type === 'sticky'"
-                    [class.border-amber-200]="ann.type === 'sticky'"
-                    [class.bg-amber-50]="ann.type === 'sticky'"
-                    [class.opacity-0]="editingAnnotation?.id === ann.id"
-                  >{{ ann.text || '…' }}</div>
-                  @if (selectedAnnotationId === ann.id && activeTool === 'pointer' && editingAnnotation?.id !== ann.id) {
-                    @for (rh of [
-                      {h:'nw', cls:'-left-1 -top-1', cur:'nw-resize'},
-                      {h:'n', cls:'left-1/2 -translate-x-1/2 -top-1', cur:'n-resize'},
-                      {h:'ne', cls:'-right-1 -top-1', cur:'ne-resize'},
-                      {h:'e', cls:'-right-1 top-1/2 -translate-y-1/2', cur:'e-resize'},
-                      {h:'se', cls:'-right-1 -bottom-1', cur:'se-resize'},
-                      {h:'s', cls:'left-1/2 -translate-x-1/2 -bottom-1', cur:'s-resize'},
-                      {h:'sw', cls:'-left-1 -bottom-1', cur:'sw-resize'},
-                      {h:'w', cls:'-left-1 top-1/2 -translate-y-1/2', cur:'w-resize'}
-                    ]; track rh.h) {
-                      <button
-                        type="button"
-                        data-export-hide
-                        class="absolute w-3.5 h-3.5 rounded-sm border border-blue-300 bg-white shadow-sm hover:border-blue-500 hover:bg-blue-50"
-                        [ngClass]="rh.cls"
-                        [style.cursor]="rh.cur"
-                        aria-label="Resize text"
-                        (mousedown)="onAnnotationShapeResizeMouseDown($event, ann, $any(rh.h))"
-                      ></button>
-                    }
-                    <button
-                      type="button"
-                      data-export-hide
-                      class="absolute left-1/2 -translate-x-1/2 -top-7 w-4 h-4 rounded-full border border-blue-300 bg-white shadow-sm cursor-grab hover:border-blue-500 hover:bg-blue-50 flex items-center justify-center"
-                      aria-label="Rotate text"
-                      (mousedown)="onAnnotationRotateMouseDown($event, ann)"
-                    >
-                      <svg viewBox="0 0 16 16" class="w-2.5 h-2.5 text-gray-500" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M13.5 6A6 6 0 1 0 10 12.5" />
-                        <polyline points="13.5 2 13.5 6 9.5 6" />
-                      </svg>
-                    </button>
-                  }
-                </div>
-              }
-            }
+            <!-- HTML overlays: text + sticky + image annotations -->
+            <app-canvas-annotation-overlay-layer
+              [annotations]="store.annotations()"
+              [selectedAnnotationId]="selectedAnnotationId"
+              [selectedAnnotationIds]="selectedAnnotationIds"
+              [editingAnnotation]="editingAnnotation"
+              [activeTool]="activeTool"
+              (annotationMouseDown)="onAnnotationMouseDown($event.event, $event.ann)"
+              (annotationContextMenu)="onAnnotationContextMenu($event.event, $event.ann)"
+              (imageResizeMouseDown)="onImageResizeMouseDown($event.event, $event.ann)"
+              (annotationShapeResizeMouseDown)="onAnnotationShapeResizeMouseDown($event.event, $event.ann, $any($event.handle))"
+              (annotationRotateMouseDown)="onAnnotationRotateMouseDown($event.event, $event.ann)"
+              (startEdit)="startEditAnnotation($event)"
+            ></app-canvas-annotation-overlay-layer>
 
             <app-annotation-edit-overlay
               [showDeleteButton]="selectedAnnotationForDelete !== null"
@@ -1074,40 +436,40 @@
       </div>
 
       <!-- Context menu (fixed, outside canvas zoom transform) -->
-      @if (contextMenu || rgContextMenu || annotationContextMenu || multiSelectContextMenu) {
+      @if (ctxMenuSvc.contextMenu || ctxMenuSvc.rgContextMenu || ctxMenuSvc.annotationContextMenu || ctxMenuSvc.multiSelectContextMenu) {
         <div class="fixed inset-0 z-[190]" role="presentation" (click)="closeContextMenu()" (contextmenu)="$event.preventDefault(); closeContextMenu()" (keydown.escape)="closeContextMenu()"></div>
-        @if (contextMenu) {
+        @if (ctxMenuSvc.contextMenu) {
           <app-resource-context-menu
-            [node]="contextMenu.node"
-            [x]="contextMenu.x"
-            [y]="contextMenu.y"
-            [parentLabel]="parentLabelForNode(contextMenu.node)"
+            [node]="ctxMenuSvc.contextMenu.node"
+            [x]="ctxMenuSvc.contextMenu.x"
+            [y]="ctxMenuSvc.contextMenu.y"
+            [parentLabel]="parentLabelForNode(ctxMenuSvc.contextMenu.node)"
             (nodeFocused)="ctxFocus()"
             (copyName)="ctxCopyName()"
             (copyResourceId)="ctxCopyResourceId()"
             (visualizeTags)="ctxVisualizeTags()"
             (detachFromParent)="ctxDetachFromParent()"
-            [showResetBreakout]="canResetBreakout(contextMenu.node)"
-            [resetBreakoutLabel]="resetBreakoutLabel(contextMenu.node)"
+            [showResetBreakout]="canResetBreakout(ctxMenuSvc.contextMenu.node)"
+            [resetBreakoutLabel]="resetBreakoutLabel(ctxMenuSvc.contextMenu.node)"
             (resetBreakout)="ctxResetBreakout()"
             (delete)="ctxDelete()"
           />
         }
-        @if (rgContextMenu) {
+        @if (ctxMenuSvc.rgContextMenu) {
           <app-rg-context-menu
-            [x]="rgContextMenu.x"
-            [y]="rgContextMenu.y"
-            [name]="rgContextMenu.name"
-            [busy]="relayoutBusy"
+            [x]="ctxMenuSvc.rgContextMenu.x"
+            [y]="ctxMenuSvc.rgContextMenu.y"
+            [name]="ctxMenuSvc.rgContextMenu.name"
+            [busy]="ctxMenuSvc.relayoutBusy"
             (autoLayout)="ctxRgAutoLayout()"
           />
         }
-        @if (annotationContextMenu) {
-          @let ctxAnn = annotationById(annotationContextMenu.annotationId);
+        @if (ctxMenuSvc.annotationContextMenu) {
+          @let ctxAnn = annotationById(ctxMenuSvc.annotationContextMenu.annotationId);
           <app-annotation-context-menu
             [annotation]="ctxAnn ?? null"
-            [x]="annotationContextMenu.x"
-            [y]="annotationContextMenu.y"
+            [x]="ctxMenuSvc.annotationContextMenu.x"
+            [y]="ctxMenuSvc.annotationContextMenu.y"
             (duplicate)="ctxAnnDuplicate()"
             (bringFront)="ctxAnnBringFront()"
             (sendBack)="ctxAnnSendBack()"
@@ -1116,11 +478,11 @@
             (delete)="ctxAnnDelete()"
           />
         }
-        @if (multiSelectContextMenu) {
+        @if (ctxMenuSvc.multiSelectContextMenu) {
           <app-multi-select-context-menu
             [count]="store.selectedNodeIds().length"
-            [x]="multiSelectContextMenu.x"
-            [y]="multiSelectContextMenu.y"
+            [x]="ctxMenuSvc.multiSelectContextMenu.x"
+            [y]="ctxMenuSvc.multiSelectContextMenu.y"
             (deleteAll)="ctxMultiDelete()"
             (copyNames)="ctxMultiCopyNames()"
             (detachAll)="ctxMultiDetachAll()"

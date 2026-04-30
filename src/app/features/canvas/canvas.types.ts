@@ -111,3 +111,22 @@ export interface AnnWaypointDragState {
   lastX: number;
   lastY: number;
 }
+
+export interface SizeOffset { top: number; right: number; bottom: number; left: number }
+
+export interface TagHighlightInfo {
+  ruleId: string;
+  borderColor: string;
+  bgColor: string;
+  badgeLabel?: string;
+  sizeOffset?: SizeOffset;
+}
+
+export interface TagHighlightResizeDragState {
+  ruleId: string;
+  handle: string;
+  startX: number;
+  startY: number;
+  startOffset: SizeOffset;
+  currentOffset: SizeOffset;
+}

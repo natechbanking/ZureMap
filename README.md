@@ -6,6 +6,8 @@
 
 ZureMap is an intelligent Azure Architecture Diagram Generator built with Angular. It automatically scans your Azure subscriptions, discovers resources, and generates interactive architecture diagrams.
 
+**[Try the live demo →](https://natechsa.github.io/ZureMap/#/scan)**
+
 ## Features
 
 - **Automated Resource Discovery:** Uses Azure CLI authentication to securely scan and discover resources across one or multiple Azure subscriptions.

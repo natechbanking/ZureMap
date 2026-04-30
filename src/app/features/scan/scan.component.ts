@@ -50,7 +50,7 @@ interface ConnectionType {
                   <button
                     type="button"
                     (click)="loadDemo()"
-                    class="text-left rounded-xl border border-green-200 bg-green-50/50 hover:bg-green-50 transition-colors p-4"
+                    class="text-left rounded-xl border border-green-200 bg-green-50/50 hover:bg-green-50 transition-colors p-4 cursor-pointer"
                   >
                     <p class="text-sm font-semibold text-green-800 mb-1">▶ Try the Demo</p>
                     <p class="text-xs text-gray-600">Load a sample Contoso production environment to explore ZureMap's features.</p>

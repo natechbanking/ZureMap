@@ -91,6 +91,20 @@ import { normalizePastedImage, pasteTargetPosition as pasteTargetPositionUtil } 
 
 const ZERO_OFFSET: SizeOffset = { top: 0, right: 0, bottom: 0, left: 0 };
 const AZURE_RESOURCE_DND_TYPE = 'application/x-zuremap-azure-resource';
+const CANVAS_COPY_OFFSET = 24;
+
+interface NodeClipboardPayload {
+  kind: 'node-set';
+  nodes: DiagramNode[];
+  edges: DiagramEdge[];
+}
+
+interface AnnotationClipboardPayload {
+  kind: 'annotation-set';
+  annotations: Annotation[];
+}
+
+type CanvasClipboardPayload = NodeClipboardPayload | AnnotationClipboardPayload;
 
 @Component({
   selector: 'app-canvas',
@@ -269,6 +283,8 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
   selectedAnnotationIds: string[] = [];
   editingAnnotation: Annotation | null = null;
   editingTextValue = '';
+  private canvasClipboard: CanvasClipboardPayload | null = null;
+  private pasteSequence = 0;
 
   // In-progress drawing previews
   previewPath = '';
@@ -351,6 +367,17 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
   @HostListener('document:keydown', ['$event'])
   onKeyDown(e: KeyboardEvent): void {
     if ((e.target as HTMLElement).matches('input,textarea,[contenteditable]')) return;
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c') {
+      const copied = this.copySelectedCanvasObject();
+      if (copied) e.preventDefault();
+      return;
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'v') {
+      if (this.pasteCanvasClipboard()) {
+        e.preventDefault();
+      }
+      return;
+    }
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !e.shiftKey) {
       e.preventDefault();
       this.store.undo();
@@ -956,6 +983,103 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
     if (e.key === 'Enter' && !e.shiftKey && this.editingAnnotation?.type === 'text') {
       e.preventDefault(); this.finishEdit();
     }
+  }
+
+  private pasteOffset(): { x: number; y: number } {
+    this.pasteSequence += 1;
+    const delta = this.pasteSequence * CANVAS_COPY_OFFSET;
+    return { x: delta, y: delta };
+  }
+
+  private nextNodeId(): string {
+    return `copy-node-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  }
+
+  private nextEdgeId(): string {
+    return `copy-edge-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  }
+
+  private nextAnnotationId(): string {
+    return `ann-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  }
+
+  private pasteAnnotationsFromClipboard(sourceAnnotations: Annotation[]): void {
+    const offset = this.pasteOffset();
+    const pasted = sourceAnnotations.map(source => ({
+      ...source,
+      id: this.nextAnnotationId(),
+      x: source.x + offset.x,
+      y: source.y + offset.y,
+      x2: typeof source.x2 === 'number' ? source.x2 + offset.x : source.x2,
+      y2: typeof source.y2 === 'number' ? source.y2 + offset.y : source.y2,
+      waypoints: source.waypoints?.map(w => ({ x: w.x + offset.x, y: w.y + offset.y })),
+    }));
+    if (pasted.length === 0) return;
+    this.store.pushUndo();
+    this.store.setAnnotations([...this.store.annotations(), ...pasted]);
+    this.store.selectNodes([]);
+    this.selectedAnnotationIds = pasted.map(a => a.id);
+    this.selectedAnnotationId = pasted[0]?.id ?? null;
+    this.selectedEdgeId = null;
+    this.syncToolbarFromAnnotation(pasted[0]);
+  }
+
+  private pasteNodesFromClipboard(sourceNodes: DiagramNode[], sourceEdges: DiagramEdge[]): void {
+    const offset = this.pasteOffset();
+    const nodeIdMap = new Map<string, string>();
+    for (const node of sourceNodes) nodeIdMap.set(node.id, this.nextNodeId());
+
+    const pastedNodes = sourceNodes.map(source => {
+      const newId = nodeIdMap.get(source.id)!;
+      const remappedParentId = source.parentId ? nodeIdMap.get(source.parentId) ?? source.parentId : source.parentId;
+      const remappedChildren = source.children?.map(c => nodeIdMap.get(c) ?? c);
+      const groupId = source.group === 'standalone' ? newId : source.groupId;
+      return {
+        ...source,
+        id: newId,
+        parentId: remappedParentId,
+        children: remappedChildren,
+        groupId,
+        selected: false,
+        highlighted: false,
+        position: { x: source.position.x + offset.x, y: source.position.y + offset.y },
+        metadata: {
+          ...source.metadata,
+          id: `${source.metadata.id}-copy-${Date.now()}`,
+          tags: source.metadata?.tags ? { ...source.metadata.tags } : {},
+          properties: source.metadata?.properties ? { ...source.metadata.properties } : {},
+        },
+        custom: source.custom ? {
+          ...source.custom,
+          internalItems: source.custom.internalItems?.map(i => ({ ...i })),
+        } : undefined,
+      } as DiagramNode;
+    });
+
+    const pastedEdges = sourceEdges
+      .map(source => {
+        const mappedSourceId = nodeIdMap.get(source.sourceId);
+        const mappedTargetId = nodeIdMap.get(source.targetId);
+        if (!mappedSourceId || !mappedTargetId) return null;
+        return {
+          ...source,
+          id: this.nextEdgeId(),
+          sourceId: mappedSourceId,
+          targetId: mappedTargetId,
+          style: { ...source.style },
+          waypoints: source.waypoints?.map(w => ({ x: w.x + offset.x, y: w.y + offset.y })),
+        } as DiagramEdge;
+      })
+      .filter((edge): edge is DiagramEdge => edge !== null);
+
+    if (pastedNodes.length === 0) return;
+    this.store.pushUndo();
+    this.store.setNodes([...this.store.nodes(), ...pastedNodes]);
+    this.store.setEdges([...this.store.edges(), ...pastedEdges]);
+    this.store.selectNodes(pastedNodes.map(n => n.id));
+    this.selectedAnnotationId = null;
+    this.selectedAnnotationIds = [];
+    this.selectedEdgeId = null;
   }
 
   deleteSelectedAnnotation(): void {
@@ -1670,6 +1794,83 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
 
   closeContextMenu(): void {
     this.ctxMenuSvc.closeContextMenu();
+  }
+
+  get canPasteAnyObject(): boolean {
+    return this.canvasClipboard !== null;
+  }
+
+  get canPasteNodeObjects(): boolean {
+    return this.canvasClipboard?.kind === 'node-set';
+  }
+
+  copySelectedCanvasObject(): boolean {
+    if (this.ctxMenuSvc.annotationContextMenu) {
+      const ann = this.annotationById(this.ctxMenuSvc.annotationContextMenu.annotationId);
+      if (!ann) return false;
+      this.canvasClipboard = { kind: 'annotation-set', annotations: [{ ...ann, waypoints: ann.waypoints?.map(w => ({ ...w })) }] };
+      return true;
+    }
+    if (this.ctxMenuSvc.contextMenu) {
+      this.store.selectNodes([this.ctxMenuSvc.contextMenu.nodeId]);
+      this.selectedAnnotationId = null;
+      this.selectedAnnotationIds = [];
+    }
+
+    const selectedAnnotationIds = this.selectedAnnotationIds.length
+      ? this.selectedAnnotationIds
+      : (this.selectedAnnotationId ? [this.selectedAnnotationId] : []);
+    if (selectedAnnotationIds.length > 0) {
+      const selectedIdSet = new Set(selectedAnnotationIds);
+      const annotations = this.store.annotations()
+        .filter(a => selectedIdSet.has(a.id))
+        .map(a => ({ ...a, waypoints: a.waypoints ? a.waypoints.map(w => ({ ...w })) : undefined }));
+      if (annotations.length === 0) return false;
+      this.canvasClipboard = { kind: 'annotation-set', annotations };
+      return true;
+    }
+
+    const selectedNodeIds = this.store.selectedNodeIds();
+    if (selectedNodeIds.length === 0) return false;
+    const nodeIdSet = new Set(selectedNodeIds);
+    const nodes = this.store.nodes()
+      .filter(n => nodeIdSet.has(n.id))
+      .map(n => ({
+        ...n,
+        position: { ...n.position },
+        size: { ...n.size },
+        children: n.children ? [...n.children] : undefined,
+        metadata: {
+          ...n.metadata,
+          tags: n.metadata?.tags ? { ...n.metadata.tags } : {},
+          properties: n.metadata?.properties ? { ...n.metadata.properties } : {},
+        },
+        custom: n.custom ? {
+          ...n.custom,
+          internalItems: n.custom.internalItems?.map(i => ({ ...i })),
+        } : undefined,
+      }));
+    const edges = this.store.edges()
+      .filter(e => nodeIdSet.has(e.sourceId) && nodeIdSet.has(e.targetId))
+      .map(e => ({
+        ...e,
+        style: { ...e.style },
+        waypoints: e.waypoints ? e.waypoints.map(w => ({ ...w })) : undefined,
+      }));
+    this.canvasClipboard = { kind: 'node-set', nodes, edges };
+    return true;
+  }
+
+  pasteCanvasClipboard(): boolean {
+    if (!this.canvasClipboard) return false;
+    if (this.canvasClipboard.kind === 'annotation-set') {
+      this.pasteAnnotationsFromClipboard(this.canvasClipboard.annotations);
+      this.closeContextMenu();
+      return true;
+    }
+    this.pasteNodesFromClipboard(this.canvasClipboard.nodes, this.canvasClipboard.edges);
+    this.closeContextMenu();
+    return true;
   }
 
   async ctxRgAutoLayout(): Promise<void> {

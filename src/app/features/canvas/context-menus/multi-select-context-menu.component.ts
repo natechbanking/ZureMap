@@ -16,6 +16,21 @@ import { Component, EventEmitter, Input, Output } from '@angular/core';
         <p class="text-[11px] font-semibold text-gray-800">{{ count }} resources selected</p>
       </div>
       <div class="py-0.5">
+        <button type="button" class="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-left text-gray-700 hover:bg-gray-50" (click)="copyObjects.emit(); closed.emit()">
+          <svg class="w-3.5 h-3.5 shrink-0 text-gray-400" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+            <rect x="5" y="5" width="9" height="9" rx="1.5"/>
+            <path d="M3 11H2a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v1"/>
+          </svg>
+          Copy
+        </button>
+        <button type="button" class="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-left text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed" [disabled]="!canPaste" (click)="pasteObjects.emit(); closed.emit()">
+          <svg class="w-3.5 h-3.5 shrink-0 text-gray-400" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M3 2.5h7l3 3V13a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1z"/>
+            <path d="M10 2.5V6h3"/>
+            <rect x="5" y="8" width="6" height="4" rx="0.75"/>
+          </svg>
+          Paste
+        </button>
         <button type="button" class="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-left text-gray-700 hover:bg-gray-50" (click)="copyNames.emit(); closed.emit()">
           <svg class="w-3.5 h-3.5 shrink-0 text-gray-400" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
             <rect x="5" y="5" width="9" height="9" rx="1.5"/>
@@ -47,7 +62,10 @@ export class MultiSelectContextMenuComponent {
   @Input({ required: true }) count!: number;
   @Input({ required: true }) x!: number;
   @Input({ required: true }) y!: number;
+  @Input() canPaste = false;
 
+  @Output() copyObjects = new EventEmitter<void>();
+  @Output() pasteObjects = new EventEmitter<void>();
   @Output() deleteAll = new EventEmitter<void>();
   @Output() copyNames = new EventEmitter<void>();
   @Output() detachAll = new EventEmitter<void>();

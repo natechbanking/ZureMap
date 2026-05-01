@@ -36,6 +36,147 @@ jobs:
           CHROMIUM_FLAGS: "--no-sandbox --disable-gpu --disable-dev-shm-usage"
       - run: npm run build
 
+  coverage:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+      - name: Install dependencies (PR head)
+        run: npm ci
+      - name: Run coverage (PR head)
+        run: npm test -- --code-coverage --watch=false --browsers=ChromeHeadless
+        env:
+          CHROMIUM_FLAGS: "--no-sandbox --disable-gpu --disable-dev-shm-usage"
+      - name: Extract head coverage
+        id: head
+        run: |
+          node -e "
+          const fs = require('fs');
+          const lcov = fs.readFileSync('coverage/zuremap/lcov.info', 'utf8');
+          let lf = 0, lh = 0;
+          for (const line of lcov.split('\n')) {
+            if (line.startsWith('LF:')) lf += Number(line.slice(3)) || 0;
+            if (line.startsWith('LH:')) lh += Number(line.slice(3)) || 0;
+          }
+          const pct = lf ? (lh / lf) * 100 : 0;
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, 'line_pct=' + pct.toFixed(2) + '\n');
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, 'line_hit=' + lh + '\n');
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, 'line_found=' + lf + '\n');
+          "
+
+      - name: Checkout base branch
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.base.ref }}
+          path: base
+      - name: Install dependencies (base)
+        run: npm ci
+        working-directory: base
+      - name: Run coverage (base)
+        run: npm test -- --code-coverage --watch=false --browsers=ChromeHeadless
+        working-directory: base
+        env:
+          CHROMIUM_FLAGS: "--no-sandbox --disable-gpu --disable-dev-shm-usage"
+      - name: Extract base coverage
+        id: base
+        run: |
+          node -e "
+          const fs = require('fs');
+          const lcov = fs.readFileSync('base/coverage/zuremap/lcov.info', 'utf8');
+          let lf = 0, lh = 0;
+          for (const line of lcov.split('\n')) {
+            if (line.startsWith('LF:')) lf += Number(line.slice(3)) || 0;
+            if (line.startsWith('LH:')) lh += Number(line.slice(3)) || 0;
+          }
+          const pct = lf ? (lh / lf) * 100 : 0;
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, 'line_pct=' + pct.toFixed(2) + '\n');
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, 'line_hit=' + lh + '\n');
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, 'line_found=' + lf + '\n');
+          "
+
+      - name: Coverage regression check
+        id: regression
+        run: |
+          node -e "
+          const head = Number(process.env.HEAD);
+          const base = Number(process.env.BASE);
+          const delta = +(head - base).toFixed(2);
+          require('fs').appendFileSync(process.env.GITHUB_OUTPUT, 'delta=' + delta + '\n');
+          if (delta < 0) {
+            console.error('Coverage regression detected: ' + delta.toFixed(2) + 'pp (head ' + head.toFixed(2) + '% vs base ' + base.toFixed(2) + '%)');
+            process.exit(1);
+          }
+          console.log('Coverage check passed: +' + delta.toFixed(2) + 'pp');
+          "
+        env:
+          HEAD: ${{ steps.head.outputs.line_pct }}
+          BASE: ${{ steps.base.outputs.line_pct }}
+
+      - name: Comment coverage on PR
+        if: always()
+        uses: actions/github-script@v7
+        env:
+          HEAD_PCT: ${{ steps.head.outputs.line_pct }}
+          HEAD_HIT: ${{ steps.head.outputs.line_hit }}
+          HEAD_FOUND: ${{ steps.head.outputs.line_found }}
+          BASE_PCT: ${{ steps.base.outputs.line_pct }}
+          BASE_HIT: ${{ steps.base.outputs.line_hit }}
+          BASE_FOUND: ${{ steps.base.outputs.line_found }}
+          DELTA: ${{ steps.regression.outputs.delta }}
+          REGRESSION_FAILED: ${{ steps.regression.outcome == 'failure' }}
+        with:
+          script: |
+            const marker = '<!-- coverage-report -->';
+            const failed = process.env.REGRESSION_FAILED === 'true';
+            const title = failed ? 'Coverage Regression Detected' : 'Coverage Report';
+            const delta = Number(process.env.DELTA || 0);
+            const deltaStr = (delta >= 0 ? '+' : '') + delta.toFixed(2) + 'pp';
+            const body = `${marker}
+            ## ${title}
+
+            | Metric | Base (${context.payload.pull_request.base.ref}) | PR (${context.payload.pull_request.head.ref}) | Delta |
+            |---|---:|---:|---:|
+            | Line Coverage | ${process.env.BASE_PCT}% (${process.env.BASE_HIT}/${process.env.BASE_FOUND}) | ${process.env.HEAD_PCT}% (${process.env.HEAD_HIT}/${process.env.HEAD_FOUND}) | ${deltaStr} |
+
+            ${failed ? '❌ This PR reduces line coverage and fails the coverage gate.' : '✅ No line-coverage regression detected.'}
+            `;
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              per_page: 100,
+            });
+
+            const existing = comments.find(c =>
+              c.user?.type === 'Bot' &&
+              typeof c.body === 'string' &&
+              c.body.includes(marker)
+            );
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }
+
   lint:
     runs-on: ubuntu-latest
     steps:

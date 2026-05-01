@@ -7,6 +7,13 @@ module.exports = function (config) {
       },
     },
     coverageReporter: {
+      dir: require('path').join(__dirname, './coverage/zuremap'),
+      subdir: '.',
+      reporters: [
+        { type: 'html' },
+        { type: 'lcovonly', file: 'lcov.info' },
+        { type: 'text-summary' },
+      ],
       check: {
         global: {
           statements: 23,

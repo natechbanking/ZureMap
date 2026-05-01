@@ -59,7 +59,23 @@ jobs:
         run: |
           node -e "
           const fs = require('fs');
-          const lcov = fs.readFileSync('coverage/zuremap/lcov.info', 'utf8');
+          const path = require('path');
+          function findLcov(root) {
+            const stack = [root];
+            while (stack.length) {
+              const cur = stack.pop();
+              if (!fs.existsSync(cur)) continue;
+              for (const entry of fs.readdirSync(cur, { withFileTypes: true })) {
+                const full = path.join(cur, entry.name);
+                if (entry.isDirectory()) stack.push(full);
+                else if (entry.isFile() && entry.name === 'lcov.info') return full;
+              }
+            }
+            return null;
+          }
+          const lcovPath = findLcov('coverage');
+          if (!lcovPath) throw new Error('lcov.info not found under coverage/');
+          const lcov = fs.readFileSync(lcovPath, 'utf8');
           let lf = 0, lh = 0;
           for (const line of lcov.split('\n')) {
             if (line.startsWith('LF:')) lf += Number(line.slice(3)) || 0;
@@ -89,7 +105,23 @@ jobs:
         run: |
           node -e "
           const fs = require('fs');
-          const lcov = fs.readFileSync('base/coverage/zuremap/lcov.info', 'utf8');
+          const path = require('path');
+          function findLcov(root) {
+            const stack = [root];
+            while (stack.length) {
+              const cur = stack.pop();
+              if (!fs.existsSync(cur)) continue;
+              for (const entry of fs.readdirSync(cur, { withFileTypes: true })) {
+                const full = path.join(cur, entry.name);
+                if (entry.isDirectory()) stack.push(full);
+                else if (entry.isFile() && entry.name === 'lcov.info') return full;
+              }
+            }
+            return null;
+          }
+          const lcovPath = findLcov('base/coverage');
+          if (!lcovPath) throw new Error('lcov.info not found under base/coverage/');
+          const lcov = fs.readFileSync(lcovPath, 'utf8');
           let lf = 0, lh = 0;
           for (const line of lcov.split('\n')) {
             if (line.startsWith('LF:')) lf += Number(line.slice(3)) || 0;

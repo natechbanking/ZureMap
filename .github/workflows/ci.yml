@@ -139,6 +139,10 @@ jobs:
           node -e "
           const head = Number(process.env.HEAD);
           const base = Number(process.env.BASE);
+          if (!Number.isFinite(head) || !Number.isFinite(base)) {
+            console.error('Invalid coverage inputs. HEAD=' + process.env.HEAD + ' BASE=' + process.env.BASE);
+            process.exit(1);
+          }
           const delta = +(head - base).toFixed(2);
           require('fs').appendFileSync(process.env.GITHUB_OUTPUT, 'delta=' + delta + '\n');
           if (delta < 0) {

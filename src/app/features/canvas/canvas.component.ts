@@ -1031,9 +1031,12 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
 
     const pastedNodes = sourceNodes.map(source => {
       const newId = nodeIdMap.get(source.id)!;
-      const remappedParentId = source.parentId ? nodeIdMap.get(source.parentId) ?? source.parentId : source.parentId;
-      const remappedChildren = source.children?.map(c => nodeIdMap.get(c) ?? c);
-      const groupId = source.group === 'standalone' ? newId : source.groupId;
+      // Keep pasted node relationships self-contained inside the pasted set.
+      const remappedParentId = source.parentId ? nodeIdMap.get(source.parentId) : undefined;
+      const remappedChildren = source.children
+        ?.map(childId => nodeIdMap.get(childId))
+        .filter((childId): childId is string => !!childId);
+      const groupId = nodeIdMap.get(source.groupId) ?? source.groupId;
       return {
         ...source,
         id: newId,
@@ -1045,7 +1048,6 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
         position: { x: source.position.x + offset.x, y: source.position.y + offset.y },
         metadata: {
           ...source.metadata,
-          id: `${source.metadata.id}-copy-${Date.now()}`,
           tags: source.metadata?.tags ? { ...source.metadata.tags } : {},
           properties: source.metadata?.properties ? { ...source.metadata.properties } : {},
         },
@@ -1809,6 +1811,8 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
       const ann = this.annotationById(this.ctxMenuSvc.annotationContextMenu.annotationId);
       if (!ann) return false;
       this.canvasClipboard = { kind: 'annotation-set', annotations: [{ ...ann, waypoints: ann.waypoints?.map(w => ({ ...w })) }] };
+      this.pasteSequence = 0;
+      this.closeContextMenu();
       return true;
     }
     if (this.ctxMenuSvc.contextMenu) {
@@ -1827,6 +1831,8 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
         .map(a => ({ ...a, waypoints: a.waypoints ? a.waypoints.map(w => ({ ...w })) : undefined }));
       if (annotations.length === 0) return false;
       this.canvasClipboard = { kind: 'annotation-set', annotations };
+      this.pasteSequence = 0;
+      this.closeContextMenu();
       return true;
     }
 
@@ -1858,6 +1864,8 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
         waypoints: e.waypoints ? e.waypoints.map(w => ({ ...w })) : undefined,
       }));
     this.canvasClipboard = { kind: 'node-set', nodes, edges };
+    this.pasteSequence = 0;
+    this.closeContextMenu();
     return true;
   }
 

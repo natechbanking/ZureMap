@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { DrawingTool, StrokeStyle, EdgeRouting, EdgeMode } from '../../../core/models/annotation.model';
 import { TagRule, TagRuleOperator } from '../canvas.types';
 import { IconRegistryService } from '../../../core/services/icon-registry.service';
+import { ActionIconComponent } from '../../../shared/components/action-icon/action-icon.component';
 
 interface Tool {
   id: DrawingTool;
@@ -56,7 +57,7 @@ const FONT_FAMILIES = [
 @Component({
   selector: 'app-drawing-toolbar',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, ActionIconComponent],
   template: `
     <div class="bg-white/95 backdrop-blur rounded-2xl shadow-xl border border-gray-200 select-none overflow-hidden transition-all"
       [style.width.px]="collapsed ? 52 : 280">
@@ -64,9 +65,7 @@ const FONT_FAMILIES = [
       <!-- Header -->
       <div class="flex items-center gap-2 px-3 py-2.5 border-b border-gray-100 bg-gradient-to-r from-blue-50 to-indigo-50">
         <div class="w-7 h-7 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 text-white flex items-center justify-center shadow-sm">
-          <svg viewBox="0 0 20 20" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M14 2 L18 6 L7 17 L3 18 L4 14 Z" />
-          </svg>
+          <app-action-icon icon="edit" iconClass="w-4 h-4" />
         </div>
         @if (!collapsed) {
           <div class="flex-1 min-w-0">
@@ -78,9 +77,7 @@ const FONT_FAMILIES = [
           [title]="collapsed ? 'Expand' : 'Collapse'"
           (click)="collapsed = !collapsed"
         >
-          <svg viewBox="0 0 20 20" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-            <path [attr.d]="collapsed ? 'M8 5 L13 10 L8 15' : 'M12 5 L7 10 L12 15'" />
-          </svg>
+          <app-action-icon [icon]="collapsed ? 'chevronRight' : 'chevronLeft'" iconClass="w-4 h-4" />
         </button>
       </div>
 
@@ -109,10 +106,7 @@ const FONT_FAMILIES = [
             title="Undo (Ctrl+Z)"
             (click)="undo.emit()"
           >
-            <svg viewBox="0 0 20 20" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M4 10 A6 6 0 1 1 7 5" />
-              <path d="M4 6 L4 10 L8 10" />
-            </svg>
+            <app-action-icon icon="undo" iconClass="w-4 h-4" />
           </button>
         </div>
       } @else {
@@ -604,9 +598,7 @@ const FONT_FAMILIES = [
                             [disabled]="idx === 0"
                             (click)="moveRule(rule.id, -1)"
                           >
-                            <svg viewBox="0 0 12 8" class="w-2.5 h-2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                              <path d="M1 6 L6 2 L11 6" />
-                            </svg>
+                            <app-action-icon icon="moveUp" iconClass="w-2.5 h-2" />
                           </button>
                           <button
                             class="w-4 h-3.5 flex items-center justify-center text-gray-300 hover:text-gray-500 disabled:opacity-20 transition-colors rounded"
@@ -614,9 +606,7 @@ const FONT_FAMILIES = [
                             [disabled]="idx === tagRules.length - 1"
                             (click)="moveRule(rule.id, 1)"
                           >
-                            <svg viewBox="0 0 12 8" class="w-2.5 h-2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                              <path d="M1 2 L6 6 L11 2" />
-                            </svg>
+                            <app-action-icon icon="moveDown" iconClass="w-2.5 h-2" />
                           </button>
                         </div>
 
@@ -640,19 +630,14 @@ const FONT_FAMILIES = [
                             title="Edit rule"
                             (click)="beginEdit(rule)"
                           >
-                            <svg viewBox="0 0 20 20" class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                              <path d="M13 3 L17 7 L7 17 L3 17 L3 13 Z" />
-                              <path d="M11 5 L15 9" />
-                            </svg>
+                            <app-action-icon icon="edit" iconClass="w-3.5 h-3.5" />
                           </button>
                           <button
                             class="w-6 h-6 flex items-center justify-center text-gray-300 hover:text-red-500 transition-colors rounded"
                             title="Delete rule"
                             (click)="removeRule(rule.id)"
                           >
-                            <svg viewBox="0 0 20 20" class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-                              <path d="M4 4 L16 16 M16 4 L4 16" />
-                            </svg>
+                            <app-action-icon icon="close" iconClass="w-3.5 h-3.5" />
                           </button>
                         </div>
                       </div>
@@ -670,10 +655,7 @@ const FONT_FAMILIES = [
               <!-- Search + Category filter -->
               <div class="flex gap-2">
                 <div class="relative flex-1">
-                  <svg viewBox="0 0 20 20" class="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
-                    <circle cx="8" cy="8" r="5" />
-                    <path d="M13 13 L17 17" />
-                  </svg>
+                  <app-action-icon icon="search" iconClass="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
                   <input
                     type="text"
                     class="w-full text-xs border border-gray-200 rounded-lg pl-8 pr-2 py-1.5 outline-none focus:border-blue-400 transition"
@@ -721,10 +703,7 @@ const FONT_FAMILIES = [
               @if (activeResourceType) {
                 <div class="flex items-center gap-2 px-2.5 py-2 bg-blue-50 rounded-lg border border-blue-100">
                   <div class="w-6 h-6 rounded-md bg-blue-500 text-white flex items-center justify-center flex-shrink-0">
-                    <svg viewBox="0 0 20 20" class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-                      <circle cx="10" cy="10" r="1.5" fill="currentColor" />
-                      <path d="M10 3 L10 6 M10 14 L10 17 M3 10 L6 10 M14 10 L17 10" />
-                    </svg>
+                    <app-action-icon icon="crosshair" iconClass="w-3.5 h-3.5" />
                   </div>
                   <div class="flex-1 min-w-0">
                     <p class="text-xs font-medium text-blue-700 truncate">{{ selectedResourceLabel }}</p>
@@ -734,10 +713,7 @@ const FONT_FAMILIES = [
               } @else {
                 <div class="flex items-center gap-2 px-2.5 py-2 bg-gray-50 rounded-lg">
                   <div class="w-6 h-6 rounded-md bg-gray-200 flex items-center justify-center">
-                    <svg viewBox="0 0 20 20" class="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
-                      <rect x="3" y="3" width="14" height="14" rx="2" />
-                      <path d="M7 10 L13 10 M10 7 L10 13" />
-                    </svg>
+                    <app-action-icon icon="plus" iconClass="w-3.5 h-3.5 text-gray-400" />
                   </div>
                   <p class="text-[10px] text-gray-400">Select a resource type above</p>
                 </div>
@@ -756,19 +732,14 @@ const FONT_FAMILIES = [
                     class="h-10 rounded-lg bg-gray-50 border border-gray-200 text-xs font-medium text-gray-600 hover:bg-gray-100 transition-colors flex items-center justify-center gap-1.5"
                     (click)="undo.emit()"
                   >
-                    <svg viewBox="0 0 20 20" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                      <path d="M4 10 A6 6 0 1 1 7 5" />
-                      <path d="M4 6 L4 10 L8 10" />
-                    </svg>
+                    <app-action-icon icon="undo" iconClass="w-4 h-4" />
                     Undo
                   </button>
                   <button
                     class="h-10 rounded-lg bg-gray-50 border border-gray-200 text-xs font-medium text-gray-600 hover:bg-gray-100 transition-colors flex items-center justify-center gap-1.5"
                     (click)="toolChange.emit('pointer')"
                   >
-                    <svg viewBox="0 0 20 20" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                      <path d="M4 2 L4 14 L7 11 L9 16 L11 15 L9 10 L13 10 Z" />
-                    </svg>
+                    <app-action-icon icon="focus" iconClass="w-4 h-4" />
                     Select
                   </button>
                 </div>
@@ -795,10 +766,7 @@ const FONT_FAMILIES = [
                     [disabled]="!hasSelection"
                     (click)="duplicateSelected.emit()"
                   >
-                    <svg viewBox="0 0 20 20" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                      <rect x="7" y="7" width="10" height="10" rx="1" />
-                      <path d="M3 13 L3 4 C3 3.45 3.45 3 4 3 L13 3" />
-                    </svg>
+                    <app-action-icon icon="duplicate" iconClass="w-4 h-4" />
                     Duplicate
                   </button>
                   <button
@@ -813,9 +781,7 @@ const FONT_FAMILIES = [
                     [disabled]="!hasSelection"
                     (click)="deleteSelected.emit()"
                   >
-                    <svg viewBox="0 0 20 20" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                      <path d="M4 6 L16 6 M8 6 L8 4 L12 4 L12 6 M6 6 L6 16 C6 17 7 17 7 17 L13 17 C13 17 14 17 14 16 L14 6" />
-                    </svg>
+                    <app-action-icon icon="delete" iconClass="w-4 h-4" />
                     Delete
                   </button>
                   <button
@@ -829,10 +795,7 @@ const FONT_FAMILIES = [
                     [disabled]="!hasSelection"
                     (click)="bringToFront.emit()"
                   >
-                    <svg viewBox="0 0 20 20" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                      <rect x="3" y="8" width="8" height="8" rx="1" />
-                      <rect x="9" y="4" width="8" height="8" rx="1" fill="white" />
-                    </svg>
+                    <app-action-icon icon="bringFront" iconClass="w-4 h-4" />
                     Bring Front
                   </button>
                   <button
@@ -846,10 +809,7 @@ const FONT_FAMILIES = [
                     [disabled]="!hasSelection"
                     (click)="sendToBack.emit()"
                   >
-                    <svg viewBox="0 0 20 20" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                      <rect x="9" y="8" width="8" height="8" rx="1" />
-                      <rect x="3" y="4" width="8" height="8" rx="1" fill="white" />
-                    </svg>
+                    <app-action-icon icon="sendBack" iconClass="w-4 h-4" />
                     Send Back
                   </button>
                 </div>
@@ -870,10 +830,7 @@ const FONT_FAMILIES = [
                   [disabled]="annotationCount === 0"
                   (click)="clearAll.emit()"
                 >
-                  <svg viewBox="0 0 20 20" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                    <circle cx="10" cy="10" r="7" />
-                    <path d="M13 7 L7 13 M7 7 L13 13" />
-                  </svg>
+                  <app-action-icon icon="clear" iconClass="w-4 h-4" />
                   Clear All ({{ annotationCount }} item{{ annotationCount === 1 ? '' : 's' }})
                 </button>
               </div>

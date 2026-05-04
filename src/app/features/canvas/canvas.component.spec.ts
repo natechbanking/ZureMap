@@ -773,7 +773,7 @@ describe('CanvasComponent', () => {
   // real host element.  A node placed at position (0,0) with any positive size
   // therefore counts as "under" any click.
 
-  describe('onAnnotationMouseDown – opaque annotations take priority over nodes', () => {
+  describe('onAnnotationMouseDown – click priority over overlapping nodes', () => {
     let node: ReturnType<typeof makeDiagramNode>;
     let mouseEvent: MouseEvent;
 
@@ -814,7 +814,7 @@ describe('CanvasComponent', () => {
       expect(store.selectedNodeIds().length).toBe(0);
     });
 
-    it('rect annotation over a node still defers to the node (existing behavior)', () => {
+    it('rect annotation over a node still defers to the node (shape overlays are node-first)', () => {
       const ann = makeAnnotation({ id: 'rect-1', type: 'rect', x: 0, y: 0, width: 50, height: 50 });
       store.setAnnotations([ann]);
 
@@ -824,13 +824,34 @@ describe('CanvasComponent', () => {
       expect(store.selectedNodeIds()).toContain('node-under');
     });
 
-    it('arrow annotation over a node always selects the annotation (existing behavior)', () => {
+    it('arrow annotation over a node defers to the node (stroke-based annotations are node-first)', () => {
       const ann = makeAnnotation({ id: 'arrow-1', type: 'arrow', x: 0, y: 0, x2: 50, y2: 50 });
       store.setAnnotations([ann]);
 
       component.onAnnotationMouseDown(mouseEvent, ann);
 
-      expect(component.selectedAnnotationId).toBe('arrow-1');
+      expect(component.selectedAnnotationId).toBeNull();
+      expect(store.selectedNodeIds()).toContain('node-under');
+    });
+
+    it('line annotation over a node defers to the node (stroke-based annotations are node-first)', () => {
+      const ann = makeAnnotation({ id: 'line-1', type: 'line', x: 0, y: 0, x2: 50, y2: 50 });
+      store.setAnnotations([ann]);
+
+      component.onAnnotationMouseDown(mouseEvent, ann);
+
+      expect(component.selectedAnnotationId).toBeNull();
+      expect(store.selectedNodeIds()).toContain('node-under');
+    });
+
+    it('draw annotation over a node defers to the node (stroke-based annotations are node-first)', () => {
+      const ann = makeAnnotation({ id: 'draw-1', type: 'draw', x: 0, y: 0, pathData: 'M 0 0 L 50 50' });
+      store.setAnnotations([ann]);
+
+      component.onAnnotationMouseDown(mouseEvent, ann);
+
+      expect(component.selectedAnnotationId).toBeNull();
+      expect(store.selectedNodeIds()).toContain('node-under');
     });
 
     it('image annotation with no node underneath selects the annotation', () => {

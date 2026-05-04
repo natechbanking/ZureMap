@@ -767,6 +767,154 @@ describe('CanvasComponent', () => {
     });
   });
 
+  // ── Annotation click / context-menu priority over nodes ─────────────────────
+  //
+  // canvasPointFromClient() returns {x:0, y:0} in tests because there is no
+  // real host element.  A node placed at position (0,0) with any positive size
+  // therefore counts as "under" any click.
+
+  describe('onAnnotationMouseDown – opaque annotations take priority over nodes', () => {
+    let node: ReturnType<typeof makeDiagramNode>;
+    let mouseEvent: MouseEvent;
+
+    beforeEach(() => {
+      node = makeDiagramNode({ id: 'node-under', position: { x: 0, y: 0 }, size: { width: 200, height: 200 } });
+      store.setNodes([node]);
+      component.visibleNodes = [node];
+      mouseEvent = { button: 0, clientX: 0, clientY: 0, preventDefault: jasmine.createSpy(), stopPropagation: jasmine.createSpy() } as unknown as MouseEvent;
+    });
+
+    it('image annotation over a node selects the annotation, not the node', () => {
+      const ann = makeAnnotation({ id: 'img-1', type: 'image', x: 0, y: 0, width: 100, height: 100 });
+      store.setAnnotations([ann]);
+
+      component.onAnnotationMouseDown(mouseEvent, ann);
+
+      expect(component.selectedAnnotationId).toBe('img-1');
+      expect(store.selectedNodeIds().length).toBe(0);
+    });
+
+    it('text annotation over a node selects the annotation, not the node', () => {
+      const ann = makeAnnotation({ id: 'txt-1', type: 'text', x: 0, y: 0 });
+      store.setAnnotations([ann]);
+
+      component.onAnnotationMouseDown(mouseEvent, ann);
+
+      expect(component.selectedAnnotationId).toBe('txt-1');
+      expect(store.selectedNodeIds().length).toBe(0);
+    });
+
+    it('sticky annotation over a node selects the annotation, not the node', () => {
+      const ann = makeAnnotation({ id: 'sticky-1', type: 'sticky', x: 0, y: 0 });
+      store.setAnnotations([ann]);
+
+      component.onAnnotationMouseDown(mouseEvent, ann);
+
+      expect(component.selectedAnnotationId).toBe('sticky-1');
+      expect(store.selectedNodeIds().length).toBe(0);
+    });
+
+    it('rect annotation over a node still defers to the node (existing behavior)', () => {
+      const ann = makeAnnotation({ id: 'rect-1', type: 'rect', x: 0, y: 0, width: 50, height: 50 });
+      store.setAnnotations([ann]);
+
+      component.onAnnotationMouseDown(mouseEvent, ann);
+
+      expect(component.selectedAnnotationId).toBeNull();
+      expect(store.selectedNodeIds()).toContain('node-under');
+    });
+
+    it('arrow annotation over a node always selects the annotation (existing behavior)', () => {
+      const ann = makeAnnotation({ id: 'arrow-1', type: 'arrow', x: 0, y: 0, x2: 50, y2: 50 });
+      store.setAnnotations([ann]);
+
+      component.onAnnotationMouseDown(mouseEvent, ann);
+
+      expect(component.selectedAnnotationId).toBe('arrow-1');
+    });
+
+    it('image annotation with no node underneath selects the annotation', () => {
+      component.visibleNodes = [];
+      const ann = makeAnnotation({ id: 'img-2', type: 'image', x: 0, y: 0, width: 100, height: 100 });
+      store.setAnnotations([ann]);
+
+      component.onAnnotationMouseDown(mouseEvent, ann);
+
+      expect(component.selectedAnnotationId).toBe('img-2');
+    });
+  });
+
+  describe('onAnnotationContextMenu – opaque annotations show annotation context menu', () => {
+    let node: ReturnType<typeof makeDiagramNode>;
+    let ctxEvent: MouseEvent;
+    let onContextMenuRequestedSpy: jasmine.Spy;
+
+    beforeEach(() => {
+      node = makeDiagramNode({ id: 'node-under', position: { x: 0, y: 0 }, size: { width: 200, height: 200 } });
+      store.setNodes([node]);
+      component.visibleNodes = [node];
+      ctxEvent = { clientX: 0, clientY: 0, preventDefault: jasmine.createSpy(), stopPropagation: jasmine.createSpy() } as unknown as MouseEvent;
+      // Extend the shared mock with properties used inside onAnnotationContextMenu.
+      (ctxMenuSvcMock as Record<string, unknown>)['rgContextMenu'] = null;
+      (ctxMenuSvcMock as Record<string, unknown>)['multiSelectContextMenu'] = null;
+      onContextMenuRequestedSpy = jasmine.createSpy('onContextMenuRequested');
+      (ctxMenuSvcMock as Record<string, unknown>)['onContextMenuRequested'] = onContextMenuRequestedSpy;
+    });
+
+    it('right-clicking an image over a node shows the annotation context menu', () => {
+      const ann = makeAnnotation({ id: 'img-1', type: 'image', x: 0, y: 0, width: 100, height: 100 });
+      store.setAnnotations([ann]);
+
+      component.onAnnotationContextMenu(ctxEvent, ann);
+
+      expect(ctxMenuSvcMock.annotationContextMenu?.annotationId).toBe('img-1');
+      expect(onContextMenuRequestedSpy).not.toHaveBeenCalled();
+    });
+
+    it('right-clicking a text annotation over a node shows the annotation context menu', () => {
+      const ann = makeAnnotation({ id: 'txt-1', type: 'text', x: 0, y: 0 });
+      store.setAnnotations([ann]);
+
+      component.onAnnotationContextMenu(ctxEvent, ann);
+
+      expect(ctxMenuSvcMock.annotationContextMenu?.annotationId).toBe('txt-1');
+      expect(onContextMenuRequestedSpy).not.toHaveBeenCalled();
+    });
+
+    it('right-clicking a sticky annotation over a node shows the annotation context menu', () => {
+      const ann = makeAnnotation({ id: 'sticky-1', type: 'sticky', x: 0, y: 0 });
+      store.setAnnotations([ann]);
+
+      component.onAnnotationContextMenu(ctxEvent, ann);
+
+      expect(ctxMenuSvcMock.annotationContextMenu?.annotationId).toBe('sticky-1');
+      expect(onContextMenuRequestedSpy).not.toHaveBeenCalled();
+    });
+
+    it('right-clicking a rect annotation over a node shows the node context menu', () => {
+      const ann = makeAnnotation({ id: 'rect-1', type: 'rect', x: 0, y: 0, width: 50, height: 50 });
+      store.setAnnotations([ann]);
+
+      component.onAnnotationContextMenu(ctxEvent, ann);
+
+      expect(ctxMenuSvcMock.annotationContextMenu).toBeNull();
+      expect(onContextMenuRequestedSpy).toHaveBeenCalledWith(
+        jasmine.objectContaining({ nodeId: 'node-under' })
+      );
+    });
+
+    it('right-clicking an image with no node underneath shows the annotation context menu', () => {
+      component.visibleNodes = [];
+      const ann = makeAnnotation({ id: 'img-2', type: 'image', x: 0, y: 0, width: 100, height: 100 });
+      store.setAnnotations([ann]);
+
+      component.onAnnotationContextMenu(ctxEvent, ann);
+
+      expect(ctxMenuSvcMock.annotationContextMenu?.annotationId).toBe('img-2');
+      expect(onContextMenuRequestedSpy).not.toHaveBeenCalled();
+    });
+  });
+
   describe('panel state persistence', () => {
     it('persists storage panel expanded state on node custom.panelState for export/import', () => {
       const node = makeDiagramNode({ id: 'sa-1' });

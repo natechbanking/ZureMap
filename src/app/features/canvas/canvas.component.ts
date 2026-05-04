@@ -1012,9 +1012,12 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
   onAnnotationMouseDown(e: MouseEvent, ann: Annotation): void {
     if (this.activeTool !== 'pointer') return;
     if (e.button !== 0) return;
-    // For line-like annotations, always prioritize annotation selection even when
-    // they overlap a node so the user can still edit/connect those arrows.
-    if (ann.type !== 'arrow' && ann.type !== 'line' && ann.type !== 'draw') {
+    // Transparent stroke-based annotations (draw paths, arrows, lines) let the
+    // node underneath win the click so nodes remain reachable. Opaque block
+    // annotations (image, text, sticky) live in the HTML overlay layer that
+    // already renders above nodes, so they always take selection priority.
+    if (ann.type !== 'arrow' && ann.type !== 'line' && ann.type !== 'draw'
+        && ann.type !== 'image' && ann.type !== 'text' && ann.type !== 'sticky') {
       const canvasPt = this.canvasPointFromClient(e.clientX, e.clientY);
       const nodeUnder = this.nodeAtCanvasPoint(canvasPt.x, canvasPt.y);
       if (nodeUnder) {
@@ -2182,13 +2185,19 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
 
   onAnnotationContextMenu(event: MouseEvent, ann: Annotation): void {
     if (this.activeTool !== 'pointer') return;
-    const canvasPt = this.canvasPointFromClient(event.clientX, event.clientY);
-    const nodeUnder = this.nodeAtCanvasPoint(canvasPt.x, canvasPt.y);
-    if (nodeUnder) {
-      event.preventDefault();
-      event.stopPropagation();
-      this.ctxMenuSvc.onContextMenuRequested({ nodeId: nodeUnder.id, x: event.clientX, y: event.clientY });
-      return;
+    // Opaque block annotations (image, text, sticky) always show their own
+    // context menu so "Bring to front / Send to back" is reachable even when
+    // they overlap a node. Transparent annotations still defer to the node.
+    const isOpaqueAnnotation = ann.type === 'image' || ann.type === 'text' || ann.type === 'sticky';
+    if (!isOpaqueAnnotation) {
+      const canvasPt = this.canvasPointFromClient(event.clientX, event.clientY);
+      const nodeUnder = this.nodeAtCanvasPoint(canvasPt.x, canvasPt.y);
+      if (nodeUnder) {
+        event.preventDefault();
+        event.stopPropagation();
+        this.ctxMenuSvc.onContextMenuRequested({ nodeId: nodeUnder.id, x: event.clientX, y: event.clientY });
+        return;
+      }
     }
     event.preventDefault();
     event.stopPropagation();

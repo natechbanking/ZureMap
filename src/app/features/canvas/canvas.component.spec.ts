@@ -578,5 +578,96 @@ describe('CanvasComponent', () => {
       expect(item?.color).toBe('#222222');
       expect(item?.backgroundColor).toBe('#dddddd');
     });
+
+    it('reverts internal-item colors to base when a rule is removed', () => {
+      const node = makeDiagramNode({
+        id: 'n-revert',
+        custom: {
+          internalItems: [
+            { id: 'i1', text: 'port 443', x: 1, y: 1, color: '#000000', backgroundColor: '#ffffff' },
+          ],
+        },
+      });
+      store.setNodes([node]);
+
+      // Apply a rule — colors should be overridden.
+      component.onTagRulesChange([
+        { id: 'ir-1', type: 'internal-item', textQuery: 'port', textColor: '#111111', backgroundColor: '#eeeeee' },
+      ]);
+      const afterApply = store.nodes().find(n => n.id === 'n-revert')!;
+      const appliedItem = afterApply.custom?.internalItems?.[0];
+      expect(appliedItem?.color).toBe('#111111');
+      // baseColor must be preserved so the original can be restored on rule removal.
+      expect(appliedItem?.baseColor).toBe('#000000');
+
+      // Remove the rule — colors should revert to the original values.
+      component.onTagRulesChange([]);
+      const afterRevert = store.nodes().find(n => n.id === 'n-revert')!;
+      const reverted = afterRevert.custom?.internalItems?.[0];
+      expect(reverted?.color).toBe('#000000');
+      expect(reverted?.backgroundColor).toBe('#ffffff');
+    });
+
+    it('reverts colors only for items that no longer match when a rule query changes', () => {
+      const node = makeDiagramNode({
+        id: 'n-query-change',
+        custom: {
+          internalItems: [
+            { id: 'i1', text: 'port 443', x: 1, y: 1, color: '#aaaaaa', backgroundColor: '#bbbbbb' },
+            { id: 'i2', text: 'owner tag', x: 1, y: 20, color: '#cccccc', backgroundColor: '#dddddd' },
+          ],
+        },
+      });
+      store.setNodes([node]);
+
+      // Apply a broad rule that matches both items.
+      component.onTagRulesChange([
+        { id: 'ir-1', type: 'internal-item', textQuery: '', textColor: '#111111', backgroundColor: '#eeeeee' },
+      ]);
+      const bothStyled = store.nodes().find(n => n.id === 'n-query-change')!.custom?.internalItems ?? [];
+      expect(bothStyled.find(i => i.id === 'i1')?.color).toBe('#111111');
+      expect(bothStyled.find(i => i.id === 'i2')?.color).toBe('#111111');
+
+      // Narrow the rule so only 'port' items still match.
+      component.onTagRulesChange([
+        { id: 'ir-1', type: 'internal-item', textQuery: 'port', textColor: '#111111', backgroundColor: '#eeeeee' },
+      ]);
+      const afterNarrow = store.nodes().find(n => n.id === 'n-query-change')!.custom?.internalItems ?? [];
+      expect(afterNarrow.find(i => i.id === 'i1')?.color).toBe('#111111');   // still matches
+      expect(afterNarrow.find(i => i.id === 'i2')?.color).toBe('#cccccc');   // reverted to original
+      expect(afterNarrow.find(i => i.id === 'i2')?.backgroundColor).toBe('#dddddd');
+    });
+
+    it('applies existing internal-item rules to a node created via onCreateResourceConfirm', () => {
+      // Establish a rule before any node is created.
+      store.tagRules.set([
+        { id: 'ir-1', type: 'internal-item', textQuery: 'port', textColor: '#ff0000', backgroundColor: '#ffeeee' },
+      ]);
+
+      component.resourcePlacementPosition = { x: 10, y: 10 };
+      component.activeResourceType = 'microsoft.network/virtualnetworks';
+
+      component.onCreateResourceConfirm({
+        name: 'new-resource',
+        resourceGroup: 'rg-1',
+        status: 'running',
+        description: '',
+        location: 'eastus',
+        tags: [],
+        internalItems: [{ text: 'port 443' }, { text: 'owner' }],
+      });
+
+      const created = store.nodes().find(n => n.label === 'new-resource');
+      expect(created).toBeDefined();
+      const items = created?.custom?.internalItems ?? [];
+      const portItem = items.find(i => i.text === 'port 443');
+      const ownerItem = items.find(i => i.text === 'owner');
+      // Rule should already be applied to the matching item.
+      expect(portItem?.color).toBe('#ff0000');
+      expect(portItem?.backgroundColor).toBe('#ffeeee');
+      // Non-matching item keeps its default colors.
+      expect(ownerItem?.color).toBe('#1d4ed8');
+      expect(ownerItem?.backgroundColor).toBe('#eff6ff');
+    });
   });
 });

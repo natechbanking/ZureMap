@@ -17,8 +17,9 @@ export class CanvasResourceEditorService {
       description: node.custom?.description ?? '',
       internalItems: (node.custom?.internalItems ?? []).map(i => ({
         ...i,
-        color: i.color ?? this.defaultInternalItemColor,
-        backgroundColor: i.backgroundColor ?? this.defaultInternalItemBackgroundColor,
+        // Show the user's original base colors in the editor, not rule-applied colors
+        color: i.baseColor ?? i.color ?? this.defaultInternalItemColor,
+        backgroundColor: i.baseBackgroundColor ?? i.backgroundColor ?? this.defaultInternalItemBackgroundColor,
       })),
     };
   }
@@ -37,7 +38,13 @@ export class CanvasResourceEditorService {
         },
         custom: {
           description: draft.description,
-          internalItems: draft.internalItems,
+          // Treat draft colors as the user's base intent so that rules can
+          // override them and rule removal reverts correctly.
+          internalItems: draft.internalItems.map(i => ({
+            ...i,
+            baseColor: i.color ?? this.defaultInternalItemColor,
+            baseBackgroundColor: i.backgroundColor ?? this.defaultInternalItemBackgroundColor,
+          })),
         },
       };
     });

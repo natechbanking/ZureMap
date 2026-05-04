@@ -16,6 +16,7 @@ import { CanvasNodeExpansionService } from './canvas-node-expansion.service';
 import { CanvasTagVisualizationService } from './canvas-tag-visualization.service';
 import { CanvasContextMenuService } from './canvas-context-menu.service';
 import { AutosaveService } from '../../core/services/autosave.service';
+import { DiagramNode } from '../../core/models/diagram-node.model';
 import { makeAnnotation, makeAzureResource, makeDiagramEdge, makeDiagramNode } from '../../testing/test-helpers';
 
 describe('CanvasComponent', () => {
@@ -825,7 +826,11 @@ describe('CanvasComponent', () => {
     it('persists storage panel expanded state on node custom.panelState for export/import', () => {
       const node = makeDiagramNode({ id: 'sa-1' });
       store.setNodes([node]);
-      (component as any).nodeExpansion = { apply: (nodes: any[]) => nodes };
+      (
+        component as unknown as {
+          nodeExpansion: { apply: (nodes: DiagramNode[]) => DiagramNode[] };
+        }
+      ).nodeExpansion = { apply: (nodes: DiagramNode[]) => nodes };
 
       component.onStorageAccountExpansionChanged({ nodeId: 'sa-1', expanded: true, itemCount: 3 });
       let updated = store.nodes().find(n => n.id === 'sa-1');

@@ -54,6 +54,7 @@ export class CanvasNodesLayerComponent {
   @Output() nodeMouseDown = new EventEmitter<{ event: MouseEvent; node: DiagramNode }>();
   @Output() portMouseDown = new EventEmitter<{ event: MouseEvent; node: DiagramNode; portId: string }>();
   @Output() nodeClicked = new EventEmitter<string>();
+  @Output() detailsRequested = new EventEmitter<string>();
   @Output() editRequested = new EventEmitter<string>();
   @Output() internalItemMoved = new EventEmitter<InternalItemMoveRequest>();
   @Output() nodeResized = new EventEmitter<NodeResizeRequest>();

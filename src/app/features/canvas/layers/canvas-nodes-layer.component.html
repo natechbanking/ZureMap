@@ -19,6 +19,7 @@
       [tagHighlightColor]="nodeHL"
       [isLinking]="isLinking"
       (clicked)="nodeClicked.emit($event)"
+      (detailsRequested)="detailsRequested.emit($event)"
       (editRequested)="editRequested.emit($event)"
       (internalItemMoved)="internalItemMoved.emit($event)"
       (nodeResized)="nodeResized.emit($event)"

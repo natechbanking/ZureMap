@@ -31,7 +31,7 @@ import { ActionIconComponent } from '../../../shared/components/action-icon/acti
         </button>
         <button type="button" class="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-left text-gray-700 hover:bg-gray-50" (click)="nodeFocused.emit()">
           <app-action-icon icon="focus" iconClass="w-3.5 h-3.5 shrink-0 text-gray-400" />
-          Focus in sidebar
+          Open details
         </button>
         <button type="button" class="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-left text-gray-700 hover:bg-gray-50" (click)="copyName.emit()">
           <app-action-icon icon="copy" iconClass="w-3.5 h-3.5 shrink-0 text-gray-400" />

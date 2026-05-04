@@ -91,7 +91,7 @@ describe('DiagramStore', () => {
 
     store.selectNodes(['n1']);
     expect(store.selectedNodeId()).toBe('n1');
-    expect(store.sidebarOpen()).toBeTrue();
+    expect(store.sidebarOpen()).toBeFalse();
     expect(store.nodes().find(n => n.id === 'n1')?.selected).toBeTrue();
 
     store.toggleNodeInSelection('n2');
@@ -101,6 +101,16 @@ describe('DiagramStore', () => {
     store.selectNode(null);
     expect(store.selectedNodeIds()).toEqual([]);
     expect(store.sidebarOpen()).toBeFalse();
+  });
+
+  it('opens sidebar only when explicitly requested', () => {
+    const n1 = makeDiagramNode({ id: 'n1' });
+    store.setNodes([n1]);
+
+    store.selectNode('n1', true);
+
+    expect(store.selectedNodeId()).toBe('n1');
+    expect(store.sidebarOpen()).toBeTrue();
   });
 
   it('deleteNode removes node, related edges, and parent child linkage', () => {

@@ -107,6 +107,7 @@ export class DiagramNodeComponent {
   @Input() tagHighlightColor: string | null = null;
   @Input() isLinking = false;
   @Output() clicked = new EventEmitter<string>();
+  @Output() detailsRequested = new EventEmitter<string>();
   @Output() portMouseDown = new EventEmitter<{ event: MouseEvent; portId: string }>();
   @Output() contextMenuRequested = new EventEmitter<ContextMenuRequest>();
   @Output() editRequested = new EventEmitter<string>();
@@ -387,7 +388,7 @@ export class DiagramNodeComponent {
   onDoubleClick(event: MouseEvent): void {
     event.preventDefault();
     event.stopPropagation();
-    this.editRequested.emit(this.node.id);
+    this.detailsRequested.emit(this.node.id);
   }
 
   toggleRoutesPanel(event: MouseEvent): void {

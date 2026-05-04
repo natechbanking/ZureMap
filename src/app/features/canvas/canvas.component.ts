@@ -2108,6 +2108,10 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
     this.ctxMenuSvc.ctxFocus();
   }
 
+  openNodeDetails(nodeId: string): void {
+    this.store.selectNode(nodeId, true);
+  }
+
   breakOutNode(nodeId: string, parentId: string | null): void {
     this.store.pushUndo();
     if (parentId) {

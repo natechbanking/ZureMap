@@ -217,7 +217,7 @@ export class CanvasContextMenuService {
 
   ctxFocus(): void {
     if (!this.contextMenu) return;
-    this.store.selectNode(this.contextMenu.nodeId);
+    this.store.selectNode(this.contextMenu.nodeId, true);
     this.closeContextMenu();
   }
 

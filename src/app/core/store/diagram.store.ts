@@ -320,14 +320,14 @@ export class DiagramStore {
     this.bumpRevision();
   }
 
-  selectNode(nodeId: string | null): void {
-    this.selectNodes(nodeId ? [nodeId] : []);
+  selectNode(nodeId: string | null, openSidebar = false): void {
+    this.selectNodes(nodeId ? [nodeId] : [], openSidebar);
   }
 
-  selectNodes(ids: string[]): void {
+  selectNodes(ids: string[], openSidebar = false): void {
     const idSet = new Set(ids);
     this.selectedNodeIds.set(ids);
-    this.sidebarOpen.set(ids.length === 1);
+    this.sidebarOpen.set(openSidebar && ids.length === 1);
     this.nodes.update(current =>
       current.map(n => ({ ...n, selected: idSet.has(n.id) }))
     );

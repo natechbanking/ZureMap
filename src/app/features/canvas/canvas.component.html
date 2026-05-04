@@ -161,6 +161,7 @@
               (nodeMouseDown)="onNodeMouseDown($event.event, $event.node)"
               (portMouseDown)="onPortMouseDown($event.event, $event.node, $event.portId)"
               (nodeClicked)="store.selectNode($event)"
+              (detailsRequested)="openNodeDetails($event)"
               (editRequested)="openResourceEditor($event)"
               (internalItemMoved)="onInternalItemMoved($event)"
               (nodeResized)="onNodeResized($event)"

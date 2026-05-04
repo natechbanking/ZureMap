@@ -62,7 +62,7 @@ describe('CanvasComponent', () => {
           },
         },
         { provide: CanvasCollapseService, useValue: {} },
-        { provide: CanvasAnnotationService, useValue: { deleteButtonX: () => 0, deleteButtonY: () => 0 } },
+        CanvasAnnotationService,
         { provide: CanvasDragService, useValue: { onDocumentMouseMove: () => ({ handled: false }) } },
         { provide: CanvasOverlapService, useValue: { resolveSubscriptionContainerOverlaps: () => undefined } },
         { provide: CanvasNodeExpansionService, useValue: { apply: () => null } },
@@ -543,6 +543,104 @@ describe('CanvasComponent', () => {
       expect(anns[0].y2).toBe(60);
       expect(anns[0].sourceBinding).toBeUndefined();
       expect(anns[0].targetBinding).toBeUndefined();
+    });
+  });
+
+  describe('arrow endpoint drag rebinding', () => {
+    it('binds an endpoint to a port when mouse-up lands on a port', () => {
+      // Node at (0, -30), size (100, 60) → port-left at (0, 0)
+      const node = makeDiagramNode({ id: 'n1', position: { x: 0, y: -30 }, size: { width: 100, height: 60 } });
+      store.setNodes([node]);
+      component.visibleNodes = [node];
+
+      const ann = makeAnnotation({ id: 'ann-1', type: 'arrow', x: 50, y: 50, x2: 200, y2: 200 });
+      store.setAnnotations([ann]);
+
+      // Start dragging the 'end' endpoint
+      const mouseDownEvt = {
+        stopPropagation: jasmine.createSpy(),
+        preventDefault: jasmine.createSpy(),
+        clientX: 200,
+        clientY: 200,
+        button: 0,
+      } as unknown as MouseEvent;
+      component.onAnnEndpointMouseDown(mouseDownEvt, ann, 'end');
+
+      // Mouse-up over port-left of node (canvas coords 0,0 since no host element)
+      component.onDocMouseUp(new MouseEvent('mouseup', { clientX: 0, clientY: 0 }));
+
+      const updated = store.annotations().find(a => a.id === 'ann-1');
+      expect(updated?.targetBinding?.nodeId).toBe('n1');
+      expect(updated?.targetBinding?.portId).toBe('port-left');
+    });
+
+    it('unbinds an endpoint when dragged to empty space', () => {
+      // Node far from origin so its ports are not at (0,0)
+      const node = makeDiagramNode({ id: 'n1', position: { x: 500, y: 500 }, size: { width: 100, height: 60 } });
+      store.setNodes([node]);
+      component.visibleNodes = [node];
+
+      const ann = makeAnnotation({
+        id: 'ann-1',
+        type: 'arrow',
+        x: 50,
+        y: 50,
+        x2: 200,
+        y2: 200,
+        sourceBinding: { nodeId: 'n1', portId: 'port-left' },
+      });
+      store.setAnnotations([ann]);
+
+      // Drag the 'start' endpoint (mousemove clears the binding)
+      const mouseDownEvt = {
+        stopPropagation: jasmine.createSpy(),
+        preventDefault: jasmine.createSpy(),
+        clientX: 50,
+        clientY: 50,
+        button: 0,
+      } as unknown as MouseEvent;
+      component.onAnnEndpointMouseDown(mouseDownEvt, ann, 'start');
+
+      // Simulate a mousemove which clears sourceBinding and updates raw coords
+      component.onDocMouseMove(new MouseEvent('mousemove', { clientX: 80, clientY: 80 }));
+
+      const afterMove = store.annotations().find(a => a.id === 'ann-1');
+      expect(afterMove?.sourceBinding).toBeUndefined();
+
+      // Mouse-up over empty space (no port within snap range of (0,0))
+      component.onDocMouseUp(new MouseEvent('mouseup', { clientX: 80, clientY: 80 }));
+
+      const afterUp = store.annotations().find(a => a.id === 'ann-1');
+      expect(afterUp?.sourceBinding).toBeUndefined();
+    });
+  });
+
+  describe('bound arrow duplication', () => {
+    it('clears sourceBinding and targetBinding when duplicating a bound arrow', () => {
+      const ann = makeAnnotation({
+        id: 'ann-bound',
+        type: 'arrow',
+        x: 100,
+        y: 100,
+        x2: 200,
+        y2: 200,
+        sourceBinding: { nodeId: 'n1', portId: 'port-left' },
+        targetBinding: { nodeId: 'n2', portId: 'port-right' },
+      });
+      store.setAnnotations([ann]);
+      component.selectedAnnotationId = 'ann-bound';
+      component.selectedAnnotationIds = ['ann-bound'];
+
+      component.duplicateSelectedAnnotation();
+
+      const all = store.annotations();
+      expect(all.length).toBe(2);
+      const dup = all.find(a => a.id !== 'ann-bound');
+      expect(dup).toBeDefined();
+      expect(dup?.sourceBinding).toBeUndefined();
+      expect(dup?.targetBinding).toBeUndefined();
+      expect(dup?.x).toBe(120);
+      expect(dup?.y).toBe(120);
     });
   });
 

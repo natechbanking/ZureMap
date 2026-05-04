@@ -11,6 +11,8 @@ export class CanvasAnnotationService {
       y: source.y + 20,
       x2: source.x2 !== undefined ? source.x2 + 20 : undefined,
       y2: source.y2 !== undefined ? source.y2 + 20 : undefined,
+      sourceBinding: undefined,
+      targetBinding: undefined,
     };
   }
 

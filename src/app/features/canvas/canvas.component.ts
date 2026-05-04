@@ -689,8 +689,19 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
           .map(n => n.id);
         const intersectedAnnotations = this.store.annotations()
           .filter(a => {
-            const b = annotationBoundsUtil(a);
-            return b.maxX > x && b.minX < x + w && b.maxY > y && b.minY < y + h;
+            let minX: number, minY: number, maxX: number, maxY: number;
+            if ((a.type === 'arrow' || a.type === 'line') && (a.sourceBinding || a.targetBinding)) {
+              const start = this.resolveAnnotationEndpointPosition(a, 'start');
+              const end = this.resolveAnnotationEndpointPosition(a, 'end');
+              minX = Math.min(start.x, end.x);
+              minY = Math.min(start.y, end.y);
+              maxX = Math.max(start.x, end.x);
+              maxY = Math.max(start.y, end.y);
+            } else {
+              const b = annotationBoundsUtil(a);
+              minX = b.minX; minY = b.minY; maxX = b.maxX; maxY = b.maxY;
+            }
+            return maxX > x && minX < x + w && maxY > y && minY < y + h;
           })
           .map(a => a.id);
         if (this.marqueeState.ctrlHeld) {
@@ -956,7 +967,12 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
 
   onDrawMouseMove(e: MouseEvent): void {
     const pt = this.svgPoint(e);
-    this.applyDrawingRuntime(onDrawMove(this.currentDrawingRuntime(), this.currentDrawingStyle(), pt));
+    let movePt = pt;
+    if (this.activeTool === 'arrow') {
+      const snap = this.nearestNodePortAtPoint(pt, 18);
+      if (snap) movePt = { x: snap.x, y: snap.y };
+    }
+    this.applyDrawingRuntime(onDrawMove(this.currentDrawingRuntime(), this.currentDrawingStyle(), movePt));
     this.updateDrawBindPreviewPorts(pt);
   }
 
@@ -1274,11 +1290,47 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
     return this.store.annotations().find(a => a.id === id);
   }
 
+  /**
+   * Resolves the actual display position of an arrow/line annotation endpoint,
+   * accounting for sourceBinding/targetBinding when present. Falls back to the
+   * raw x/y or x2/y2 coordinates when the binding cannot be resolved.
+   */
+  private resolveAnnotationEndpointPosition(ann: Annotation, endpoint: 'start' | 'end'): { x: number; y: number } {
+    const binding = endpoint === 'start' ? ann.sourceBinding : ann.targetBinding;
+    if (binding?.nodeId) {
+      const node = this.visibleNodes.find(n => n.id === binding.nodeId);
+      if (node) {
+        const pos = portPosition(node, binding.portId);
+        if (pos) return pos;
+      }
+    }
+    if (binding?.annotationId) {
+      const boundAnn = this.store.annotations().find(a => a.id === binding.annotationId);
+      if (boundAnn) {
+        const pos = annotationPortPosition(boundAnn, binding.portId);
+        if (pos) return pos;
+      }
+    }
+    return endpoint === 'start'
+      ? { x: ann.x, y: ann.y }
+      : { x: ann.x2 ?? ann.x, y: ann.y2 ?? ann.y };
+  }
+
   annDeleteBtnX(ann: Annotation): number {
+    if (ann.type === 'arrow' || ann.type === 'line') {
+      const sx = this.resolveAnnotationEndpointPosition(ann, 'start').x;
+      const ex = this.resolveAnnotationEndpointPosition(ann, 'end').x;
+      return Math.max(sx, ex) + 8;
+    }
     return this.annotationSvc.deleteButtonX(ann);
   }
 
   annDeleteBtnY(ann: Annotation): number {
+    if (ann.type === 'arrow' || ann.type === 'line') {
+      const sy = this.resolveAnnotationEndpointPosition(ann, 'start').y;
+      const ey = this.resolveAnnotationEndpointPosition(ann, 'end').y;
+      return Math.min(sy, ey) - 10;
+    }
     return this.annotationSvc.deleteButtonY(ann);
   }
 
@@ -1309,7 +1361,13 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
       maxX = Math.max(maxX, n.position.x + n.size.width + 80);
     }
     for (const ann of anns) {
-      maxX = Math.max(maxX, annotationMaxXUtil(ann) + 80);
+      if (ann.type === 'arrow' || ann.type === 'line') {
+        const sx = this.resolveAnnotationEndpointPosition(ann, 'start').x;
+        const ex = this.resolveAnnotationEndpointPosition(ann, 'end').x;
+        maxX = Math.max(maxX, sx + 80, ex + 80);
+      } else {
+        maxX = Math.max(maxX, annotationMaxXUtil(ann) + 80);
+      }
     }
     maxX = Math.max(maxX, this.previewMaxX() + 80);
 
@@ -1325,7 +1383,13 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
       maxY = Math.max(maxY, n.position.y + n.size.height + 80);
     }
     for (const ann of anns) {
-      maxY = Math.max(maxY, annotationMaxYUtil(ann) + 80);
+      if (ann.type === 'arrow' || ann.type === 'line') {
+        const sy = this.resolveAnnotationEndpointPosition(ann, 'start').y;
+        const ey = this.resolveAnnotationEndpointPosition(ann, 'end').y;
+        maxY = Math.max(maxY, sy + 80, ey + 80);
+      } else {
+        maxY = Math.max(maxY, annotationMaxYUtil(ann) + 80);
+      }
     }
     maxY = Math.max(maxY, this.previewMaxY() + 80);
 
@@ -1814,10 +1878,11 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
       .filter((p): p is { nodeId: string; portId: string; x: number; y: number } => !!p);
 
     this.drawBindPreviewPorts = ports;
+    const SNAP_DISTANCE = 18;
     let best: { portId: string; d: number } | null = null;
     for (const p of ports) {
       const d = Math.hypot(p.x - pt.x, p.y - pt.y);
-      if (!best || d < best.d) best = { portId: p.portId, d };
+      if (d <= SNAP_DISTANCE && (!best || d < best.d)) best = { portId: p.portId, d };
     }
     this.drawBindPreviewActivePortId = best?.portId ?? null;
   }

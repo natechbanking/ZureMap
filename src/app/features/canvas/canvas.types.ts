@@ -41,21 +41,29 @@ export interface RouteTableBound {
 }
 
 export type TagRuleOperator = 'eq' | 'neq' | 'contains' | 'exists' | 'notexists';
+export type HighlightRuleType = 'tag' | 'internal-item';
 
-/** A single tag-based highlighting rule evaluated against an RG or subscription. */
 export interface TagRule {
   id: string;
-  tagKey: string;
-  operator: TagRuleOperator;
+  type: HighlightRuleType;
+  tagKey?: string;
+  operator?: TagRuleOperator;
   /** Unused for 'exists' / 'notexists' operators. */
-  tagValue: string;
-  /** Which container level to highlight. */
-  target: 'rg' | 'sub' | 'both' | 'node';
-  color: string;
-  /** Optional badge text shown on the container header. */
+  tagValue?: string;
+  /** Used by tag rules to pick container level highlight. */
+  target?: 'rg' | 'sub' | 'both' | 'node';
+  /** Used by tag rules as highlight color. */
+  color?: string;
+  /** Optional badge text shown on container headers for tag rules. */
   badgeLabel?: string;
-  /** Extra padding (px) added around the natural container bounds when rendering the highlight. */
+  /** Extra padding (px) added around the natural container bounds when rendering tag highlights. */
   sizeOffset?: { top: number; right: number; bottom: number; left: number };
+  /** Used by internal-item rules to match label text by substring. Empty means "all". */
+  textQuery?: string;
+  /** Used by internal-item rules. */
+  textColor?: string;
+  /** Used by internal-item rules. */
+  backgroundColor?: string;
 }
 
 export interface ResourceEditorDraft {

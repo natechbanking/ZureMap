@@ -493,4 +493,90 @@ describe('CanvasComponent', () => {
       expect(edges[0].style.markerEnd).toBe('arrow');
     });
   });
+
+  describe('unified highlight rules', () => {
+    it('applies internal-item styling rules across matching internal text items', () => {
+      const nodeA = makeDiagramNode({
+        id: 'n-a',
+        custom: {
+          internalItems: [
+            { id: 'a1', text: 'port 443', x: 1, y: 1, color: '#000000', backgroundColor: '#ffffff' },
+            { id: 'a2', text: 'owner', x: 1, y: 20, color: '#000000', backgroundColor: '#ffffff' },
+          ],
+        },
+      });
+      const nodeB = makeDiagramNode({
+        id: 'n-b',
+        custom: {
+          internalItems: [
+            { id: 'b1', text: 'port 80', x: 1, y: 1, color: '#222222', backgroundColor: '#f0f0f0' },
+          ],
+        },
+      });
+      store.setNodes([nodeA, nodeB]);
+
+      component.onTagRulesChange([
+        {
+          id: 'ir-1',
+          type: 'internal-item',
+          textQuery: 'port',
+          textColor: '#111111',
+          backgroundColor: '#eeeeee',
+        },
+      ]);
+
+      const updatedA = store.nodes().find(n => n.id === 'n-a')!;
+      const updatedB = store.nodes().find(n => n.id === 'n-b')!;
+      const aItems = updatedA.custom?.internalItems ?? [];
+      const bItems = updatedB.custom?.internalItems ?? [];
+      const aPort = aItems.find(i => i.id === 'a1');
+      const aOwner = aItems.find(i => i.id === 'a2');
+      const bPort = bItems.find(i => i.id === 'b1');
+
+      expect(aPort).toBeDefined();
+      expect(aOwner).toBeDefined();
+      expect(bPort).toBeDefined();
+      expect(aPort?.color).toBe('#111111');
+      expect(aPort?.backgroundColor).toBe('#eeeeee');
+      expect(bPort?.color).toBe('#111111');
+      expect(bPort?.backgroundColor).toBe('#eeeeee');
+      expect(aOwner?.color).toBe('#000000');
+      expect(aOwner?.backgroundColor).toBe('#ffffff');
+    });
+
+    it('applies internal-item rules in order (later rules override earlier matches)', () => {
+      const node = makeDiagramNode({
+        id: 'n-order',
+        custom: {
+          internalItems: [
+            { id: 'i1', text: 'port 443', x: 1, y: 1, color: '#000000', backgroundColor: '#ffffff' },
+          ],
+        },
+      });
+      store.setNodes([node]);
+
+      component.onTagRulesChange([
+        {
+          id: 'ir-1',
+          type: 'internal-item',
+          textQuery: 'port',
+          textColor: '#111111',
+          backgroundColor: '#eeeeee',
+        },
+        {
+          id: 'ir-2',
+          type: 'internal-item',
+          textQuery: '443',
+          textColor: '#222222',
+          backgroundColor: '#dddddd',
+        },
+      ]);
+
+      const updated = store.nodes().find(n => n.id === 'n-order')!;
+      const item = (updated.custom?.internalItems ?? []).find(i => i.id === 'i1');
+      expect(item).toBeDefined();
+      expect(item?.color).toBe('#222222');
+      expect(item?.backgroundColor).toBe('#dddddd');
+    });
+  });
 });

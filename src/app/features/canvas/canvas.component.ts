@@ -1400,7 +1400,42 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
 
   onTagRulesChange(rules: TagRule[]): void {
     this.store.tagRules.set(rules);
+    this.applyInternalItemStyleRules();
     this.recomputeTagHighlights(this.store.nodes());
+  }
+
+  private applyInternalItemStyleRules(): void {
+    const rules = this.store.tagRules().filter(r => r.type === 'internal-item');
+    if (!rules.length) return;
+    let changed = false;
+    const nextNodes = this.store.nodes().map(node => {
+      const items = node.custom?.internalItems;
+      if (!items?.length) return node;
+      let nodeChanged = false;
+      const nextItems = items.map(item => {
+        const text = (item.text ?? '').toLowerCase();
+        let nextColor = item.color;
+        let nextBackground = item.backgroundColor;
+        for (const rule of rules) {
+          const query = (rule.textQuery ?? '').trim().toLowerCase();
+          if (query && !text.includes(query)) continue;
+          if (rule.textColor) nextColor = rule.textColor;
+          if (rule.backgroundColor) nextBackground = rule.backgroundColor;
+        }
+        if (item.color === nextColor && item.backgroundColor === nextBackground) return item;
+        nodeChanged = true;
+        return { ...item, color: nextColor, backgroundColor: nextBackground };
+      });
+      if (!nodeChanged) return node;
+      changed = true;
+      return {
+        ...node,
+        custom: { ...(node.custom ?? {}), internalItems: nextItems },
+      };
+    });
+    if (!changed) return;
+    this.store.pushUndo();
+    this.store.setNodes(nextNodes);
   }
 
   private recomputeTagHighlights(nodes: DiagramNode[]): void {
@@ -1454,24 +1489,29 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
     }
 
     const evalRule = (rule: TagRule, tags: Map<string, Set<string>>): boolean => {
+      const tagKey = rule.tagKey ?? '';
+      const tagValue = rule.tagValue ?? '';
+      const operator = rule.operator ?? 'eq';
       switch (rule.operator) {
-        case 'exists':    return tags.has(rule.tagKey);
-        case 'notexists': return !tags.has(rule.tagKey);
-        case 'eq':        return tags.get(rule.tagKey)?.has(rule.tagValue) ?? false;
-        case 'neq':       return !(tags.get(rule.tagKey)?.has(rule.tagValue) ?? false);
-        case 'contains':  return Array.from(tags.get(rule.tagKey) ?? []).some(v => v.includes(rule.tagValue));
+        case 'exists':    return tags.has(tagKey);
+        case 'notexists': return !tags.has(tagKey);
+        case 'eq':        return tags.get(tagKey)?.has(tagValue) ?? false;
+        case 'neq':       return !(tags.get(tagKey)?.has(tagValue) ?? false);
+        case 'contains':  return Array.from(tags.get(tagKey) ?? []).some(v => v.includes(tagValue));
+        default:          return operator === 'eq' ? (tags.get(tagKey)?.has(tagValue) ?? false) : false;
       }
     };
 
     const toHighlight = (rule: TagRule): TagHighlightInfo => ({
       ruleId: rule.id,
-      borderColor: rule.color,
-      bgColor: rule.color + '22',
+      borderColor: rule.color ?? '#ef4444',
+      bgColor: (rule.color ?? '#ef4444') + '22',
       badgeLabel: rule.badgeLabel,
       sizeOffset: rule.sizeOffset,
     });
 
     for (const rule of rules) {
+      if (rule.type === 'internal-item') continue;
       if (rule.target === 'rg' || rule.target === 'both') {
         for (const [rgKey, tags] of rgTagMap) {
           if (!this.rgTagHighlights.has(rgKey) && evalRule(rule, tags)) {
@@ -1489,7 +1529,7 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
       if (rule.target === 'node') {
         for (const [nodeId, tags] of nodeTagMap) {
           if (!this.nodeTagHighlights.has(nodeId) && evalRule(rule, tags)) {
-            this.nodeTagHighlights.set(nodeId, rule.color);
+            this.nodeTagHighlights.set(nodeId, rule.color ?? '#ef4444');
           }
         }
       }

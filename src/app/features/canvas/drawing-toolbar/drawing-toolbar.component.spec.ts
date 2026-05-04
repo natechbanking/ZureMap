@@ -37,7 +37,7 @@ describe('DrawingToolbarComponent', () => {
     component.addRule();
 
     expect(emitSpy).toHaveBeenCalledTimes(1);
-    const rules = (emitSpy.calls.mostRecent().args[0] ?? []) as unknown as Array<Record<string, unknown>>;
+    const rules = (emitSpy.calls.mostRecent().args[0] ?? []) as unknown as Record<string, unknown>[];
     expect(rules.length).toBe(1);
     expect(rules[0]['type']).toBe('tag');
     expect(rules[0]['tagKey']).toBe('env');
@@ -57,7 +57,7 @@ describe('DrawingToolbarComponent', () => {
     component.addRule();
 
     expect(emitSpy).toHaveBeenCalledTimes(1);
-    const rules = (emitSpy.calls.mostRecent().args[0] ?? []) as unknown as Array<Record<string, unknown>>;
+    const rules = (emitSpy.calls.mostRecent().args[0] ?? []) as unknown as Record<string, unknown>[];
     expect(rules.length).toBe(1);
     expect(rules[0]['type']).toBe('internal-item');
     expect(rules[0]['textQuery']).toBe('port');

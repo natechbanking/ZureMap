@@ -2591,7 +2591,7 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
   private onPanelExpansion(kind: string, req: any): void {
     const heightFn = this.EXPANSION_HEIGHT[kind];
     if (!heightFn) return;
-    this.applyNodePanelExpansion(req.nodeId, req.expanded, heightFn(req), this.collapsedHeights);
+    this.applyNodePanelExpansion(req.nodeId, req.expanded, heightFn(req), this.collapsedHeights, kind);
   }
 
   onRouteTableExpansionChanged(req: RouteTableExpansionRequest): void { this.onPanelExpansion('routeTable', req); }
@@ -2616,6 +2616,7 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
     expanded: boolean,
     panelHeight: number,
     collapsedHeights: Map<string, number>,
+    panelKind?: string,
   ): void {
     const nextNodes = this.nodeExpansion.apply(this.store.nodes(), collapsedHeights, {
       nodeId,
@@ -2623,8 +2624,22 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
       panelHeight,
     });
     if (!nextNodes) return;
+    const persistedNodes = panelKind
+      ? nextNodes.map(n => n.id === nodeId
+        ? {
+            ...n,
+            custom: {
+              ...(n.custom ?? {}),
+              panelState: {
+                ...(n.custom?.panelState ?? {}),
+                [panelKind]: expanded,
+              },
+            },
+          }
+        : n)
+      : nextNodes;
     this.store.pushUndo();
-    this.store.setNodes(nextNodes);
+    this.store.setNodes(persistedNodes);
   }
 
   // ── Container rename ──────────────────────────────────────────────────────

@@ -820,4 +820,20 @@ describe('CanvasComponent', () => {
       expect(ownerItem?.backgroundColor).toBe('#eff6ff');
     });
   });
+
+  describe('panel state persistence', () => {
+    it('persists storage panel expanded state on node custom.panelState for export/import', () => {
+      const node = makeDiagramNode({ id: 'sa-1' });
+      store.setNodes([node]);
+      (component as any).nodeExpansion = { apply: (nodes: any[]) => nodes };
+
+      component.onStorageAccountExpansionChanged({ nodeId: 'sa-1', expanded: true, itemCount: 3 });
+      let updated = store.nodes().find(n => n.id === 'sa-1');
+      expect(updated?.custom?.panelState?.['storageAccount']).toBeTrue();
+
+      component.onStorageAccountExpansionChanged({ nodeId: 'sa-1', expanded: false, itemCount: 0 });
+      updated = store.nodes().find(n => n.id === 'sa-1');
+      expect(updated?.custom?.panelState?.['storageAccount']).toBeFalse();
+    });
+  });
 });

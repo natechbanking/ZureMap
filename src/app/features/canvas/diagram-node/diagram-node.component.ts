@@ -1,4 +1,4 @@
-import { Component, Input, Output, EventEmitter, HostListener, inject, ElementRef } from '@angular/core';
+import { Component, Input, Output, EventEmitter, HostListener, inject, ElementRef, OnChanges, SimpleChanges } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { DiagramNode, NodeInternalItem } from '../../../core/models/diagram-node.model';
 import { AzureIconComponent } from '../../../shared/components/azure-icon/azure-icon.component';
@@ -100,7 +100,7 @@ import { NodeToggleButtonComponent } from '../shared/node-toggle-button.componen
   templateUrl: './diagram-node.component.html',
   styleUrls: ['./diagram-node.component.scss'],
 })
-export class DiagramNodeComponent {
+export class DiagramNodeComponent implements OnChanges {
   @Input({ required: true }) node!: DiagramNode;
   @Input() finOpsActive = false;
   @Input() zoomLevel = 1;
@@ -174,6 +174,10 @@ export class DiagramNodeComponent {
   azureFirewallCountsLoaded = false;
   azureFirewallCountsError: string | null = null;
   azureFirewallPolicyCounts: AzureFirewallPolicyRuleCounts | null = null;
+
+  ngOnChanges(changes: SimpleChanges): void {
+    if (changes['node']) this.applyPersistedPanelState();
+  }
 
   get typeLabel(): string {
     const parts = this.node.resourceType.split('/');
@@ -377,6 +381,26 @@ export class DiagramNodeComponent {
     const e = event as MouseEvent | KeyboardEvent;
     if (e.ctrlKey || e.metaKey) return;
     this.clicked.emit(this.node.id);
+  }
+
+  private applyPersistedPanelState(): void {
+    const state = this.node.custom?.panelState ?? {};
+    this.routesExpanded = !!state['routeTable'];
+    this.subnetsExpanded = !!state['virtualNetwork'];
+    this.nsgRulesExpanded = !!state['nsg'];
+    this.storageDetailsExpanded = !!state['storageAccount'];
+    this.vmExpanded = !!state['vm'];
+    this.aksExpanded = !!state['aks'];
+    this.uaiAssignmentsExpanded = !!state['uai'];
+    this.hostingEnvironmentStatsExpanded = !!state['hostingEnvironment'];
+    this.serverFarmStatsExpanded = !!state['serverFarm'];
+    this.publicIpExpanded = !!state['publicIp'];
+    this.scheduleExpanded = !!state['schedule'];
+    this.diskExpanded = !!state['disk'];
+    this.azureFirewallExpanded = !!state['azureFirewall'];
+    this.applicationGatewayExpanded = !!state['applicationGateway'];
+    this.connectionExpanded = !!state['connection'];
+    this.dnsRecordsExpanded = !!state['dnsZone'];
   }
 
   onContextMenu(event: MouseEvent): void {

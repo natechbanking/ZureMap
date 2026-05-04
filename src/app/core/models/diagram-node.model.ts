@@ -36,6 +36,12 @@ export interface NodeInternalItem {
 export interface NodeCustomization {
   description?: string;
   internalItems?: NodeInternalItem[];
+  panelState?: Partial<Record<
+    'routeTable' | 'virtualNetwork' | 'nsg' | 'storageAccount' | 'vm' | 'aks' | 'uai' |
+    'hostingEnvironment' | 'serverFarm' | 'publicIp' | 'schedule' | 'disk' |
+    'azureFirewall' | 'applicationGateway' | 'connection' | 'dnsZone',
+    boolean
+  >>;
 }
 
 export interface DiagramNode {

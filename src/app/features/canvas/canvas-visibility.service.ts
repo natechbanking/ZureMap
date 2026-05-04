@@ -79,7 +79,11 @@ export class CanvasVisibilityService {
     );
 
     const visibleIds = new Set(visibleNodes.map(n => n.id));
-    const visibleEdges = edges.filter(e => visibleIds.has(e.sourceId) && visibleIds.has(e.targetId));
+    const visibleEdges = edges.filter(e => {
+      const srcOk = e.sourceAnnotationId ? true : visibleIds.has(e.sourceId);
+      const tgtOk = e.targetAnnotationId ? true : visibleIds.has(e.targetId);
+      return srcOk && tgtOk;
+    });
     const selectedEdgeVisible = selectedEdgeId ? visibleEdges.some(e => e.id === selectedEdgeId) : false;
 
     const rgBounds = this.computeRgBounds(nodes.filter(isVisibleBySubscription), collapsedResourceGroups, customContainerNames);

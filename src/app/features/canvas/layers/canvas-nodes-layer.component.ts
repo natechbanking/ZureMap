@@ -49,8 +49,10 @@ export class CanvasNodesLayerComponent {
   @Input() parentLabelById: Map<string, string> = new Map<string, string>();
   @Input() finOpsActive = false;
   @Input() zoomLevel = 1;
+  @Input() isLinking = false;
 
   @Output() nodeMouseDown = new EventEmitter<{ event: MouseEvent; node: DiagramNode }>();
+  @Output() portMouseDown = new EventEmitter<{ event: MouseEvent; node: DiagramNode; portId: string }>();
   @Output() nodeClicked = new EventEmitter<string>();
   @Output() editRequested = new EventEmitter<string>();
   @Output() internalItemMoved = new EventEmitter<InternalItemMoveRequest>();

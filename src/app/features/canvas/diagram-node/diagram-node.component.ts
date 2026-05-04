@@ -105,7 +105,9 @@ export class DiagramNodeComponent {
   @Input() finOpsActive = false;
   @Input() zoomLevel = 1;
   @Input() tagHighlightColor: string | null = null;
+  @Input() isLinking = false;
   @Output() clicked = new EventEmitter<string>();
+  @Output() portMouseDown = new EventEmitter<{ event: MouseEvent; portId: string }>();
   @Output() contextMenuRequested = new EventEmitter<ContextMenuRequest>();
   @Output() editRequested = new EventEmitter<string>();
   @Output() internalItemMoved = new EventEmitter<InternalItemMoveRequest>();
@@ -816,6 +818,12 @@ export class DiagramNodeComponent {
   stopEvent(event: MouseEvent): void {
     event.preventDefault();
     event.stopPropagation();
+  }
+
+  onPortMouseDown(event: MouseEvent, portId: string): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.portMouseDown.emit({ event, portId });
   }
 
   onInternalItemMouseDown(event: MouseEvent, item: NodeInternalItem): void {

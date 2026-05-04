@@ -347,4 +347,150 @@ describe('CanvasComponent', () => {
     expect(pasted?.id).not.toBe('node-1');
     expect(pasted?.metadata.id).toBe(armId);
   });
+
+  describe('port-based edge creation', () => {
+    it('onPortMouseDown initialises edgeLinkDragState with source node and port', () => {
+      const node = makeDiagramNode({ id: 'n1', position: { x: 0, y: 0 }, size: { width: 100, height: 60 } });
+      const event = { preventDefault: jasmine.createSpy(), stopPropagation: jasmine.createSpy() } as unknown as MouseEvent;
+
+      component.onPortMouseDown(event, node, 'port-right');
+
+      expect(component.edgeLinkDragState).toBeTruthy();
+      expect(component.edgeLinkDragState?.sourceNodeId).toBe('n1');
+      expect(component.edgeLinkDragState?.sourcePortId).toBe('port-right');
+      expect(component.edgeLinkDragState?.sourceX).toBe(100); // right-center x
+      expect(component.edgeLinkDragState?.sourceY).toBe(30);  // right-center y
+    });
+
+    it('onPortMouseDown does nothing for unknown port id', () => {
+      const node = makeDiagramNode({ id: 'n1', position: { x: 0, y: 0 }, size: { width: 100, height: 60 } });
+      const event = { preventDefault: jasmine.createSpy(), stopPropagation: jasmine.createSpy() } as unknown as MouseEvent;
+
+      component.onPortMouseDown(event, node, 'port-invalid');
+
+      expect(component.edgeLinkDragState).toBeNull();
+    });
+
+    it('onAnnPortMouseDown initialises edgeLinkDragState with source annotation and port', () => {
+      const ann = makeAnnotation({ id: 'ann-1', type: 'rect', x: 0, y: 0, width: 80, height: 60 });
+      const event = { preventDefault: jasmine.createSpy(), stopPropagation: jasmine.createSpy() } as unknown as MouseEvent;
+
+      component.onAnnPortMouseDown(event, ann, 'port-bottom');
+
+      expect(component.edgeLinkDragState).toBeTruthy();
+      expect(component.edgeLinkDragState?.sourceAnnotationId).toBe('ann-1');
+      expect(component.edgeLinkDragState?.sourceNodeId).toBeUndefined();
+      expect(component.edgeLinkDragState?.sourcePortId).toBe('port-bottom');
+      expect(component.edgeLinkDragState?.sourceY).toBe(60); // bottom-center y
+    });
+
+    it('onDocMouseUp creates an edge when drag ends over a valid target port', () => {
+      // n1 at (0,0) 100×60 — port-right is at (100, 30)
+      // n2 at (120,0) 100×60 — port-left is at (120, 30); within HIT_R=12 of (120,30)
+      const n1 = makeDiagramNode({ id: 'n1', position: { x: 0, y: 0 }, size: { width: 100, height: 60 } });
+      const n2 = makeDiagramNode({ id: 'n2', position: { x: 120, y: 0 }, size: { width: 100, height: 60 } });
+      store.setNodes([n1, n2]);
+
+      component.edgeLinkDragState = {
+        sourceNodeId: 'n1',
+        sourcePortId: 'port-right',
+        sourceX: 100,
+        sourceY: 30,
+        currentX: 100,
+        currentY: 30,
+      };
+
+      // canvasPointFromClient returns {x:0,y:0} when hostRef is null, so place the
+      // target port at origin: n2 at (-120, -30) makes port-left land at (0,0).
+      const n2Shifted = makeDiagramNode({ id: 'n2', position: { x: -120, y: -30 }, size: { width: 100, height: 60 } });
+      store.setNodes([n1, n2Shifted]);
+      component.edgeLinkDragState = {
+        sourceNodeId: 'n1',
+        sourcePortId: 'port-right',
+        sourceX: 100,
+        sourceY: 30,
+        currentX: 0,
+        currentY: 0,
+      };
+
+      const mouseUpEvent = new MouseEvent('mouseup', { clientX: 0, clientY: 0 });
+      component.onDocMouseUp(mouseUpEvent);
+
+      const edges = store.edges();
+      expect(edges.length).toBe(1);
+      expect(edges[0].sourceId).toBe('n1');
+      expect(edges[0].targetId).toBe('n2');
+      expect(edges[0].sourcePort).toBe('port-right');
+      expect(edges[0].targetPort).toBe('port-left');
+    });
+
+    it('onDocMouseUp does not create an edge when drag ends over empty space', () => {
+      const n1 = makeDiagramNode({ id: 'n1', position: { x: 500, y: 500 }, size: { width: 100, height: 60 } });
+      store.setNodes([n1]);
+
+      component.edgeLinkDragState = {
+        sourceNodeId: 'n1',
+        sourcePortId: 'port-right',
+        sourceX: 600,
+        sourceY: 530,
+        currentX: 0,
+        currentY: 0,
+      };
+
+      const mouseUpEvent = new MouseEvent('mouseup', { clientX: 0, clientY: 0 });
+      component.onDocMouseUp(mouseUpEvent);
+
+      expect(store.edges().length).toBe(0);
+      expect(component.edgeLinkDragState).toBeNull();
+    });
+
+    it('onDocMouseUp does not create a self-connection', () => {
+      // Port-left of n1 at origin: position (-50, -30), size (100, 60) → left port at (−50, 0) ≈ not (0,0)
+      // Port-top of n1 near origin: position (-50, 0), size (100, 60) → top port at (0, 0) ✓
+      const n1 = makeDiagramNode({ id: 'n1', position: { x: -50, y: 0 }, size: { width: 100, height: 60 } });
+      store.setNodes([n1]);
+
+      component.edgeLinkDragState = {
+        sourceNodeId: 'n1',
+        sourcePortId: 'port-bottom',
+        sourceX: 0,
+        sourceY: 60,
+        currentX: 0,
+        currentY: 0,
+      };
+
+      const mouseUpEvent = new MouseEvent('mouseup', { clientX: 0, clientY: 0 });
+      component.onDocMouseUp(mouseUpEvent);
+
+      expect(store.edges().length).toBe(0);
+    });
+
+    it('edge created from port drag uses activeColor and default arrowhead', () => {
+      const n2 = makeDiagramNode({ id: 'n2', position: { x: -120, y: -30 }, size: { width: 100, height: 60 } });
+      const n1 = makeDiagramNode({ id: 'n1', position: { x: 200, y: 200 }, size: { width: 100, height: 60 } });
+      store.setNodes([n1, n2]);
+
+      component.activeColor = '#ff0000';
+      component.activeStrokeWidth = 3;
+      component.activeStrokeStyle = 'dashed';
+
+      component.edgeLinkDragState = {
+        sourceNodeId: 'n1',
+        sourcePortId: 'port-right',
+        sourceX: 300,
+        sourceY: 230,
+        currentX: 0,
+        currentY: 0,
+      };
+
+      component.onDocMouseUp(new MouseEvent('mouseup', { clientX: 0, clientY: 0 }));
+
+      const edges = store.edges();
+      expect(edges.length).toBe(1);
+      expect(edges[0].style.strokeColor).toBe('#ff0000');
+      expect(edges[0].style.strokeWidth).toBe(3);
+      expect(edges[0].style.dashArray).toBe('8 4');
+      expect(edges[0].style.markerEnd).toBe('arrow');
+    });
+  });
 });

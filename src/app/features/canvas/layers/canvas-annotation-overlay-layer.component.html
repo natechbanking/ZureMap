@@ -1,5 +1,28 @@
 @for (ann of annotations; track ann.id) {
   @let isSelected = isAnnotationSelected(ann.id);
+  @let annBb = annotationBoundingBox(ann);
+  @if (CONNECTABLE_ANNOTATION_TYPES.has(ann.type) && activeTool === 'pointer') {
+    @for (port of [
+      { id: 'port-top',    style: 'top:-5px;left:calc(50% - 5px)' },
+      { id: 'port-right',  style: 'right:-5px;top:calc(50% - 5px)' },
+      { id: 'port-bottom', style: 'bottom:-5px;left:calc(50% - 5px)' },
+      { id: 'port-left',   style: 'left:-5px;top:calc(50% - 5px)' }
+    ]; track port.id) {
+      <div
+        class="absolute w-2.5 h-2.5 rounded-full bg-blue-500 border-2 border-white shadow-md cursor-crosshair z-20 opacity-0 hover:opacity-100 transition-opacity"
+        [style.opacity]="isLinking ? '1' : null"
+        [style.left.px]="port.id === 'port-left'   ? annBb.x - 5                  :
+                         port.id === 'port-right'  ? annBb.x + annBb.width - 5    :
+                         annBb.x + annBb.width * 0.5 - 5"
+        [style.top.px]="port.id === 'port-top'    ? annBb.y - 5                  :
+                        port.id === 'port-bottom' ? annBb.y + annBb.height - 5   :
+                        annBb.y + annBb.height * 0.5 - 5"
+        [title]="'Connect from ' + port.id.replace('port-', '')"
+        data-export-hide
+        (mousedown)="onAnnPortMouseDown($event, ann, port.id)"
+      ></div>
+    }
+  }
   @if (ann.type === 'image' && ann.imageDataUrl) {
     <div
       class="absolute select-none"

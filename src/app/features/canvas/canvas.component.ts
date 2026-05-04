@@ -49,7 +49,7 @@ import { CanvasAnnotationOverlayLayerComponent } from './layers/canvas-annotatio
 import { CanvasContextMenuService } from './canvas-context-menu.service';
 import { DiagramNode } from '../../core/models/diagram-node.model';
 import { Annotation, DrawingTool, StrokeStyle, EdgeRouting, EdgeMode } from '../../core/models/annotation.model';
-import { DiagramEdge, EdgeStyle } from '../../core/models/diagram-edge.model';
+import { DiagramEdge, EdgeStyle, EDGE_STYLES } from '../../core/models/diagram-edge.model';
 import {
   RgBound,
   SubscriptionBound,
@@ -66,6 +66,7 @@ import {
   RgDragState,
   EdgeWaypointDragState,
   AnnWaypointDragState,
+  EdgeLinkDragState,
   TagRule,
 } from './canvas.types';
 import { CanvasEdgeEditorService } from './canvas-edge-editor.service';
@@ -85,6 +86,10 @@ import {
   annotationTextHeight as annotationTextHeightUtil,
   annotationTextWidth as annotationTextWidthUtil,
   edgeAnchorBetween,
+  defaultNodePorts,
+  portPosition,
+  annotationPortPosition,
+  CONNECTABLE_ANNOTATION_TYPES,
 } from './canvas-geometry.util';
 import { DrawingRuntimeState, DrawingStyleState, onDrawEnd, onDrawMove, onDrawStart, resetDrawingRuntime } from './canvas-drawing.util';
 import { normalizePastedImage, pasteTargetPosition as pasteTargetPositionUtil } from './canvas-image-paste.util';
@@ -346,6 +351,7 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
   selectedEdgeId: string | null = null;
   edgeWaypointDragState: EdgeWaypointDragState | null = null;
   annWaypointDragState: AnnWaypointDragState | null = null;
+  edgeLinkDragState: EdgeLinkDragState | null = null;
   relayoutBusy = false;
   resourceEditorOpen = false;
   resourceEditorNodeId: string | null = null;
@@ -508,6 +514,12 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
         case 'w':  off.left   = Math.max(0, b.left   - dxL); break;
       }
       this.tagHighlightResizeDrag = { ...drag, currentOffset: off };
+      return;
+    }
+
+    if (this.edgeLinkDragState) {
+      const pt = this.canvasPointFromClient(e.clientX, e.clientY);
+      this.edgeLinkDragState = { ...this.edgeLinkDragState, currentX: pt.x, currentY: pt.y };
       return;
     }
 
@@ -680,6 +692,43 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
         }
       }
       this.marqueeState = null;
+    }
+
+    if (this.edgeLinkDragState) {
+      const drag = this.edgeLinkDragState;
+      this.edgeLinkDragState = null;
+      const pt = this.canvasPointFromClient(e.clientX, e.clientY);
+      const hit = this.portAtCanvasPoint(pt.x, pt.y);
+      const isSelf = hit && (
+        (hit.nodeId       && hit.nodeId       === drag.sourceNodeId) ||
+        (hit.annotationId && hit.annotationId === drag.sourceAnnotationId)
+      );
+      if (hit && !isSelf) {
+        this.store.pushUndo();
+        const dashArray =
+          this.activeStrokeStyle === 'dashed' ? '8 4' :
+          this.activeStrokeStyle === 'dotted' ? '2 5' :
+          undefined;
+        const markerEnd: 'arrow' | 'none' = 'arrow';
+        this.store.setEdges([...this.store.edges(), {
+          id: `port-edge-${Date.now()}`,
+          sourceId: drag.sourceNodeId ?? '',
+          sourcePort: drag.sourcePortId,
+          sourceAnnotationId: drag.sourceAnnotationId,
+          targetId: hit.nodeId ?? '',
+          targetPort: hit.portId,
+          targetAnnotationId: hit.annotationId,
+          edgeType: 'dependency',
+          animated: false,
+          style: {
+            strokeColor: this.activeColor,
+            strokeWidth: this.activeStrokeWidth,
+            dashArray,
+            markerEnd,
+          },
+        }]);
+      }
+      return;
     }
 
     this.toolbarDragState = null;
@@ -1596,6 +1645,61 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
       }
     }
     return undefined;
+  }
+
+  private portAtCanvasPoint(x: number, y: number): { nodeId?: string; annotationId?: string; portId: string } | null {
+    const HIT_R = 12;
+    const PORT_IDS = ['port-top', 'port-right', 'port-bottom', 'port-left'];
+    for (const node of this.store.nodes()) {
+      for (const port of node.ports ?? defaultNodePorts()) {
+        const pos = portPosition(node, port.id);
+        if (!pos) continue;
+        if (Math.hypot(pos.x - x, pos.y - y) <= HIT_R) {
+          return { nodeId: node.id, portId: port.id };
+        }
+      }
+    }
+    for (const ann of this.store.annotations()) {
+      if (!CONNECTABLE_ANNOTATION_TYPES.has(ann.type)) continue;
+      for (const portId of PORT_IDS) {
+        const pos = annotationPortPosition(ann, portId);
+        if (!pos) continue;
+        if (Math.hypot(pos.x - x, pos.y - y) <= HIT_R) {
+          return { annotationId: ann.id, portId };
+        }
+      }
+    }
+    return null;
+  }
+
+  onPortMouseDown(event: MouseEvent, node: DiagramNode, portId: string): void {
+    event.preventDefault();
+    event.stopPropagation();
+    const pos = portPosition(node, portId);
+    if (!pos) return;
+    this.edgeLinkDragState = {
+      sourceNodeId: node.id,
+      sourcePortId: portId,
+      sourceX: pos.x,
+      sourceY: pos.y,
+      currentX: pos.x,
+      currentY: pos.y,
+    };
+  }
+
+  onAnnPortMouseDown(event: MouseEvent, ann: Annotation, portId: string): void {
+    event.preventDefault();
+    event.stopPropagation();
+    const pos = annotationPortPosition(ann, portId);
+    if (!pos) return;
+    this.edgeLinkDragState = {
+      sourceAnnotationId: ann.id,
+      sourcePortId: portId,
+      sourceX: pos.x,
+      sourceY: pos.y,
+      currentX: pos.x,
+      currentY: pos.y,
+    };
   }
 
   get zoomLevel(): number {

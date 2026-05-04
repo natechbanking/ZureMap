@@ -4,6 +4,14 @@ import { NodeCostData } from './cost-data.model';
 export type NodeStatus = 'running' | 'stopped' | 'failed' | 'unknown';
 export type LayoutGroup = 'resourceGroup' | 'vnet' | 'subnet' | 'standalone';
 export type DriftStatus = 'matched' | 'missing' | 'unplanned';
+export type PortSide = 'top' | 'right' | 'bottom' | 'left';
+
+export interface NodePort {
+  id: string;
+  side: PortSide;
+  /** 0.0–1.0 position along the side; defaults to 0.5 (center). */
+  offset?: number;
+}
 
 export interface NodeInternalItem {
   id: string;
@@ -36,4 +44,5 @@ export interface DiagramNode {
   driftStatus?: DriftStatus;
   custom?: NodeCustomization;
   angle?: number;
+  ports?: NodePort[];
 }

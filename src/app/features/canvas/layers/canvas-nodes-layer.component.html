@@ -17,6 +17,7 @@
       [finOpsActive]="finOpsActive"
       [zoomLevel]="zoomLevel"
       [tagHighlightColor]="nodeHL"
+      [isLinking]="isLinking"
       (clicked)="nodeClicked.emit($event)"
       (editRequested)="editRequested.emit($event)"
       (internalItemMoved)="internalItemMoved.emit($event)"
@@ -40,6 +41,7 @@
       (connectionExpansionChanged)="connectionExpansionChanged.emit($event)"
       (dnsZoneExpansionChanged)="dnsZoneExpansionChanged.emit($event)"
       (contextMenuRequested)="contextMenuRequested.emit($event)"
+      (portMouseDown)="portMouseDown.emit({ event: $event.event, node: node, portId: $event.portId })"
     />
     @if (detachParentId || canDetachFromResourceGroup(node)) {
       <button

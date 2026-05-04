@@ -47,8 +47,10 @@ import { ResourceEditorDraft } from './canvas.types';
           </div>
           <div class="space-y-2 max-h-40 overflow-auto">
             @for (item of draft.internalItems; track item.id) {
-              <div class="grid grid-cols-[1fr_auto] gap-2 items-center">
+              <div class="grid grid-cols-[1fr_auto_auto_auto] gap-2 items-center">
                 <input class="h-8 rounded border border-gray-200 px-2 text-xs" [value]="item.text" (input)="updateInternalItemText.emit({ itemId: item.id, text: textValue($event) })" />
+                <input class="h-8 w-10 rounded border border-gray-200 p-1 cursor-pointer" type="color" title="Text color" aria-label="Text color" [value]="item.color ?? '#1d4ed8'" (input)="updateInternalItemColor.emit({ itemId: item.id, color: textValue($event) })" />
+                <input class="h-8 w-10 rounded border border-gray-200 p-1 cursor-pointer" type="color" title="Background color" aria-label="Background color" [value]="item.backgroundColor ?? '#eff6ff'" (input)="updateInternalItemBackgroundColor.emit({ itemId: item.id, backgroundColor: textValue($event) })" />
                 <button class="h-8 px-2 rounded border border-red-200 text-xs text-red-600 hover:bg-red-50" (click)="removeInternalItem.emit(item.id)">Remove</button>
               </div>
             }
@@ -73,6 +75,8 @@ export class ResourceEditorModalComponent {
   @Output() addInternalItem = new EventEmitter<void>();
   @Output() removeInternalItem = new EventEmitter<string>();
   @Output() updateInternalItemText = new EventEmitter<{ itemId: string; text: string }>();
+  @Output() updateInternalItemColor = new EventEmitter<{ itemId: string; color: string }>();
+  @Output() updateInternalItemBackgroundColor = new EventEmitter<{ itemId: string; backgroundColor: string }>();
 
   setField<K extends keyof Pick<ResourceEditorDraft, 'label' | 'location' | 'resourceGroup' | 'description'>>(
     key: K,

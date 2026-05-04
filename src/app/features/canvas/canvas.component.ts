@@ -815,7 +815,7 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
         description: data.description,
         internalItems: data.internalItems
           .filter(i => i.text.trim())
-          .map((item, i) => ({ id: `ii-${i}`, text: item.text, x: 4, y: 20 + i * 16 })),
+          .map((item, i) => ({ id: `ii-${i}`, text: item.text, x: 4, y: 20 + i * 16, color: '#1d4ed8', backgroundColor: '#eff6ff' })),
       },
     };
     this.store.pushUndo();
@@ -2145,6 +2145,16 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
   updateInternalItemText(itemId: string, text: string): void {
     if (!this.resourceEditorDraft) return;
     this.resourceEditorDraft = this.resourceEditor.updateInternalItemText(this.resourceEditorDraft, itemId, text);
+  }
+
+  updateInternalItemColor(itemId: string, color: string): void {
+    if (!this.resourceEditorDraft) return;
+    this.resourceEditorDraft = this.resourceEditor.updateInternalItemColor(this.resourceEditorDraft, itemId, color);
+  }
+
+  updateInternalItemBackgroundColor(itemId: string, backgroundColor: string): void {
+    if (!this.resourceEditorDraft) return;
+    this.resourceEditorDraft = this.resourceEditor.updateInternalItemBackgroundColor(this.resourceEditorDraft, itemId, backgroundColor);
   }
 
   onInternalItemMoved(req: InternalItemMoveRequest): void {

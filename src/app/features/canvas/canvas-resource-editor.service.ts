@@ -5,6 +5,9 @@ import { ResourceEditorDraft } from './canvas.types';
 
 @Injectable({ providedIn: 'root' })
 export class CanvasResourceEditorService {
+  private readonly defaultInternalItemColor = '#1d4ed8';
+  private readonly defaultInternalItemBackgroundColor = '#eff6ff';
+
   toDraft(node: DiagramNode): ResourceEditorDraft {
     return {
       label: node.label,
@@ -12,7 +15,11 @@ export class CanvasResourceEditorService {
       resourceGroup: node.metadata.resourceGroup ?? '',
       status: node.status,
       description: node.custom?.description ?? '',
-      internalItems: (node.custom?.internalItems ?? []).map(i => ({ ...i })),
+      internalItems: (node.custom?.internalItems ?? []).map(i => ({
+        ...i,
+        color: i.color ?? this.defaultInternalItemColor,
+        backgroundColor: i.backgroundColor ?? this.defaultInternalItemBackgroundColor,
+      })),
     };
   }
 
@@ -42,6 +49,8 @@ export class CanvasResourceEditorService {
       text: 'New item',
       x: 8,
       y: 56 + draft.internalItems.length * 16,
+      color: this.defaultInternalItemColor,
+      backgroundColor: this.defaultInternalItemBackgroundColor,
     };
     return { ...draft, internalItems: [...draft.internalItems, item] };
   }
@@ -54,6 +63,22 @@ export class CanvasResourceEditorService {
     return {
       ...draft,
       internalItems: draft.internalItems.map(i => (i.id === itemId ? { ...i, text } : i)),
+    };
+  }
+
+  updateInternalItemColor(draft: ResourceEditorDraft, itemId: string, color: string): ResourceEditorDraft {
+    return {
+      ...draft,
+      internalItems: draft.internalItems.map(i => (i.id === itemId ? { ...i, color: color || this.defaultInternalItemColor } : i)),
+    };
+  }
+
+  updateInternalItemBackgroundColor(draft: ResourceEditorDraft, itemId: string, backgroundColor: string): ResourceEditorDraft {
+    return {
+      ...draft,
+      internalItems: draft.internalItems.map(i =>
+        (i.id === itemId ? { ...i, backgroundColor: backgroundColor || this.defaultInternalItemBackgroundColor } : i),
+      ),
     };
   }
 

@@ -18,6 +18,8 @@ export interface NodeInternalItem {
   text: string;
   x: number;
   y: number;
+  color?: string;
+  backgroundColor?: string;
 }
 
 export interface NodeCustomization {

@@ -494,6 +494,58 @@ describe('CanvasComponent', () => {
     });
   });
 
+  describe('arrow draw port binding', () => {
+    it('binds both arrow endpoints to nearby node ports during initial draw', () => {
+      const node = makeDiagramNode({
+        id: 'n1',
+        position: { x: 100, y: 100 },
+        size: { width: 100, height: 60 },
+      });
+      store.setNodes([node]);
+      component.visibleNodes = [node];
+      component.setTool('arrow');
+
+      // Near left port (100,130)
+      component.onDrawMouseDown(new MouseEvent('mousedown', { clientX: 103, clientY: 129 }));
+      // Near right port (200,130)
+      component.onDrawMouseUp(new MouseEvent('mouseup', { clientX: 198, clientY: 132 }));
+
+      const anns = store.annotations();
+      expect(anns.length).toBe(1);
+      expect(anns[0].type).toBe('arrow');
+      expect(anns[0].x).toBe(100);
+      expect(anns[0].y).toBe(130);
+      expect(anns[0].x2).toBe(200);
+      expect(anns[0].y2).toBe(130);
+      expect(anns[0].sourceBinding).toEqual({ nodeId: 'n1', portId: 'port-left' });
+      expect(anns[0].targetBinding).toEqual({ nodeId: 'n1', portId: 'port-right' });
+    });
+
+    it('creates an unbound arrow when start/end are not near node ports', () => {
+      const node = makeDiagramNode({
+        id: 'n1',
+        position: { x: 100, y: 100 },
+        size: { width: 100, height: 60 },
+      });
+      store.setNodes([node]);
+      component.visibleNodes = [node];
+      component.setTool('arrow');
+
+      component.onDrawMouseDown(new MouseEvent('mousedown', { clientX: 20, clientY: 20 }));
+      component.onDrawMouseUp(new MouseEvent('mouseup', { clientX: 60, clientY: 60 }));
+
+      const anns = store.annotations();
+      expect(anns.length).toBe(1);
+      expect(anns[0].type).toBe('arrow');
+      expect(anns[0].x).toBe(20);
+      expect(anns[0].y).toBe(20);
+      expect(anns[0].x2).toBe(60);
+      expect(anns[0].y2).toBe(60);
+      expect(anns[0].sourceBinding).toBeUndefined();
+      expect(anns[0].targetBinding).toBeUndefined();
+    });
+  });
+
   describe('unified highlight rules', () => {
     it('applies internal-item styling rules across matching internal text items', () => {
       const nodeA = makeDiagramNode({

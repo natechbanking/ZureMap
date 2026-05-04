@@ -120,6 +120,13 @@ export interface AnnWaypointDragState {
   lastY: number;
 }
 
+export interface AnnEndpointDragState {
+  annId: string;
+  endpoint: 'start' | 'end';
+  lastX: number;
+  lastY: number;
+}
+
 export interface EdgeLinkDragState {
   sourceNodeId?: string;
   sourceAnnotationId?: string;

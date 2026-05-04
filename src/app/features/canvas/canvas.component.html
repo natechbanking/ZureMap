@@ -237,6 +237,21 @@
                 />
               }
 
+              @if (activeTool === 'arrow' && drawBindPreviewPorts.length > 0) {
+                @for (port of drawBindPreviewPorts; track port.nodeId + ':' + port.portId) {
+                  <circle
+                    [attr.cx]="port.x"
+                    [attr.cy]="port.y"
+                    [attr.r]="drawBindPreviewActivePortId === port.portId ? 6 / zoomLevel : 4.5 / zoomLevel"
+                    [attr.fill]="drawBindPreviewActivePortId === port.portId ? '#2563eb' : '#93c5fd'"
+                    stroke="white"
+                    [attr.stroke-width]="1.5 / zoomLevel"
+                    opacity="0.95"
+                    pointer-events="none"
+                  />
+                }
+              }
+
               <!-- SVG body delegated to CanvasSvgLayerComponent -->
               <g appCanvasSvgLayer
                 [visibleEdges]="visibleEdges"
@@ -267,6 +282,7 @@
                 (annotationMouseDown)="onAnnotationMouseDown($event.event, $event.ann)"
                 (annotationContextMenu)="onAnnotationContextMenu($event.event, $event.ann)"
                 (annWaypointMouseDown)="onAnnWaypointMouseDown($event.event, $event.ann, $event.index)"
+                (annEndpointMouseDown)="onAnnEndpointMouseDown($event.event, $event.ann, $event.endpoint)"
                 (annMidpointMouseDown)="onAnnMidpointMouseDown($event.event, $event.ann, $event.segmentIndex)"
                 (annWaypointDblClick)="onAnnWaypointDblClick($event.event, $event.ann, $event.index)"
                 (annotationShapeResizeMouseDown)="onAnnotationShapeResizeMouseDown($event.event, $event.ann, $event.handle)"

@@ -108,6 +108,40 @@
       />
     </svg:g>
     @if (selectedAnnotationId === ann.id && activeTool === 'pointer') {
+      <svg:circle
+        [attr.cx]="annEndpoint(ann, 'start').x" [attr.cy]="annEndpoint(ann, 'start').y"
+        [attr.r]="6 / zoomLevel"
+        [attr.fill]="annEndpointBound(ann, 'start') ? '#dcfce7' : '#dbeafe'"
+        [attr.stroke]="annEndpointBound(ann, 'start') ? '#15803d' : '#2563eb'"
+        [attr.stroke-width]="2 / zoomLevel"
+        style="cursor: move; pointer-events: all"
+        (mousedown)="annEndpointMouseDown.emit({ event: $event, ann: ann, endpoint: 'start' })"
+      />
+      @if (annEndpointBound(ann, 'start')) {
+        <svg:circle
+          [attr.cx]="annEndpoint(ann, 'start').x" [attr.cy]="annEndpoint(ann, 'start').y"
+          [attr.r]="2 / zoomLevel"
+          fill="#15803d"
+          pointer-events="none"
+        />
+      }
+      <svg:circle
+        [attr.cx]="annEndpoint(ann, 'end').x" [attr.cy]="annEndpoint(ann, 'end').y"
+        [attr.r]="6 / zoomLevel"
+        [attr.fill]="annEndpointBound(ann, 'end') ? '#dcfce7' : '#dbeafe'"
+        [attr.stroke]="annEndpointBound(ann, 'end') ? '#15803d' : '#2563eb'"
+        [attr.stroke-width]="2 / zoomLevel"
+        style="cursor: move; pointer-events: all"
+        (mousedown)="annEndpointMouseDown.emit({ event: $event, ann: ann, endpoint: 'end' })"
+      />
+      @if (annEndpointBound(ann, 'end')) {
+        <svg:circle
+          [attr.cx]="annEndpoint(ann, 'end').x" [attr.cy]="annEndpoint(ann, 'end').y"
+          [attr.r]="2 / zoomLevel"
+          fill="#15803d"
+          pointer-events="none"
+        />
+      }
       @for (mid of getAnnMidHandles(ann); track mid.segmentIndex) {
         <svg:circle
           [attr.cx]="mid.x" [attr.cy]="mid.y"
@@ -154,6 +188,40 @@
       />
     </svg:g>
     @if (selectedAnnotationId === ann.id && activeTool === 'pointer') {
+      <svg:circle
+        [attr.cx]="annEndpoint(ann, 'start').x" [attr.cy]="annEndpoint(ann, 'start').y"
+        [attr.r]="6 / zoomLevel"
+        [attr.fill]="annEndpointBound(ann, 'start') ? '#dcfce7' : '#dbeafe'"
+        [attr.stroke]="annEndpointBound(ann, 'start') ? '#15803d' : '#2563eb'"
+        [attr.stroke-width]="2 / zoomLevel"
+        style="cursor: move; pointer-events: all"
+        (mousedown)="annEndpointMouseDown.emit({ event: $event, ann: ann, endpoint: 'start' })"
+      />
+      @if (annEndpointBound(ann, 'start')) {
+        <svg:circle
+          [attr.cx]="annEndpoint(ann, 'start').x" [attr.cy]="annEndpoint(ann, 'start').y"
+          [attr.r]="2 / zoomLevel"
+          fill="#15803d"
+          pointer-events="none"
+        />
+      }
+      <svg:circle
+        [attr.cx]="annEndpoint(ann, 'end').x" [attr.cy]="annEndpoint(ann, 'end').y"
+        [attr.r]="6 / zoomLevel"
+        [attr.fill]="annEndpointBound(ann, 'end') ? '#dcfce7' : '#dbeafe'"
+        [attr.stroke]="annEndpointBound(ann, 'end') ? '#15803d' : '#2563eb'"
+        [attr.stroke-width]="2 / zoomLevel"
+        style="cursor: move; pointer-events: all"
+        (mousedown)="annEndpointMouseDown.emit({ event: $event, ann: ann, endpoint: 'end' })"
+      />
+      @if (annEndpointBound(ann, 'end')) {
+        <svg:circle
+          [attr.cx]="annEndpoint(ann, 'end').x" [attr.cy]="annEndpoint(ann, 'end').y"
+          [attr.r]="2 / zoomLevel"
+          fill="#15803d"
+          pointer-events="none"
+        />
+      }
       @for (mid of getAnnMidHandles(ann); track mid.segmentIndex) {
         <svg:circle
           [attr.cx]="mid.x" [attr.cy]="mid.y"

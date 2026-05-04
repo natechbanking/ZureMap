@@ -66,6 +66,7 @@ import {
   RgDragState,
   EdgeWaypointDragState,
   AnnWaypointDragState,
+  AnnEndpointDragState,
   EdgeLinkDragState,
   TagRule,
 } from './canvas.types';
@@ -298,6 +299,9 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
   previewRect: { x: number; y: number; w: number; h: number } | null = null;
   previewDiamond: { x: number; y: number; w: number; h: number } | null = null;
   previewEllipse: { cx: number; cy: number; rx: number; ry: number } | null = null;
+  drawBindPreviewPorts: { nodeId: string; portId: string; x: number; y: number }[] = [];
+  drawBindPreviewActivePortId: string | null = null;
+  private drawStartBindPort: { nodeId: string; portId: string; x: number; y: number } | null = null;
 
   // Internal drawing state
   private isDrawing = false;
@@ -311,6 +315,7 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
   private imageResizeDrag: { annId: string; startX: number; startY: number; startWidth: number; startHeight: number; aspect: number } | null = null;
   private annShapeResizeDrag: { annId: string; handle: 'nw'|'n'|'ne'|'e'|'se'|'s'|'sw'|'w'; startClientX: number; startClientY: number; startX: number; startY: number; startWidth: number; startHeight: number } | null = null;
   private annRotateDrag: { annId: string; cx: number; cy: number } | null = null;
+  private annEndpointDragState: AnnEndpointDragState | null = null;
 
   // RG mouse drag (smooth, incremental)
   rgDragState: RgDragState | null = null;
@@ -553,6 +558,18 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
       return;
     }
 
+    if (this.annEndpointDragState) {
+      const pt = this.svgPoint(e);
+      const { annId, endpoint } = this.annEndpointDragState;
+      this.annEndpointDragState = { annId, endpoint, lastX: pt.x, lastY: pt.y };
+      if (endpoint === 'start') {
+        this.store.updateAnnotation(annId, { x: pt.x, y: pt.y, sourceBinding: undefined });
+      } else {
+        this.store.updateAnnotation(annId, { x2: pt.x, y2: pt.y, targetBinding: undefined });
+      }
+      return;
+    }
+
     if (this.annShapeResizeDrag) {
       const drag = this.annShapeResizeDrag;
       const rawDx = (e.clientX - drag.startClientX) / this.zoomLevel;
@@ -731,6 +748,22 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
       return;
     }
 
+    if (this.annEndpointDragState) {
+      const drag = this.annEndpointDragState;
+      this.annEndpointDragState = null;
+      const pt = this.canvasPointFromClient(e.clientX, e.clientY);
+      const hit = this.portAtCanvasPoint(pt.x, pt.y);
+      if (hit) {
+        const binding = { nodeId: hit.nodeId, annotationId: hit.annotationId, portId: hit.portId };
+        if (drag.endpoint === 'start') {
+          this.store.updateAnnotation(drag.annId, { sourceBinding: binding });
+        } else {
+          this.store.updateAnnotation(drag.annId, { targetBinding: binding });
+        }
+      }
+      return;
+    }
+
     this.toolbarDragState = null;
     this.subscriptionDragState = null;
     this.vmDragState = null;
@@ -742,6 +775,7 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
     this.imageResizeDrag = null;
     this.annShapeResizeDrag = null;
     this.annRotateDrag = null;
+    this.annEndpointDragState = null;
   }
 
   // ── Tool management ────────────────────────────────────────────────────────
@@ -751,6 +785,7 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
     this.selectedAnnotationIds = [];
     this.selectedEdgeId = null;
     this.applyDrawingRuntime(resetDrawingRuntime(this.currentDrawingRuntime()));
+    this.clearDrawBindPreviewPorts();
   }
 
   onResourceTypeChange(type: string): void {
@@ -900,8 +935,18 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
       return;
     }
     const pt = this.svgPoint(e);
-    const result = onDrawStart(this.currentDrawingRuntime(), this.currentDrawingStyle(), pt);
+    let startPt = pt;
+    this.drawStartBindPort = null;
+    if (this.activeTool === 'arrow') {
+      const startSnap = this.nearestNodePortAtPoint(pt, 18);
+      if (startSnap) {
+        this.drawStartBindPort = startSnap;
+        startPt = { x: startSnap.x, y: startSnap.y };
+      }
+    }
+    const result = onDrawStart(this.currentDrawingRuntime(), this.currentDrawingStyle(), startPt);
     this.applyDrawingRuntime(result.next);
+    this.updateDrawBindPreviewPorts(startPt);
     if (result.createdAnnotation) {
       this.store.pushUndo();
       this.store.addAnnotation(result.createdAnnotation);
@@ -912,16 +957,39 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
   onDrawMouseMove(e: MouseEvent): void {
     const pt = this.svgPoint(e);
     this.applyDrawingRuntime(onDrawMove(this.currentDrawingRuntime(), this.currentDrawingStyle(), pt));
+    this.updateDrawBindPreviewPorts(pt);
   }
 
   onDrawMouseUp(e: MouseEvent): void {
     const pt = this.svgPoint(e);
     const result = onDrawEnd(this.currentDrawingRuntime(), this.currentDrawingStyle(), pt);
     this.applyDrawingRuntime(result.next);
+    this.clearDrawBindPreviewPorts();
     if (result.createdAnnotation) {
+      if (result.createdAnnotation.type === 'arrow') {
+        const ann = result.createdAnnotation;
+        const endSnap = this.nearestNodePortAtPoint(pt, 18);
+        if (this.drawStartBindPort) {
+          ann.x = this.drawStartBindPort.x;
+          ann.y = this.drawStartBindPort.y;
+          ann.sourceBinding = {
+            nodeId: this.drawStartBindPort.nodeId,
+            portId: this.drawStartBindPort.portId,
+          };
+        }
+        if (endSnap) {
+          ann.x2 = endSnap.x;
+          ann.y2 = endSnap.y;
+          ann.targetBinding = {
+            nodeId: endSnap.nodeId,
+            portId: endSnap.portId,
+          };
+        }
+      }
       this.store.pushUndo();
       this.store.addAnnotation(result.createdAnnotation);
     }
+    this.drawStartBindPort = null;
   }
 
   // ── Annotation interaction ─────────────────────────────────────────────────
@@ -1713,6 +1781,71 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
     this.showCreateResourceModal = true;
   }
 
+  private updateDrawBindPreviewPorts(pt: { x: number; y: number }): void {
+    if (this.activeTool !== 'arrow') {
+      this.clearDrawBindPreviewPorts();
+      return;
+    }
+
+    const MAX_NODE_PROXIMITY = 28;
+    let nearestNode: DiagramNode | null = null;
+    let nearestDist = Number.POSITIVE_INFINITY;
+
+    for (const node of this.visibleNodes) {
+      const dx = Math.max(node.position.x - pt.x, 0, pt.x - (node.position.x + node.size.width));
+      const dy = Math.max(node.position.y - pt.y, 0, pt.y - (node.position.y + node.size.height));
+      const d = Math.hypot(dx, dy);
+      if (d < nearestDist) {
+        nearestDist = d;
+        nearestNode = node;
+      }
+    }
+
+    if (!nearestNode || nearestDist > MAX_NODE_PROXIMITY) {
+      this.clearDrawBindPreviewPorts();
+      return;
+    }
+
+    const ports = (nearestNode.ports ?? defaultNodePorts())
+      .map(port => {
+        const pos = portPosition(nearestNode, port.id);
+        return pos ? { nodeId: nearestNode.id, portId: port.id, x: pos.x, y: pos.y } : null;
+      })
+      .filter((p): p is { nodeId: string; portId: string; x: number; y: number } => !!p);
+
+    this.drawBindPreviewPorts = ports;
+    let best: { portId: string; d: number } | null = null;
+    for (const p of ports) {
+      const d = Math.hypot(p.x - pt.x, p.y - pt.y);
+      if (!best || d < best.d) best = { portId: p.portId, d };
+    }
+    this.drawBindPreviewActivePortId = best?.portId ?? null;
+  }
+
+  private clearDrawBindPreviewPorts(): void {
+    this.drawBindPreviewPorts = [];
+    this.drawBindPreviewActivePortId = null;
+  }
+
+  private nearestNodePortAtPoint(
+    pt: { x: number; y: number },
+    maxDistance: number,
+  ): { nodeId: string; portId: string; x: number; y: number } | null {
+    let best: { nodeId: string; portId: string; x: number; y: number; d: number } | null = null;
+    for (const node of this.visibleNodes) {
+      for (const port of node.ports ?? defaultNodePorts()) {
+        const pos = portPosition(node, port.id);
+        if (!pos) continue;
+        const d = Math.hypot(pos.x - pt.x, pos.y - pt.y);
+        if (d > maxDistance) continue;
+        if (!best || d < best.d) {
+          best = { nodeId: node.id, portId: port.id, x: pos.x, y: pos.y, d };
+        }
+      }
+    }
+    return best ? { nodeId: best.nodeId, portId: best.portId, x: best.x, y: best.y } : null;
+  }
+
   private canvasPointFromClient(clientX: number, clientY: number): { x: number; y: number } {
     const host = this.canvasHostRef?.nativeElement as HTMLElement | undefined;
     if (!host) return { x: 0, y: 0 };
@@ -1908,6 +2041,14 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
     this.store.pushUndo();
     const pt = this.svgPoint(e);
     this.annWaypointDragState = { annId: ann.id, waypointIndex, lastX: pt.x, lastY: pt.y };
+  }
+
+  onAnnEndpointMouseDown(e: MouseEvent, ann: Annotation, endpoint: 'start' | 'end'): void {
+    e.stopPropagation();
+    e.preventDefault();
+    this.store.pushUndo();
+    const pt = this.svgPoint(e);
+    this.annEndpointDragState = { annId: ann.id, endpoint, lastX: pt.x, lastY: pt.y };
   }
 
   onAnnMidpointMouseDown(e: MouseEvent, ann: Annotation, segmentIndex: number): void {

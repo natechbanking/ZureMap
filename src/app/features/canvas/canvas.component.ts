@@ -1012,12 +1012,15 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
   onAnnotationMouseDown(e: MouseEvent, ann: Annotation): void {
     if (this.activeTool !== 'pointer') return;
     if (e.button !== 0) return;
-    // Prefer node interactions when an annotation overlaps a node in screen space.
-    const canvasPt = this.canvasPointFromClient(e.clientX, e.clientY);
-    const nodeUnder = this.nodeAtCanvasPoint(canvasPt.x, canvasPt.y);
-    if (nodeUnder) {
-      this.onNodeMouseDown(e, nodeUnder);
-      return;
+    // For line-like annotations, always prioritize annotation selection even when
+    // they overlap a node so the user can still edit/connect those arrows.
+    if (ann.type !== 'arrow' && ann.type !== 'line' && ann.type !== 'draw') {
+      const canvasPt = this.canvasPointFromClient(e.clientX, e.clientY);
+      const nodeUnder = this.nodeAtCanvasPoint(canvasPt.x, canvasPt.y);
+      if (nodeUnder) {
+        this.onNodeMouseDown(e, nodeUnder);
+        return;
+      }
     }
     e.stopPropagation();
     this.ctxMenuSvc.annotationContextMenu = null;

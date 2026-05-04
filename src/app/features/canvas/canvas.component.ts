@@ -49,7 +49,7 @@ import { CanvasAnnotationOverlayLayerComponent } from './layers/canvas-annotatio
 import { CanvasContextMenuService } from './canvas-context-menu.service';
 import { DiagramNode } from '../../core/models/diagram-node.model';
 import { Annotation, DrawingTool, StrokeStyle, EdgeRouting, EdgeMode } from '../../core/models/annotation.model';
-import { DiagramEdge, EdgeStyle, EDGE_STYLES } from '../../core/models/diagram-edge.model';
+import { DiagramEdge, EdgeStyle } from '../../core/models/diagram-edge.model';
 import {
   RgBound,
   SubscriptionBound,

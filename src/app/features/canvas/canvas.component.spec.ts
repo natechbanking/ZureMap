@@ -401,8 +401,8 @@ describe('CanvasComponent', () => {
       };
 
       // canvasPointFromClient returns {x:0,y:0} when hostRef is null, so place the
-      // target port at origin: n2 at (-120, -30) makes port-left land at (0,0).
-      const n2Shifted = makeDiagramNode({ id: 'n2', position: { x: -120, y: -30 }, size: { width: 100, height: 60 } });
+      // target port at origin: n2 at (0, -30) makes port-left land at (0,0).
+      const n2Shifted = makeDiagramNode({ id: 'n2', position: { x: 0, y: -30 }, size: { width: 100, height: 60 } });
       store.setNodes([n1, n2Shifted]);
       component.edgeLinkDragState = {
         sourceNodeId: 'n1',
@@ -466,7 +466,7 @@ describe('CanvasComponent', () => {
     });
 
     it('edge created from port drag uses activeColor and default arrowhead', () => {
-      const n2 = makeDiagramNode({ id: 'n2', position: { x: -120, y: -30 }, size: { width: 100, height: 60 } });
+      const n2 = makeDiagramNode({ id: 'n2', position: { x: 0, y: -30 }, size: { width: 100, height: 60 } });
       const n1 = makeDiagramNode({ id: 'n1', position: { x: 200, y: 200 }, size: { width: 100, height: 60 } });
       store.setNodes([n1, n2]);
 

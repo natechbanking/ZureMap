@@ -117,7 +117,7 @@ describe('CanvasVisibilityService', () => {
     it('hides nodes from a collapsed subscription', () => {
       const nodeWithSub = makeDiagramNode({
         id: 'n1',
-        metadata: { ...makeAzureResource(), subscriptionId: 'sub-1' } as any,
+        metadata: makeAzureResource({ subscriptionId: 'sub-1' }),
       });
 
       const result = service.derive(makeInput({

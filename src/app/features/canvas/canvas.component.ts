@@ -815,11 +815,21 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
         description: data.description,
         internalItems: data.internalItems
           .filter(i => i.text.trim())
-          .map((item, i) => ({ id: `ii-${i}`, text: item.text, x: 4, y: 20 + i * 16 })),
+          .map((item, i) => ({
+            id: `ii-${i}`,
+            text: item.text,
+            x: 4,
+            y: 20 + i * 16,
+            baseColor: '#1d4ed8',
+            color: '#1d4ed8',
+            baseBackgroundColor: '#eff6ff',
+            backgroundColor: '#eff6ff',
+          })),
       },
     };
     this.store.pushUndo();
-    this.store.appendNode(node);
+    // Apply any existing internal-item style rules to the newly created node.
+    this.store.setNodes(this.applyInternalItemStyleRulesToNodes([...this.store.nodes(), node]));
     this.showCreateResourceModal = false;
     this.resourcePlacementPosition = null;
     this.setTool('pointer');
@@ -1399,8 +1409,84 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
   }
 
   onTagRulesChange(rules: TagRule[]): void {
+    // Snapshot state BEFORE any changes so that undo restores both the old
+    // rule list and the pre-rule node colors in one atomic step.
+    this.store.pushUndo();
     this.store.tagRules.set(rules);
+    this.store.setNodes(this.applyInternalItemStyleRulesToNodes(this.store.nodes(), rules));
     this.recomputeTagHighlights(this.store.nodes());
+  }
+
+  /**
+   * Computes the effective color/backgroundColor of every internal label item
+   * by applying the current (or provided) internal-item style rules on top of
+   * each item's *base* colors. Returns a new nodes array only when at least one
+   * item actually changed; otherwise returns the same array reference so callers
+   * can skip an unnecessary `setNodes` call.
+   *
+   * Base colors (`baseColor` / `baseBackgroundColor`) are the user's original
+   * intent. They are written once the first time an item is processed and are
+   * never overwritten by rule application, so removing a rule always reverts
+   * the item to its pre-rule appearance.
+   */
+  private applyInternalItemStyleRulesToNodes(nodes: DiagramNode[], rules?: TagRule[]): DiagramNode[] {
+    const internalRules = (rules ?? this.store.tagRules()).filter(r => r.type === 'internal-item');
+    let anyNodeChanged = false;
+    const nextNodes = nodes.map(node => {
+      const items = node.custom?.internalItems;
+      if (!items?.length) return node;
+      let nodeChanged = false;
+      const nextItems = items.map(item => {
+        // Resolve the base color: use the stored base if available, otherwise
+        // lazily initialise it from the current color (backward-compat with
+        // items created before base-color tracking was introduced).
+        //
+        // We intentionally use the `in` operator rather than nullish coalescing
+        // (`item.baseColor ?? item.color`) because there is a meaningful
+        // difference between "the field does not exist" (legacy item — use the
+        // current color as the base) and "the field exists but is undefined"
+        // (item that had no color before a rule applied one). The latter case
+        // must revert to `undefined` when the rule is removed; falling back to
+        // `item.color` there would return the rule-applied color instead.
+        const baseColor = 'baseColor' in item ? item.baseColor : item.color;
+        const baseBackground = 'baseBackgroundColor' in item ? item.baseBackgroundColor : item.backgroundColor;
+
+        // Start from base colors, then let matching rules override.
+        let nextColor = baseColor;
+        let nextBackground = baseBackground;
+        const text = (item.text ?? '').toLowerCase();
+        for (const rule of internalRules) {
+          const query = (rule.textQuery ?? '').trim().toLowerCase();
+          if (query && !text.includes(query)) continue;
+          if (rule.textColor) nextColor = rule.textColor;
+          if (rule.backgroundColor) nextBackground = rule.backgroundColor;
+        }
+
+        const nextItem = {
+          ...item,
+          baseColor,
+          baseBackgroundColor: baseBackground,
+          color: nextColor,
+          backgroundColor: nextBackground,
+        };
+
+        // Return the original reference when nothing actually changed.
+        if (
+          nextItem.color === item.color &&
+          nextItem.backgroundColor === item.backgroundColor &&
+          nextItem.baseColor === item.baseColor &&
+          nextItem.baseBackgroundColor === item.baseBackgroundColor
+        ) {
+          return item;
+        }
+        nodeChanged = true;
+        return nextItem;
+      });
+      if (!nodeChanged) return node;
+      anyNodeChanged = true;
+      return { ...node, custom: { ...(node.custom ?? {}), internalItems: nextItems } };
+    });
+    return anyNodeChanged ? nextNodes : nodes;
   }
 
   private recomputeTagHighlights(nodes: DiagramNode[]): void {
@@ -1454,24 +1540,29 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
     }
 
     const evalRule = (rule: TagRule, tags: Map<string, Set<string>>): boolean => {
+      const tagKey = rule.tagKey ?? '';
+      const tagValue = rule.tagValue ?? '';
+      const operator = rule.operator ?? 'eq';
       switch (rule.operator) {
-        case 'exists':    return tags.has(rule.tagKey);
-        case 'notexists': return !tags.has(rule.tagKey);
-        case 'eq':        return tags.get(rule.tagKey)?.has(rule.tagValue) ?? false;
-        case 'neq':       return !(tags.get(rule.tagKey)?.has(rule.tagValue) ?? false);
-        case 'contains':  return Array.from(tags.get(rule.tagKey) ?? []).some(v => v.includes(rule.tagValue));
+        case 'exists':    return tags.has(tagKey);
+        case 'notexists': return !tags.has(tagKey);
+        case 'eq':        return tags.get(tagKey)?.has(tagValue) ?? false;
+        case 'neq':       return !(tags.get(tagKey)?.has(tagValue) ?? false);
+        case 'contains':  return Array.from(tags.get(tagKey) ?? []).some(v => v.includes(tagValue));
+        default:          return operator === 'eq' ? (tags.get(tagKey)?.has(tagValue) ?? false) : false;
       }
     };
 
     const toHighlight = (rule: TagRule): TagHighlightInfo => ({
       ruleId: rule.id,
-      borderColor: rule.color,
-      bgColor: rule.color + '22',
+      borderColor: rule.color ?? '#ef4444',
+      bgColor: (rule.color ?? '#ef4444') + '22',
       badgeLabel: rule.badgeLabel,
       sizeOffset: rule.sizeOffset,
     });
 
     for (const rule of rules) {
+      if (rule.type === 'internal-item') continue;
       if (rule.target === 'rg' || rule.target === 'both') {
         for (const [rgKey, tags] of rgTagMap) {
           if (!this.rgTagHighlights.has(rgKey) && evalRule(rule, tags)) {
@@ -1489,7 +1580,7 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
       if (rule.target === 'node') {
         for (const [nodeId, tags] of nodeTagMap) {
           if (!this.nodeTagHighlights.has(nodeId) && evalRule(rule, tags)) {
-            this.nodeTagHighlights.set(nodeId, rule.color);
+            this.nodeTagHighlights.set(nodeId, rule.color ?? '#ef4444');
           }
         }
       }
@@ -2128,7 +2219,12 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
   saveResourceEditor(): void {
     if (!this.resourceEditorOpen || !this.resourceEditorNodeId || !this.resourceEditorDraft) return;
     this.store.pushUndo();
-    this.store.setNodes(this.resourceEditor.applyDraft(this.store.nodes(), this.resourceEditorNodeId, this.resourceEditorDraft));
+    // Apply the draft first, then re-apply internal-item style rules so that
+    // any rules already configured are immediately reflected on the saved node.
+    const nodesAfterDraft = this.resourceEditor.applyDraft(
+      this.store.nodes(), this.resourceEditorNodeId, this.resourceEditorDraft,
+    );
+    this.store.setNodes(this.applyInternalItemStyleRulesToNodes(nodesAfterDraft));
     this.closeResourceEditor();
   }
 
@@ -2145,6 +2241,16 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
   updateInternalItemText(itemId: string, text: string): void {
     if (!this.resourceEditorDraft) return;
     this.resourceEditorDraft = this.resourceEditor.updateInternalItemText(this.resourceEditorDraft, itemId, text);
+  }
+
+  updateInternalItemColor(itemId: string, color: string): void {
+    if (!this.resourceEditorDraft) return;
+    this.resourceEditorDraft = this.resourceEditor.updateInternalItemColor(this.resourceEditorDraft, itemId, color);
+  }
+
+  updateInternalItemBackgroundColor(itemId: string, backgroundColor: string): void {
+    if (!this.resourceEditorDraft) return;
+    this.resourceEditorDraft = this.resourceEditor.updateInternalItemBackgroundColor(this.resourceEditorDraft, itemId, backgroundColor);
   }
 
   onInternalItemMoved(req: InternalItemMoveRequest): void {

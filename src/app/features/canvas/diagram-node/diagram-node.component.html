@@ -282,9 +282,12 @@
 
       @for (item of node.custom?.internalItems ?? []; track item.id) {
         <div
-          class="absolute px-1 py-0.5 text-[10px] rounded bg-blue-50/90 border border-blue-200 text-blue-700 shadow-sm cursor-move max-w-[90px] truncate"
+          class="absolute px-1 py-0.5 text-[10px] rounded border shadow-sm cursor-move max-w-[90px] truncate"
           [style.left.px]="item.x"
           [style.top.px]="item.y"
+          [style.color]="item.color ?? '#1d4ed8'"
+          [style.background-color]="item.backgroundColor ?? '#eff6ff'"
+          [style.border-color]="item.color ?? '#93c5fd'"
           [title]="item.text"
           (mousedown)="onInternalItemMouseDown($event, item)"
         >

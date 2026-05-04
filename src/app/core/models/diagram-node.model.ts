@@ -18,6 +18,19 @@ export interface NodeInternalItem {
   text: string;
   x: number;
   y: number;
+  /**
+   * User-set base color. Internal-item style rules may override `color` but
+   * always preserve `baseColor` so that removing a rule reverts the item to
+   * its original appearance.
+   */
+  baseColor?: string;
+  color?: string;
+  /**
+   * User-set base background color. Internal-item style rules may override
+   * `backgroundColor` but always preserve `baseBackgroundColor`.
+   */
+  baseBackgroundColor?: string;
+  backgroundColor?: string;
 }
 
 export interface NodeCustomization {

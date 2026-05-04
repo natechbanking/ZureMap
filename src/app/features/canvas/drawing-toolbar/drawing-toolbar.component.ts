@@ -2,7 +2,7 @@ import { Component, Input, Output, EventEmitter, HostListener, OnInit, inject } 
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { DrawingTool, StrokeStyle, EdgeRouting, EdgeMode } from '../../../core/models/annotation.model';
-import { TagRule, TagRuleOperator } from '../canvas.types';
+import { HighlightRuleType, TagRule, TagRuleOperator } from '../canvas.types';
 import { IconRegistryService } from '../../../core/services/icon-registry.service';
 import { ActionIconComponent } from '../../../shared/components/action-icon/action-icon.component';
 
@@ -404,6 +404,15 @@ const FONT_FAMILIES = [
                 <div class="bg-gray-50 rounded-lg border border-gray-200 p-2.5 space-y-2">
                   <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">New Rule</p>
 
+                  <select
+                    class="w-full text-xs border border-gray-200 rounded-md px-2 py-1.5 outline-none focus:border-blue-400 bg-white"
+                    [(ngModel)]="draftRuleType"
+                  >
+                    <option value="tag">Tag Highlight Rule</option>
+                    <option value="internal-item">Internal Label Style Rule</option>
+                  </select>
+
+                  @if (draftRuleType === 'tag') {
                   <div class="flex gap-1.5">
                     <input
                       type="text"
@@ -450,36 +459,61 @@ const FONT_FAMILIES = [
                     placeholder="Badge label (optional)"
                     [(ngModel)]="draftBadge"
                   />
+                  } @else {
+                    <input
+                      type="text"
+                      class="w-full text-xs border border-gray-200 rounded-md px-2 py-1.5 outline-none focus:border-blue-400"
+                      placeholder="Label text contains (optional). Empty = all labels"
+                      [(ngModel)]="draftInternalQuery"
+                    />
+                  }
 
                   <div class="flex items-center gap-2">
-                    <div class="flex rounded-md border border-gray-200 overflow-hidden text-[10px] font-medium">
-                      @for (t of ruleTargets; track t.id) {
-                        <button
-                          class="px-2 py-1.5 transition-colors"
-                          [class.bg-blue-500]="draftTarget === t.id"
-                          [class.text-white]="draftTarget === t.id"
-                          [class.bg-white]="draftTarget !== t.id"
-                          [class.text-gray-600]="draftTarget !== t.id"
-                          [class.hover:bg-gray-50]="draftTarget !== t.id"
-                          (click)="draftTarget = t.id"
-                        >{{ t.label }}</button>
-                      }
-                    </div>
+                    @if (draftRuleType === 'tag') {
+                      <div class="flex rounded-md border border-gray-200 overflow-hidden text-[10px] font-medium">
+                        @for (t of ruleTargets; track t.id) {
+                          <button
+                            class="px-2 py-1.5 transition-colors"
+                            [class.bg-blue-500]="draftTarget === t.id"
+                            [class.text-white]="draftTarget === t.id"
+                            [class.bg-white]="draftTarget !== t.id"
+                            [class.text-gray-600]="draftTarget !== t.id"
+                            [class.hover:bg-gray-50]="draftTarget !== t.id"
+                            (click)="draftTarget = t.id"
+                          >{{ t.label }}</button>
+                        }
+                      </div>
+                    }
                     <div class="flex items-center gap-1.5 ml-auto">
-                      <input
-                        type="color"
-                        class="w-7 h-7 p-0 border-0 rounded cursor-pointer"
-                        [(ngModel)]="draftColor"
-                        title="Highlight color"
-                      />
+                      @if (draftRuleType === 'tag') {
+                        <input
+                          type="color"
+                          class="w-7 h-7 p-0 border-0 rounded cursor-pointer"
+                          [(ngModel)]="draftColor"
+                          title="Highlight color"
+                        />
+                      } @else {
+                        <input
+                          type="color"
+                          class="w-7 h-7 p-0 border-0 rounded cursor-pointer"
+                          [(ngModel)]="draftInternalTextColor"
+                          title="Internal label text color"
+                        />
+                        <input
+                          type="color"
+                          class="w-7 h-7 p-0 border-0 rounded cursor-pointer"
+                          [(ngModel)]="draftInternalBackgroundColor"
+                          title="Internal label background color"
+                        />
+                      }
                       <button
                         class="px-2.5 py-1.5 rounded-md text-[10px] font-semibold transition-colors"
-                        [class.bg-blue-500]="draftKey.trim()"
-                        [class.text-white]="draftKey.trim()"
-                        [class.hover:bg-blue-600]="draftKey.trim()"
-                        [class.bg-gray-100]="!draftKey.trim()"
-                        [class.text-gray-400]="!draftKey.trim()"
-                        [disabled]="!draftKey.trim()"
+                        [class.bg-blue-500]="draftRuleType === 'internal-item' || draftKey.trim()"
+                        [class.text-white]="draftRuleType === 'internal-item' || draftKey.trim()"
+                        [class.hover:bg-blue-600]="draftRuleType === 'internal-item' || draftKey.trim()"
+                        [class.bg-gray-100]="draftRuleType === 'tag' && !draftKey.trim()"
+                        [class.text-gray-400]="draftRuleType === 'tag' && !draftKey.trim()"
+                        [disabled]="draftRuleType === 'tag' && !draftKey.trim()"
                         (click)="addRule()"
                       >Add</button>
                     </div>
@@ -499,12 +533,13 @@ const FONT_FAMILIES = [
 
                     @if (editDraft?.id === rule.id) {
                       <!-- ── Inline edit form ── -->
-                      <div class="rounded-lg border-2 p-2.5 space-y-2" [style.border-color]="editDraft!.color" [style.background-color]="editDraft!.color + '11'">
+                      <div class="rounded-lg border-2 p-2.5 space-y-2" [style.border-color]="ruleSwatchColor(editDraft!)" [style.background-color]="ruleSwatchColor(editDraft!) + '11'">
                         <div class="flex items-center justify-between">
                           <p class="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Edit Rule</p>
                           <button class="text-[10px] text-gray-400 hover:text-gray-600" (click)="cancelEdit()">Cancel</button>
                         </div>
 
+                        @if (editDraft!.type === 'tag') {
                         <div class="flex gap-1.5">
                           <input
                             type="text"
@@ -581,6 +616,35 @@ const FONT_FAMILIES = [
                             (click)="saveEdit()"
                           >Save</button>
                         </div>
+                        } @else {
+                        <input
+                          type="text"
+                          class="w-full text-xs border border-gray-200 rounded-md px-2 py-1.5 outline-none focus:border-blue-400 bg-white"
+                          placeholder="Label text contains (optional). Empty = all labels"
+                          [ngModel]="editDraft!.textQuery ?? ''"
+                          (ngModelChange)="patchDraft('textQuery', $event)"
+                        />
+                        <div class="flex items-center gap-2">
+                          <input
+                            type="color"
+                            class="w-7 h-7 p-0 border-0 rounded cursor-pointer"
+                            [ngModel]="editDraft!.textColor ?? '#1d4ed8'"
+                            (ngModelChange)="patchDraft('textColor', $event)"
+                            title="Internal label text color"
+                          />
+                          <input
+                            type="color"
+                            class="w-7 h-7 p-0 border-0 rounded cursor-pointer"
+                            [ngModel]="editDraft!.backgroundColor ?? '#eff6ff'"
+                            (ngModelChange)="patchDraft('backgroundColor', $event)"
+                            title="Internal label background color"
+                          />
+                          <button
+                            class="ml-auto px-2.5 py-1.5 rounded-md text-[10px] font-semibold bg-blue-500 text-white hover:bg-blue-600 transition-colors"
+                            (click)="saveEdit()"
+                          >Save</button>
+                        </div>
+                        }
                       </div>
 
                     } @else {
@@ -611,15 +675,15 @@ const FONT_FAMILIES = [
                         </div>
 
                         <!-- Color swatch -->
-                        <span class="w-3 h-3 rounded-sm flex-shrink-0" [style.background-color]="rule.color"></span>
+                        <span class="w-3 h-3 rounded-sm flex-shrink-0" [style.background-color]="ruleSwatchColor(rule)"></span>
 
                         <!-- Summary -->
                         <div class="flex-1 min-w-0">
                           <p class="text-[11px] font-medium text-gray-700 truncate">
-                            {{ rule.tagKey }} {{ operatorLabel(rule.operator) }}{{ rule.tagValue ? ' ' + rule.tagValue : '' }}
+                            {{ ruleSummary(rule) }}
                           </p>
                           <p class="text-[10px] text-gray-400 truncate">
-                            {{ targetLabel(rule.target) }}{{ rule.badgeLabel ? ' · "' + rule.badgeLabel + '"' : '' }}
+                            {{ ruleTypeLabel(rule) }} · {{ ruleDetail(rule) }}
                           </p>
                         </div>
 
@@ -646,6 +710,7 @@ const FONT_FAMILIES = [
                   }
                 </div>
               }
+
             </div>
           }
 
@@ -979,11 +1044,15 @@ export class DrawingToolbarComponent implements OnInit {
 
   // Draft state for rule builder
   draftKey = '';
+  draftRuleType: HighlightRuleType = 'tag';
   draftOperator: TagRuleOperator = 'eq';
   draftValue = '';
   draftColor = '#ef4444';
   draftTarget: TagRule['target'] = 'node';
   draftBadge = '';
+  draftInternalQuery = '';
+  draftInternalTextColor = '#1d4ed8';
+  draftInternalBackgroundColor = '#eff6ff';
 
   get tagKeyOptions(): string[] {
     return Array.from(this.availableTags.keys()).sort();
@@ -995,20 +1064,33 @@ export class DrawingToolbarComponent implements OnInit {
   }
 
   addRule(): void {
-    if (!this.draftKey.trim()) return;
-    const rule: TagRule = {
-      id: `rule-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-      tagKey: this.draftKey.trim(),
-      operator: this.draftOperator,
-      tagValue: this.draftValue.trim(),
-      target: this.draftTarget,
-      color: this.draftColor,
-      badgeLabel: this.draftBadge.trim() || undefined,
-    };
+    let rule: TagRule;
+    if (this.draftRuleType === 'tag') {
+      if (!this.draftKey.trim()) return;
+      rule = {
+        id: `rule-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        type: 'tag',
+        tagKey: this.draftKey.trim(),
+        operator: this.draftOperator,
+        tagValue: this.draftValue.trim(),
+        target: this.draftTarget,
+        color: this.draftColor,
+        badgeLabel: this.draftBadge.trim() || undefined,
+      };
+    } else {
+      rule = {
+        id: `rule-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        type: 'internal-item',
+        textQuery: this.draftInternalQuery.trim(),
+        textColor: this.draftInternalTextColor,
+        backgroundColor: this.draftInternalBackgroundColor,
+      };
+    }
     this.tagRulesChange.emit([...this.tagRules, rule]);
     this.draftKey = '';
     this.draftValue = '';
     this.draftBadge = '';
+    this.draftInternalQuery = '';
   }
 
   removeRule(id: string): void {
@@ -1029,15 +1111,15 @@ export class DrawingToolbarComponent implements OnInit {
     return Array.from(this.availableTags.get(this.editDraft.tagKey) ?? []).sort();
   }
 
-  targetLabel(target: TagRule['target']): string {
-    const map: Record<TagRule['target'], string> = {
+  targetLabel(target: NonNullable<TagRule['target']>): string {
+    const map: Record<NonNullable<TagRule['target']>, string> = {
       node: 'Nodes', rg: 'Resource Groups', sub: 'Subscriptions', both: 'RG + Sub',
     };
     return map[target];
   }
 
   beginEdit(rule: TagRule): void {
-    this.editDraft = { ...rule };
+    this.editDraft = { ...rule, type: rule.type ?? 'tag' };
   }
 
   saveEdit(): void {
@@ -1068,6 +1150,31 @@ export class DrawingToolbarComponent implements OnInit {
     if (swap < 0 || swap >= next.length) return;
     [next[idx], next[swap]] = [next[swap], next[idx]];
     this.tagRulesChange.emit(next);
+  }
+
+  ruleTypeLabel(rule: TagRule): string {
+    return rule.type === 'internal-item' ? 'Internal Labels' : 'Tag Highlight';
+  }
+
+  ruleSummary(rule: TagRule): string {
+    if (rule.type === 'internal-item') {
+      return rule.textQuery?.trim() ? `label contains "${rule.textQuery}"` : 'all internal labels';
+    }
+    const key = rule.tagKey ?? '';
+    const op = this.operatorLabel(rule.operator ?? 'eq');
+    const val = rule.tagValue?.trim();
+    return `${key} ${op}${val ? ' ' + val : ''}`;
+  }
+
+  ruleDetail(rule: TagRule): string {
+    if (rule.type === 'internal-item') {
+      return `Text ${rule.textColor ?? '#1d4ed8'} · Bg ${rule.backgroundColor ?? '#eff6ff'}`;
+    }
+    return `${this.targetLabel(rule.target ?? 'node')}${rule.badgeLabel ? ' · "' + rule.badgeLabel + '"' : ''}`;
+  }
+
+  ruleSwatchColor(rule: TagRule): string {
+    return rule.type === 'internal-item' ? (rule.backgroundColor ?? '#eff6ff') : (rule.color ?? '#ef4444');
   }
 
   readonly toolCategories = [

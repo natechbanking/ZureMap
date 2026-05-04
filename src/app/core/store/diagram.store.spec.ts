@@ -22,6 +22,7 @@ describe('DiagramStore', () => {
     store.setAnnotations([ann]);
     store.tagRules.set([{
       id: 'rule-1',
+      type: 'tag',
       tagKey: 'env',
       operator: 'eq',
       tagValue: 'prod',

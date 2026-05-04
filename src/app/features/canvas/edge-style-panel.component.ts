@@ -69,6 +69,19 @@ import { DiagramEdge } from '../../core/models/diagram-edge.model';
         </label>
       </div>
 
+      <div class="mb-2">
+        <label class="text-[11px] text-gray-600">
+          Label
+          <input
+            type="text"
+            class="mt-1 w-full h-8 rounded border border-gray-200 px-2 text-xs"
+            placeholder="Optional label…"
+            [value]="label"
+            (input)="labelChange.emit(inputValue($event))"
+          />
+        </label>
+      </div>
+
       <div class="grid grid-cols-2 gap-2">
         <label class="flex items-center gap-2 text-xs text-gray-700">
           <input type="checkbox" [checked]="edge.animated" (change)="animatedChange.emit(checkedValue($event))" />
@@ -88,6 +101,7 @@ export class EdgeStylePanelComponent {
   @Input({ required: true }) edge!: DiagramEdge;
   @Input({ required: true }) right!: number;
   @Input({ required: true }) dashStyle!: string;
+  @Input() label = '';
 
   @Output() closed = new EventEmitter<void>();
   @Output() strokeColorChange = new EventEmitter<string>();
@@ -95,6 +109,7 @@ export class EdgeStylePanelComponent {
   @Output() dashStyleChange = new EventEmitter<string>();
   @Output() markerChange = new EventEmitter<string>();
   @Output() animatedChange = new EventEmitter<boolean>();
+  @Output() labelChange = new EventEmitter<string>();
   @Output() styleReset = new EventEmitter<void>();
   @Output() deleteRequested = new EventEmitter<void>();
 
@@ -121,5 +136,9 @@ export class EdgeStylePanelComponent {
 
   checkedValue(event: Event): boolean {
     return !!(event.target as HTMLInputElement).checked;
+  }
+
+  inputValue(event: Event): string {
+    return (event.target as HTMLInputElement).value;
   }
 }

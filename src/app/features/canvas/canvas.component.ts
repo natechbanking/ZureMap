@@ -2159,6 +2159,11 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
     this.store.setEdges(this.edgeEditor.resetStyle(this.store.edges(), this.selectedEdgeId));
   }
 
+  setSelectedEdgeLabel(label: string): void {
+    this.store.pushUndo();
+    this.store.setEdges(this.edgeEditor.setLabel(this.store.edges(), this.selectedEdgeId, label));
+  }
+
   dashStyleValue(style: EdgeStyle): string {
     return this.edgeEditor.dashStyleValue(style);
   }

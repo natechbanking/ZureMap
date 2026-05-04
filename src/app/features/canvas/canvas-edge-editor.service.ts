@@ -38,6 +38,11 @@ export class CanvasEdgeEditorService {
     );
   }
 
+  setLabel(edges: DiagramEdge[], selectedEdgeId: string | null, label: string): DiagramEdge[] {
+    if (!selectedEdgeId) return edges;
+    return edges.map(e => e.id === selectedEdgeId ? { ...e, label: label || undefined } : e);
+  }
+
   setWaypoints(edges: DiagramEdge[], edgeId: string, waypoints: { x: number; y: number }[]): DiagramEdge[] {
     return edges.map(e => e.id === edgeId ? { ...e, waypoints: waypoints.length > 0 ? waypoints : undefined } : e);
   }

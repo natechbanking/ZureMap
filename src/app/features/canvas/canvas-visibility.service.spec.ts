@@ -158,5 +158,36 @@ describe('CanvasVisibilityService', () => {
       expect(result.subscriptionBounds.length).toBe(1);
       expect(result.subscriptionBounds[0].y).toBe(8);
     });
+
+    it('clamps resource group container y so the header remains reachable near top of canvas', () => {
+      const topNode = makeDiagramNode({
+        id: 'n-top-rg',
+        position: { x: 20, y: 0 },
+        metadata: makeAzureResource({
+          subscriptionId: 'sub-1',
+          resourceGroup: 'rg-top',
+        }),
+      });
+
+      const result = service.derive(makeInput({
+        nodes: [topNode],
+        activeSubscriptions: [{
+          id: 'sub-1',
+          subscriptionId: 'sub-1',
+          name: 'Subscription 1',
+          tenantId: 'tenant-1',
+          state: 'Enabled',
+        }, {
+          id: 'sub-2',
+          subscriptionId: 'sub-2',
+          name: 'Subscription 2',
+          tenantId: 'tenant-1',
+          state: 'Enabled',
+        }],
+      }));
+
+      expect(result.rgBounds.length).toBe(1);
+      expect(result.rgBounds[0].y).toBe(8);
+    });
   });
 });

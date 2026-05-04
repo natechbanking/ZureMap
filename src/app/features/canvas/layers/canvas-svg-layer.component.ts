@@ -95,6 +95,13 @@ export class CanvasSvgLayerComponent implements OnChanges {
     return mids;
   }
 
+  getEdgeLabelPoint(edge: DiagramEdge): { x: number; y: number } | null {
+    const pts = this.getEdgePoints(edge);
+    if (pts.length < 2) return null;
+    const mid = Math.floor(pts.length / 2);
+    return { x: (pts[mid - 1].x + pts[mid].x) / 2, y: (pts[mid - 1].y + pts[mid].y) / 2 };
+  }
+
   // ── Annotation geometry ────────────────────────────────────────────────────
 
   getAnnHandles(ann: Annotation): { x: number; y: number; index: number }[] {

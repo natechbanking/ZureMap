@@ -83,6 +83,24 @@
       style="cursor: pointer"
       (click)="edgeClicked.emit({ event: $event, edge: edge })"
     />
+    @if (edge.label) {
+      @let labelPt = getEdgeLabelPoint(edge);
+      @if (labelPt) {
+        <svg:text
+          [attr.x]="labelPt.x"
+          [attr.y]="labelPt.y"
+          text-anchor="middle"
+          dominant-baseline="middle"
+          [attr.font-size]="11 / zoomLevel"
+          fill="#374151"
+          font-family="system-ui, sans-serif"
+          paint-order="stroke"
+          stroke="white"
+          [attr.stroke-width]="3 / zoomLevel"
+          pointer-events="none"
+        >{{ edge.label }}</svg:text>
+      }
+    }
     @if (selectedEdgeId === edge.id && activeTool === 'pointer') {
       @let edgeAllPts = getEdgePoints(edge);
       @if (edgeAllPts.length > 0) {

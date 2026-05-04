@@ -102,6 +102,7 @@ export class CanvasVisibilityService {
 
   computeRgBounds(nodes: DiagramNode[], collapsedResourceGroups: Set<string>, customContainerNames: Map<string, string>): RgBound[] {
     const PAD = 28; const LABEL_H = 28;
+    const MIN_Y = 8;
     const map = new Map<string, { subscriptionId: string; name: string; nodes: DiagramNode[] }>();
     for (const n of nodes) {
       const rg = this.nodeResourceGroup(n);
@@ -126,7 +127,7 @@ export class CanvasVisibilityService {
         name,
         collapsed,
         x: xMin - PAD,
-        y: yMin - PAD - LABEL_H,
+        y: Math.max(MIN_Y, yMin - PAD - LABEL_H),
         width: collapsed ? Math.max(220, Math.ceil(name.length * 7.5) + 72) : xMax + PAD - (xMin - PAD),
         height: collapsed ? LABEL_H + 8 : yMax + PAD - (yMin - PAD - LABEL_H),
       };

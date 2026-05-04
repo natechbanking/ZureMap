@@ -1012,12 +1012,18 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
   onAnnotationMouseDown(e: MouseEvent, ann: Annotation): void {
     if (this.activeTool !== 'pointer') return;
     if (e.button !== 0) return;
-    // Prefer node interactions when an annotation overlaps a node in screen space.
-    const canvasPt = this.canvasPointFromClient(e.clientX, e.clientY);
-    const nodeUnder = this.nodeAtCanvasPoint(canvasPt.x, canvasPt.y);
-    if (nodeUnder) {
-      this.onNodeMouseDown(e, nodeUnder);
-      return;
+    // Opaque block annotations (image, text, sticky) always take selection
+    // priority — they live in the HTML overlay layer that renders above nodes.
+    // All other annotation types defer to a node under the pointer so nodes
+    // stay reachable through shapes, arrows, and freehand paths.
+    const isOpaqueAnnotation = ann.type === 'image' || ann.type === 'text' || ann.type === 'sticky';
+    if (!isOpaqueAnnotation) {
+      const canvasPt = this.canvasPointFromClient(e.clientX, e.clientY);
+      const nodeUnder = this.nodeAtCanvasPoint(canvasPt.x, canvasPt.y);
+      if (nodeUnder) {
+        this.onNodeMouseDown(e, nodeUnder);
+        return;
+      }
     }
     e.stopPropagation();
     this.ctxMenuSvc.annotationContextMenu = null;
@@ -2179,13 +2185,19 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
 
   onAnnotationContextMenu(event: MouseEvent, ann: Annotation): void {
     if (this.activeTool !== 'pointer') return;
-    const canvasPt = this.canvasPointFromClient(event.clientX, event.clientY);
-    const nodeUnder = this.nodeAtCanvasPoint(canvasPt.x, canvasPt.y);
-    if (nodeUnder) {
-      event.preventDefault();
-      event.stopPropagation();
-      this.ctxMenuSvc.onContextMenuRequested({ nodeId: nodeUnder.id, x: event.clientX, y: event.clientY });
-      return;
+    // Opaque block annotations (image, text, sticky) always show their own
+    // context menu so "Bring to front / Send to back" is reachable even when
+    // they overlap a node. Transparent annotations still defer to the node.
+    const isOpaqueAnnotation = ann.type === 'image' || ann.type === 'text' || ann.type === 'sticky';
+    if (!isOpaqueAnnotation) {
+      const canvasPt = this.canvasPointFromClient(event.clientX, event.clientY);
+      const nodeUnder = this.nodeAtCanvasPoint(canvasPt.x, canvasPt.y);
+      if (nodeUnder) {
+        event.preventDefault();
+        event.stopPropagation();
+        this.ctxMenuSvc.onContextMenuRequested({ nodeId: nodeUnder.id, x: event.clientX, y: event.clientY });
+        return;
+      }
     }
     event.preventDefault();
     event.stopPropagation();

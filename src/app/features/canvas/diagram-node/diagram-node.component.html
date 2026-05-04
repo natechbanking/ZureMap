@@ -460,37 +460,41 @@
       }
 
       <!-- Port connection handles — visible on hover or during edge-link drag -->
-      <div
+      <button
+        type="button"
         data-export-hide
         class="absolute w-2.5 h-2.5 rounded-full bg-blue-500 border-2 border-white shadow-md cursor-crosshair z-20 opacity-0 group-hover:opacity-100 transition-opacity"
         [style.opacity]="isLinking ? '1' : null"
         style="top: -5px; left: calc(50% - 5px);"
-        title="Connect from top"
+        aria-label="Connect from top"
         (mousedown)="onPortMouseDown($event, 'port-top')"
-      ></div>
-      <div
+      ></button>
+      <button
+        type="button"
         data-export-hide
         class="absolute w-2.5 h-2.5 rounded-full bg-blue-500 border-2 border-white shadow-md cursor-crosshair z-20 opacity-0 group-hover:opacity-100 transition-opacity"
         [style.opacity]="isLinking ? '1' : null"
         style="right: -5px; top: calc(50% - 5px);"
-        title="Connect from right"
+        aria-label="Connect from right"
         (mousedown)="onPortMouseDown($event, 'port-right')"
-      ></div>
-      <div
+      ></button>
+      <button
+        type="button"
         data-export-hide
         class="absolute w-2.5 h-2.5 rounded-full bg-blue-500 border-2 border-white shadow-md cursor-crosshair z-20 opacity-0 group-hover:opacity-100 transition-opacity"
         [style.opacity]="isLinking ? '1' : null"
         style="bottom: -5px; left: calc(50% - 5px);"
-        title="Connect from bottom"
+        aria-label="Connect from bottom"
         (mousedown)="onPortMouseDown($event, 'port-bottom')"
-      ></div>
-      <div
+      ></button>
+      <button
+        type="button"
         data-export-hide
         class="absolute w-2.5 h-2.5 rounded-full bg-blue-500 border-2 border-white shadow-md cursor-crosshair z-20 opacity-0 group-hover:opacity-100 transition-opacity"
         [style.opacity]="isLinking ? '1' : null"
         style="left: -5px; top: calc(50% - 5px);"
-        title="Connect from left"
+        aria-label="Connect from left"
         (mousedown)="onPortMouseDown($event, 'port-left')"
-      ></div>
+      ></button>
     </div>
   

@@ -711,7 +711,7 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
           undefined;
         const markerEnd: 'arrow' | 'none' = 'arrow';
         this.store.setEdges([...this.store.edges(), {
-          id: `port-edge-${Date.now()}`,
+          id: this.nextEdgeId(),
           sourceId: drag.sourceNodeId ?? '',
           sourcePort: drag.sourcePortId,
           sourceAnnotationId: drag.sourceAnnotationId,

@@ -90,6 +90,23 @@ export function polylinePointsString(points: { x: number; y: number }[]): string
 
 export const CONNECTABLE_ANNOTATION_TYPES = new Set(['rect', 'ellipse', 'diamond', 'image', 'text', 'sticky']);
 
+function rotatePoint(
+  point: { x: number; y: number },
+  center: { x: number; y: number },
+  angleDeg: number,
+): { x: number; y: number } {
+  if (!angleDeg) return point;
+  const rad = (angleDeg * Math.PI) / 180;
+  const cos = Math.cos(rad);
+  const sin = Math.sin(rad);
+  const dx = point.x - center.x;
+  const dy = point.y - center.y;
+  return {
+    x: center.x + dx * cos - dy * sin,
+    y: center.y + dx * sin + dy * cos,
+  };
+}
+
 export function annotationBoundingBox(ann: Annotation): { x: number; y: number; width: number; height: number } {
   return {
     x: ann.x,
@@ -101,13 +118,19 @@ export function annotationBoundingBox(ann: Annotation): { x: number; y: number; 
 
 export function annotationPortPosition(ann: Annotation, portId: string): { x: number; y: number } | null {
   const { x, y, width: w, height: h } = annotationBoundingBox(ann);
+  let pt: { x: number; y: number };
   switch (portId) {
-    case 'port-top':    return { x: x + w * 0.5, y };
-    case 'port-right':  return { x: x + w,       y: y + h * 0.5 };
-    case 'port-bottom': return { x: x + w * 0.5, y: y + h };
-    case 'port-left':   return { x,              y: y + h * 0.5 };
+    case 'port-top':    pt = { x: x + w * 0.5, y }; break;
+    case 'port-right':  pt = { x: x + w,       y: y + h * 0.5 }; break;
+    case 'port-bottom': pt = { x: x + w * 0.5, y: y + h }; break;
+    case 'port-left':   pt = { x,              y: y + h * 0.5 }; break;
     default: return null;
   }
+  if (ann.rotation) {
+    const center = { x: x + w * 0.5, y: y + h * 0.5 };
+    return rotatePoint(pt, center, ann.rotation);
+  }
+  return pt;
 }
 
 export function defaultNodePorts(): NodePort[] {
@@ -126,12 +149,19 @@ export function portPosition(node: DiagramNode, portId: string): { x: number; y:
   const { x, y } = node.position;
   const { width: w, height: h } = node.size;
   const off = port.offset ?? 0.5;
+  let pt: { x: number; y: number };
   switch (port.side) {
-    case 'top':    return { x: x + w * off, y };
-    case 'right':  return { x: x + w,       y: y + h * off };
-    case 'bottom': return { x: x + w * off, y: y + h };
-    case 'left':   return { x,              y: y + h * off };
+    case 'top':    pt = { x: x + w * off, y }; break;
+    case 'right':  pt = { x: x + w,       y: y + h * off }; break;
+    case 'bottom': pt = { x: x + w * off, y: y + h }; break;
+    case 'left':   pt = { x,              y: y + h * off }; break;
+    default: return null;
   }
+  if (node.angle) {
+    const center = { x: x + w * 0.5, y: y + h * 0.5 };
+    return rotatePoint(pt, center, node.angle);
+  }
+  return pt;
 }
 
 export function edgePolylinePoints(

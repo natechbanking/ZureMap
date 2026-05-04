@@ -1,6 +1,6 @@
 import { Annotation, EdgeRouting, StrokeStyle } from '../../core/models/annotation.model';
 import { DiagramEdge } from '../../core/models/diagram-edge.model';
-import { DiagramNode } from '../../core/models/diagram-node.model';
+import { DiagramNode, NodePort } from '../../core/models/diagram-node.model';
 
 export function diamondPointsFromRect(r: { x: number; y: number; w: number; h: number }): string {
   const cx = r.x + r.w / 2;
@@ -88,20 +88,122 @@ export function polylinePointsString(points: { x: number; y: number }[]): string
   return points.map(p => `${p.x},${p.y}`).join(' ');
 }
 
-export function edgePolylinePoints(nodes: DiagramNode[], edge: Pick<DiagramEdge, 'sourceId' | 'targetId' | 'waypoints'>, nodeMap?: Map<string, DiagramNode>): { x: number; y: number }[] {
-  const src = nodeMap ? nodeMap.get(edge.sourceId) : nodes.find(n => n.id === edge.sourceId);
-  const tgt = nodeMap ? nodeMap.get(edge.targetId) : nodes.find(n => n.id === edge.targetId);
-  if (!src || !tgt) return [];
+export const CONNECTABLE_ANNOTATION_TYPES = new Set(['rect', 'ellipse', 'diamond', 'image', 'text', 'sticky']);
+
+function rotatePoint(
+  point: { x: number; y: number },
+  center: { x: number; y: number },
+  angleDeg: number,
+): { x: number; y: number } {
+  if (!angleDeg) return point;
+  const rad = (angleDeg * Math.PI) / 180;
+  const cos = Math.cos(rad);
+  const sin = Math.sin(rad);
+  const dx = point.x - center.x;
+  const dy = point.y - center.y;
+  return {
+    x: center.x + dx * cos - dy * sin,
+    y: center.y + dx * sin + dy * cos,
+  };
+}
+
+export function annotationBoundingBox(ann: Annotation): { x: number; y: number; width: number; height: number } {
+  return {
+    x: ann.x,
+    y: ann.y,
+    width: ann.width ?? (ann.type === 'sticky' ? 180 : ann.type === 'image' ? 240 : 200),
+    height: ann.height ?? (ann.type === 'sticky' ? 120 : ann.type === 'image' ? 180 : 48),
+  };
+}
+
+export function annotationPortPosition(ann: Annotation, portId: string): { x: number; y: number } | null {
+  const { x, y, width: w, height: h } = annotationBoundingBox(ann);
+  let pt: { x: number; y: number };
+  switch (portId) {
+    case 'port-top':    pt = { x: x + w * 0.5, y }; break;
+    case 'port-right':  pt = { x: x + w,       y: y + h * 0.5 }; break;
+    case 'port-bottom': pt = { x: x + w * 0.5, y: y + h }; break;
+    case 'port-left':   pt = { x,              y: y + h * 0.5 }; break;
+    default: return null;
+  }
+  if (ann.rotation) {
+    const center = { x: x + w * 0.5, y: y + h * 0.5 };
+    return rotatePoint(pt, center, ann.rotation);
+  }
+  return pt;
+}
+
+export function defaultNodePorts(): NodePort[] {
+  return [
+    { id: 'port-top', side: 'top' },
+    { id: 'port-right', side: 'right' },
+    { id: 'port-bottom', side: 'bottom' },
+    { id: 'port-left', side: 'left' },
+  ];
+}
+
+export function portPosition(node: DiagramNode, portId: string): { x: number; y: number } | null {
+  const ports = node.ports ?? defaultNodePorts();
+  const port = ports.find(p => p.id === portId);
+  if (!port) return null;
+  const { x, y } = node.position;
+  const { width: w, height: h } = node.size;
+  const off = port.offset ?? 0.5;
+  let pt: { x: number; y: number };
+  switch (port.side) {
+    case 'top':    pt = { x: x + w * off, y }; break;
+    case 'right':  pt = { x: x + w,       y: y + h * off }; break;
+    case 'bottom': pt = { x: x + w * off, y: y + h }; break;
+    case 'left':   pt = { x,              y: y + h * off }; break;
+    default: return null;
+  }
+  if (node.angle) {
+    const center = { x: x + w * 0.5, y: y + h * 0.5 };
+    return rotatePoint(pt, center, node.angle);
+  }
+  return pt;
+}
+
+export function edgePolylinePoints(
+  nodes: DiagramNode[],
+  edge: Pick<DiagramEdge, 'sourceId' | 'targetId' | 'waypoints' | 'sourcePort' | 'targetPort' | 'sourceAnnotationId' | 'targetAnnotationId'>,
+  nodeMap?: Map<string, DiagramNode>,
+  annotationMap?: Map<string, Annotation>,
+): { x: number; y: number }[] {
+  const srcNode = nodeMap ? nodeMap.get(edge.sourceId) : nodes.find(n => n.id === edge.sourceId);
+  const tgtNode = nodeMap ? nodeMap.get(edge.targetId) : nodes.find(n => n.id === edge.targetId);
+  const srcAnn = edge.sourceAnnotationId ? annotationMap?.get(edge.sourceAnnotationId) : undefined;
+  const tgtAnn = edge.targetAnnotationId ? annotationMap?.get(edge.targetAnnotationId) : undefined;
+
+  if (!srcNode && !srcAnn) return [];
+  if (!tgtNode && !tgtAnn) return [];
 
   const waypoints = edge.waypoints ?? [];
-  const tgtCenter = { x: tgt.position.x + tgt.size.width / 2, y: tgt.position.y + tgt.size.height / 2 };
-  const srcCenter = { x: src.position.x + src.size.width / 2, y: src.position.y + src.size.height / 2 };
+
+  // Center of each endpoint for fallback direction calculation
+  const srcBb = srcNode
+    ? { x: srcNode.position.x, y: srcNode.position.y, width: srcNode.size.width, height: srcNode.size.height }
+    : annotationBoundingBox(srcAnn!);
+  const tgtBb = tgtNode
+    ? { x: tgtNode.position.x, y: tgtNode.position.y, width: tgtNode.size.width, height: tgtNode.size.height }
+    : annotationBoundingBox(tgtAnn!);
+
+  const srcCenter = { x: srcBb.x + srcBb.width / 2, y: srcBb.y + srcBb.height / 2 };
+  const tgtCenter = { x: tgtBb.x + tgtBb.width / 2, y: tgtBb.y + tgtBb.height / 2 };
 
   const firstTarget = waypoints.length > 0 ? waypoints[0] : tgtCenter;
-  const lastSource = waypoints.length > 0 ? waypoints[waypoints.length - 1] : srcCenter;
+  const lastSource  = waypoints.length > 0 ? waypoints[waypoints.length - 1] : srcCenter;
 
-  const srcAnchor = anchorTowardPoint(src, firstTarget);
-  const tgtAnchor = anchorTowardPoint(tgt, lastSource);
+  const pseudoSrc = srcNode ?? { position: { x: srcBb.x, y: srcBb.y }, size: { width: srcBb.width, height: srcBb.height } } as DiagramNode;
+  const pseudoTgt = tgtNode ?? { position: { x: tgtBb.x, y: tgtBb.y }, size: { width: tgtBb.width, height: tgtBb.height } } as DiagramNode;
+
+  const srcAnchor = srcNode
+    ? (edge.sourcePort ? portPosition(srcNode, edge.sourcePort) : null) ?? anchorTowardPoint(pseudoSrc, firstTarget)
+    : (edge.sourcePort ? annotationPortPosition(srcAnn!, edge.sourcePort) : null) ?? anchorTowardPoint(pseudoSrc, firstTarget);
+
+  const tgtAnchor = tgtNode
+    ? (edge.targetPort ? portPosition(tgtNode, edge.targetPort) : null) ?? anchorTowardPoint(pseudoTgt, lastSource)
+    : (edge.targetPort ? annotationPortPosition(tgtAnn!, edge.targetPort) : null) ?? anchorTowardPoint(pseudoTgt, lastSource);
 
   return [srcAnchor, ...waypoints, tgtAnchor];
 }

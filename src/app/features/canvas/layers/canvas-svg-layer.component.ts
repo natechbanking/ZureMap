@@ -58,17 +58,21 @@ export class CanvasSvgLayerComponent implements OnChanges {
   // ── Lifecycle ──────────────────────────────────────────────────────────────
 
   private nodeMap = new Map<string, DiagramNode>();
+  private annotationMap = new Map<string, Annotation>();
 
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['visibleNodes']) {
       this.nodeMap = new Map(this.visibleNodes.map(n => [n.id, n]));
+    }
+    if (changes['annotations']) {
+      this.annotationMap = new Map(this.annotations.map(a => [a.id, a]));
     }
   }
 
   // ── Edge geometry ──────────────────────────────────────────────────────────
 
   getEdgePoints(edge: DiagramEdge): { x: number; y: number }[] {
-    return edgePolylinePoints(this.visibleNodes, edge, this.nodeMap);
+    return edgePolylinePoints(this.visibleNodes, edge, this.nodeMap, this.annotationMap);
   }
 
   getEdgePolylineString(edge: DiagramEdge): string {

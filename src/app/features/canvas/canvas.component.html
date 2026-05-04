@@ -157,7 +157,9 @@
               [parentLabelById]="parentLabelById()"
               [finOpsActive]="store.finOpsLayerActive()"
               [zoomLevel]="zoomLevel"
+              [isLinking]="!!edgeLinkDragState"
               (nodeMouseDown)="onNodeMouseDown($event.event, $event.node)"
+              (portMouseDown)="onPortMouseDown($event.event, $event.node, $event.portId)"
               (nodeClicked)="store.selectNode($event)"
               (editRequested)="openResourceEditor($event)"
               (internalItemMoved)="onInternalItemMoved($event)"
@@ -191,6 +193,9 @@
               [attr.height]="canvasHeight"
             >
               <defs>
+                <marker id="edge-link-preview-arrow" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+                  <path d="M0,0 L0,7 L7,3.5 z" [attr.fill]="activeColor" />
+                </marker>
                 @for (color of edgeMarkerColors(); track color) {
                   <marker [attr.id]="edgeMarkerId(color)" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
                     <path d="M0,0 L0,6 L6,3 z" [attr.fill]="color" />
@@ -214,6 +219,22 @@
                   <feDisplacementMap in="SourceGraphic" in2="noise" scale="1.4" xChannelSelector="R" yChannelSelector="G" />
                 </filter>
               </defs>
+
+              <!-- Edge-link drag preview -->
+              @if (edgeLinkDragState) {
+                <line
+                  [attr.x1]="edgeLinkDragState.sourceX"
+                  [attr.y1]="edgeLinkDragState.sourceY"
+                  [attr.x2]="edgeLinkDragState.currentX"
+                  [attr.y2]="edgeLinkDragState.currentY"
+                  [attr.stroke]="activeColor"
+                  [attr.stroke-width]="activeStrokeWidth"
+                  [attr.stroke-dasharray]="activeStrokeStyle === 'dashed' ? '8 4' : activeStrokeStyle === 'dotted' ? '2 5' : null"
+                  stroke-linecap="round"
+                  marker-end="url(#edge-link-preview-arrow)"
+                  pointer-events="none"
+                />
+              }
 
               <!-- SVG body delegated to CanvasSvgLayerComponent -->
               <g appCanvasSvgLayer
@@ -267,19 +288,21 @@
               ></div>
             }
 
-            <!-- HTML overlays: text + sticky + image annotations -->
+            <!-- HTML overlays: text + sticky + image annotations + port handles for all connectable annotations -->
             <app-canvas-annotation-overlay-layer
               [annotations]="store.annotations()"
               [selectedAnnotationId]="selectedAnnotationId"
               [selectedAnnotationIds]="selectedAnnotationIds"
               [editingAnnotation]="editingAnnotation"
               [activeTool]="activeTool"
+              [isLinking]="!!edgeLinkDragState"
               (annotationMouseDown)="onAnnotationMouseDown($event.event, $event.ann)"
               (annotationContextMenu)="onAnnotationContextMenu($event.event, $event.ann)"
               (imageResizeMouseDown)="onImageResizeMouseDown($event.event, $event.ann)"
               (annotationShapeResizeMouseDown)="onAnnotationShapeResizeMouseDown($event.event, $event.ann, $any($event.handle))"
               (annotationRotateMouseDown)="onAnnotationRotateMouseDown($event.event, $event.ann)"
               (startEdit)="startEditAnnotation($event)"
+              (annPortMouseDown)="onAnnPortMouseDown($event.event, $event.ann, $event.portId)"
             ></app-canvas-annotation-overlay-layer>
 
             <app-annotation-edit-overlay

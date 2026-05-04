@@ -22,6 +22,10 @@ module.exports = function (config) {
         base: 'ChromeHeadless',
         flags: ['--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage'],
       },
+      ChromeHeadlessWSL: {
+        base: 'ChromeHeadless',
+        flags: ['--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage', '--disable-setuid-sandbox'],
+      },
     },
     coverageReporter: {
       dir: require('path').join(__dirname, './coverage/zuremap'),

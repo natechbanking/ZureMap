@@ -458,5 +458,43 @@
           valueClass="max-w-[120px]"
         />
       }
+
+      <!-- Port connection handles — visible on hover or during edge-link drag -->
+      <button
+        type="button"
+        data-export-hide
+        class="absolute w-2.5 h-2.5 rounded-full bg-blue-500 border-2 border-white shadow-md cursor-crosshair z-20 opacity-0 group-hover:opacity-100 transition-opacity"
+        [style.opacity]="isLinking ? '1' : null"
+        style="top: -5px; left: calc(50% - 5px);"
+        aria-label="Connect from top"
+        (mousedown)="onPortMouseDown($event, 'port-top')"
+      ></button>
+      <button
+        type="button"
+        data-export-hide
+        class="absolute w-2.5 h-2.5 rounded-full bg-blue-500 border-2 border-white shadow-md cursor-crosshair z-20 opacity-0 group-hover:opacity-100 transition-opacity"
+        [style.opacity]="isLinking ? '1' : null"
+        style="right: -5px; top: calc(50% - 5px);"
+        aria-label="Connect from right"
+        (mousedown)="onPortMouseDown($event, 'port-right')"
+      ></button>
+      <button
+        type="button"
+        data-export-hide
+        class="absolute w-2.5 h-2.5 rounded-full bg-blue-500 border-2 border-white shadow-md cursor-crosshair z-20 opacity-0 group-hover:opacity-100 transition-opacity"
+        [style.opacity]="isLinking ? '1' : null"
+        style="bottom: -5px; left: calc(50% - 5px);"
+        aria-label="Connect from bottom"
+        (mousedown)="onPortMouseDown($event, 'port-bottom')"
+      ></button>
+      <button
+        type="button"
+        data-export-hide
+        class="absolute w-2.5 h-2.5 rounded-full bg-blue-500 border-2 border-white shadow-md cursor-crosshair z-20 opacity-0 group-hover:opacity-100 transition-opacity"
+        [style.opacity]="isLinking ? '1' : null"
+        style="left: -5px; top: calc(50% - 5px);"
+        aria-label="Connect from left"
+        (mousedown)="onPortMouseDown($event, 'port-left')"
+      ></button>
     </div>
   

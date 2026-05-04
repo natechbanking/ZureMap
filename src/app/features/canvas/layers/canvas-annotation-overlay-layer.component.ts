@@ -11,6 +11,8 @@ import {
   annotationTextWidth,
   annotationTextHeight,
   annotationTransform,
+  annotationBoundingBox,
+  CONNECTABLE_ANNOTATION_TYPES,
 } from '../canvas-geometry.util';
 
 @Component({
@@ -25,6 +27,7 @@ export class CanvasAnnotationOverlayLayerComponent {
   @Input() selectedAnnotationId: string | null = null;
   @Input() editingAnnotation: Annotation | null = null;
   @Input() activeTool: DrawingTool = 'pointer';
+  @Input() isLinking = false;
 
   private _selectedAnnotationIdSet = new Set<string>();
 
@@ -42,10 +45,19 @@ export class CanvasAnnotationOverlayLayerComponent {
   @Output() annotationShapeResizeMouseDown = new EventEmitter<{ event: MouseEvent; ann: Annotation; handle: string }>();
   @Output() annotationRotateMouseDown = new EventEmitter<{ event: MouseEvent; ann: Annotation }>();
   @Output() startEdit = new EventEmitter<Annotation>();
+  @Output() annPortMouseDown = new EventEmitter<{ event: MouseEvent; ann: Annotation; portId: string }>();
 
   readonly annotationTextWidth = annotationTextWidth;
   readonly annotationTextHeight = annotationTextHeight;
   readonly annotationTransform = annotationTransform;
+  readonly annotationBoundingBox = annotationBoundingBox;
+  readonly CONNECTABLE_ANNOTATION_TYPES = CONNECTABLE_ANNOTATION_TYPES;
+
+  onAnnPortMouseDown(event: MouseEvent, ann: Annotation, portId: string): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.annPortMouseDown.emit({ event, ann, portId });
+  }
 
   isAnnotationSelected(id: string): boolean {
     return this._selectedAnnotationIdSet.has(id);

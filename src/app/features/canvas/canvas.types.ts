@@ -112,6 +112,16 @@ export interface AnnWaypointDragState {
   lastY: number;
 }
 
+export interface EdgeLinkDragState {
+  sourceNodeId?: string;
+  sourceAnnotationId?: string;
+  sourcePortId: string;
+  sourceX: number;
+  sourceY: number;
+  currentX: number;
+  currentY: number;
+}
+
 export interface SizeOffset { top: number; right: number; bottom: number; left: number }
 
 export interface TagHighlightInfo {

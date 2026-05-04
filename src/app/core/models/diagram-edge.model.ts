@@ -17,7 +17,11 @@ export interface EdgeStyle {
 export interface DiagramEdge {
   id: string;
   sourceId: string;
+  sourcePort?: string;
+  sourceAnnotationId?: string;
   targetId: string;
+  targetPort?: string;
+  targetAnnotationId?: string;
   edgeType: EdgeType;
   label?: string;
   animated: boolean;

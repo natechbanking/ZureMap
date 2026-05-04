@@ -388,7 +388,7 @@ export class DiagramNodeComponent {
   onDoubleClick(event: MouseEvent): void {
     event.preventDefault();
     event.stopPropagation();
-    this.detailsRequested.emit(this.node.id);
+    this.editRequested.emit(this.node.id);
   }
 
   toggleRoutesPanel(event: MouseEvent): void {

@@ -383,12 +383,6 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
       if (copied) e.preventDefault();
       return;
     }
-    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'v') {
-      if (this.pasteCanvasClipboard()) {
-        e.preventDefault();
-      }
-      return;
-    }
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !e.shiftKey) {
       e.preventDefault();
       this.store.undo();
@@ -459,10 +453,16 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
     if (this.activeTool !== 'pointer') return;
     if ((event.target as HTMLElement | null)?.matches('input,textarea,[contenteditable=true]')) return;
     const items = event.clipboardData?.items;
-    if (!items?.length) return;
+    if (!items?.length) {
+      if (this.pasteCanvasClipboard()) event.preventDefault();
+      return;
+    }
 
     const imageItem = Array.from(items).find(i => i.kind === 'file' && i.type.startsWith('image/'));
-    if (!imageItem) return;
+    if (!imageItem) {
+      if (this.pasteCanvasClipboard()) event.preventDefault();
+      return;
+    }
 
     event.preventDefault();
     const file = imageItem.getAsFile();

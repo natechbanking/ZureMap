@@ -110,18 +110,11 @@ describe('CanvasComponent', () => {
     } as unknown as KeyboardEvent;
     component.onKeyDown(copyEvent);
 
-    const pasteEvent = {
-      ctrlKey: true,
-      metaKey: false,
-      key: 'v',
-      target: document.createElement('div'),
-      preventDefault: jasmine.createSpy('preventDefault'),
-    } as unknown as KeyboardEvent;
-    component.onKeyDown(pasteEvent);
+    const pastedFromClipboard = component.pasteCanvasClipboard();
 
     const annotations = store.annotations();
     expect(copyEvent.preventDefault).toHaveBeenCalled();
-    expect(pasteEvent.preventDefault).toHaveBeenCalled();
+    expect(pastedFromClipboard).toBeTrue();
     expect(annotations.length).toBe(2);
     const pasted = annotations.find(a => a.id !== 'ann-1');
     expect(pasted).toBeDefined();
@@ -155,20 +148,8 @@ describe('CanvasComponent', () => {
       target: document.createElement('div'),
       preventDefault: jasmine.createSpy('preventDefault'),
     } as unknown as KeyboardEvent);
-    component.onKeyDown({
-      ctrlKey: true,
-      metaKey: false,
-      key: 'v',
-      target: document.createElement('div'),
-      preventDefault: jasmine.createSpy('preventDefault'),
-    } as unknown as KeyboardEvent);
-    component.onKeyDown({
-      ctrlKey: true,
-      metaKey: false,
-      key: 'v',
-      target: document.createElement('div'),
-      preventDefault: jasmine.createSpy('preventDefault'),
-    } as unknown as KeyboardEvent);
+    expect(component.pasteCanvasClipboard()).toBeTrue();
+    expect(component.pasteCanvasClipboard()).toBeTrue();
 
     component.selectedAnnotationId = 'ann-2';
     component.selectedAnnotationIds = ['ann-2'];
@@ -179,13 +160,7 @@ describe('CanvasComponent', () => {
       target: document.createElement('div'),
       preventDefault: jasmine.createSpy('preventDefault'),
     } as unknown as KeyboardEvent);
-    component.onKeyDown({
-      ctrlKey: true,
-      metaKey: false,
-      key: 'v',
-      target: document.createElement('div'),
-      preventDefault: jasmine.createSpy('preventDefault'),
-    } as unknown as KeyboardEvent);
+    expect(component.pasteCanvasClipboard()).toBeTrue();
 
     const pastedFromSecond = store.annotations()
       .filter(a => a.id !== 'ann-1' && a.id !== 'ann-2')
@@ -209,13 +184,7 @@ describe('CanvasComponent', () => {
       target: document.createElement('div'),
       preventDefault: jasmine.createSpy('preventDefault'),
     } as unknown as KeyboardEvent);
-    component.onKeyDown({
-      ctrlKey: true,
-      metaKey: false,
-      key: 'v',
-      target: document.createElement('div'),
-      preventDefault: jasmine.createSpy('preventDefault'),
-    } as unknown as KeyboardEvent);
+    expect(component.pasteCanvasClipboard()).toBeTrue();
 
     expect(store.nodes().length).toBe(4);
     expect(store.edges().length).toBe(2);
@@ -241,13 +210,7 @@ describe('CanvasComponent', () => {
       target: document.createElement('div'),
       preventDefault: jasmine.createSpy('preventDefault'),
     } as unknown as KeyboardEvent);
-    component.onKeyDown({
-      ctrlKey: true,
-      metaKey: false,
-      key: 'v',
-      target: document.createElement('div'),
-      preventDefault: jasmine.createSpy('preventDefault'),
-    } as unknown as KeyboardEvent);
+    expect(component.pasteCanvasClipboard()).toBeTrue();
 
     const pasted = store.nodes().find(n => n.id !== 'parent' && n.id !== 'child');
     expect(pasted).toBeDefined();
@@ -267,13 +230,7 @@ describe('CanvasComponent', () => {
       target: document.createElement('div'),
       preventDefault: jasmine.createSpy('preventDefault'),
     } as unknown as KeyboardEvent);
-    component.onKeyDown({
-      ctrlKey: true,
-      metaKey: false,
-      key: 'v',
-      target: document.createElement('div'),
-      preventDefault: jasmine.createSpy('preventDefault'),
-    } as unknown as KeyboardEvent);
+    expect(component.pasteCanvasClipboard()).toBeTrue();
 
     const pasted = store.nodes().find(n => n.id !== 'container' && n.id !== 'child');
     expect(pasted).toBeDefined();
@@ -301,13 +258,7 @@ describe('CanvasComponent', () => {
       target: document.createElement('div'),
       preventDefault: jasmine.createSpy('preventDefault'),
     } as unknown as KeyboardEvent);
-    component.onKeyDown({
-      ctrlKey: true,
-      metaKey: false,
-      key: 'v',
-      target: document.createElement('div'),
-      preventDefault: jasmine.createSpy('preventDefault'),
-    } as unknown as KeyboardEvent);
+    expect(component.pasteCanvasClipboard()).toBeTrue();
 
     const pastedNodes = store.nodes().filter(n => n.id !== 'vnet-1' && n.id !== 'subnet-1');
     expect(pastedNodes.length).toBe(2);
@@ -335,13 +286,7 @@ describe('CanvasComponent', () => {
       target: document.createElement('div'),
       preventDefault: jasmine.createSpy('preventDefault'),
     } as unknown as KeyboardEvent);
-    component.onKeyDown({
-      ctrlKey: true,
-      metaKey: false,
-      key: 'v',
-      target: document.createElement('div'),
-      preventDefault: jasmine.createSpy('preventDefault'),
-    } as unknown as KeyboardEvent);
+    expect(component.pasteCanvasClipboard()).toBeTrue();
 
     const pasted = store.nodes().find(n => n.id !== 'node-1');
     expect(pasted).toBeDefined();

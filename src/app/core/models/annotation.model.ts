@@ -4,6 +4,12 @@ export type EdgeRouting = 'straight' | 'elbow';
 export type EdgeMode = 'none' | 'start' | 'end' | 'both';
 export type AnnotationType = 'draw' | 'line' | 'arrow' | 'text' | 'rect' | 'ellipse' | 'diamond' | 'sticky' | 'image';
 
+export interface AnnotationEndpointBinding {
+  nodeId?: string;
+  annotationId?: string;
+  portId: string;
+}
+
 export interface Annotation {
   id: string;
   type: AnnotationType;
@@ -22,6 +28,8 @@ export interface Annotation {
   height?: number;
   x2?: number;        // arrow endpoint
   y2?: number;
+  sourceBinding?: AnnotationEndpointBinding;
+  targetBinding?: AnnotationEndpointBinding;
   waypoints?: { x: number; y: number }[];
   text?: string;      // text / sticky content
   fontSize?: number;

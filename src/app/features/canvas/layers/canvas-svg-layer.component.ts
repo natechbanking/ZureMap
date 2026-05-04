@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, EventEmitter, Input, OnChanges, Output, SimpleChanges } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { Annotation, DrawingTool, EdgeMode, EdgeRouting, StrokeStyle } from '../../../core/models/annotation.model';
+import { Annotation, AnnotationEndpointBinding, DrawingTool, EdgeMode, EdgeRouting, StrokeStyle } from '../../../core/models/annotation.model';
 import { DiagramEdge } from '../../../core/models/diagram-edge.model';
 import { DiagramNode } from '../../../core/models/diagram-node.model';
 import {
@@ -11,6 +11,8 @@ import {
   polylinePointsString,
   sloppyFilterForLevel,
   strokeDashArrayForStyle,
+  portPosition,
+  annotationPortPosition,
 } from '../canvas-geometry.util';
 
 @Component({
@@ -53,6 +55,7 @@ export class CanvasSvgLayerComponent implements OnChanges {
   @Output() annWaypointMouseDown = new EventEmitter<{ event: MouseEvent; ann: Annotation; index: number }>();
   @Output() annMidpointMouseDown = new EventEmitter<{ event: MouseEvent; ann: Annotation; segmentIndex: number }>();
   @Output() annWaypointDblClick = new EventEmitter<{ event: MouseEvent; ann: Annotation; index: number }>();
+  @Output() annEndpointMouseDown = new EventEmitter<{ event: MouseEvent; ann: Annotation; endpoint: 'start' | 'end' }>();
   @Output() annotationShapeResizeMouseDown = new EventEmitter<{ event: MouseEvent; ann: Annotation; handle: 'nw'|'n'|'ne'|'e'|'se'|'s'|'sw'|'w' }>();
 
   // ── Lifecycle ──────────────────────────────────────────────────────────────
@@ -99,10 +102,12 @@ export class CanvasSvgLayerComponent implements OnChanges {
   }
 
   getAnnMidHandles(ann: Annotation): { x: number; y: number; segmentIndex: number }[] {
+    const start = this.resolveAnnEndpoint(ann, 'start');
+    const end = this.resolveAnnEndpoint(ann, 'end');
     const pts: { x: number; y: number }[] = [
-      { x: ann.x, y: ann.y },
+      start,
       ...(ann.waypoints ?? []),
-      { x: ann.x2 ?? ann.x, y: ann.y2 ?? ann.y },
+      end,
     ];
     const mids: { x: number; y: number; segmentIndex: number }[] = [];
     for (let i = 0; i < pts.length - 1; i++) {
@@ -112,7 +117,24 @@ export class CanvasSvgLayerComponent implements OnChanges {
   }
 
   linePoints(ann: Annotation): string {
+    const start = this.resolveAnnEndpoint(ann, 'start');
+    const end = this.resolveAnnEndpoint(ann, 'end');
+    if (ann.waypoints && ann.waypoints.length > 0) {
+      return polylinePointsString([start, ...ann.waypoints, end]);
+    }
+    if (start.x !== ann.x || start.y !== ann.y || end.x !== (ann.x2 ?? ann.x) || end.y !== (ann.y2 ?? ann.y)) {
+      return linePointsFromCoordsUtil(start.x, start.y, end.x, end.y, ann.edgeRouting ?? 'straight');
+    }
     return linePointsFromAnnotation(ann);
+  }
+
+  annEndpoint(ann: Annotation, endpoint: 'start' | 'end'): { x: number; y: number } {
+    return this.resolveAnnEndpoint(ann, endpoint);
+  }
+
+  annEndpointBound(ann: Annotation, endpoint: 'start' | 'end'): boolean {
+    const binding = endpoint === 'start' ? ann.sourceBinding : ann.targetBinding;
+    return !!this.bindingPosition(binding);
   }
 
   linePointsFromCoords(x1: number, y1: number, x2: number, y2: number, routing: EdgeRouting): string {
@@ -174,5 +196,29 @@ export class CanvasSvgLayerComponent implements OnChanges {
 
   previewMarkerEnd(): string | null {
     return this.activeEdgeMode === 'end' || this.activeEdgeMode === 'both' ? this.annMarkerUrl(this.activeColor) : null;
+  }
+
+  private resolveAnnEndpoint(ann: Annotation, endpoint: 'start' | 'end'): { x: number; y: number } {
+    const binding = endpoint === 'start' ? ann.sourceBinding : ann.targetBinding;
+    const bound = this.bindingPosition(binding);
+    if (bound) return bound;
+    return endpoint === 'start'
+      ? { x: ann.x, y: ann.y }
+      : { x: ann.x2 ?? ann.x, y: ann.y2 ?? ann.y };
+  }
+
+  private bindingPosition(binding?: AnnotationEndpointBinding): { x: number; y: number } | null {
+    if (!binding) return null;
+    if (binding.nodeId) {
+      const node = this.nodeMap.get(binding.nodeId);
+      if (!node) return null;
+      return portPosition(node, binding.portId);
+    }
+    if (binding.annotationId) {
+      const ann = this.annotationMap.get(binding.annotationId);
+      if (!ann) return null;
+      return annotationPortPosition(ann, binding.portId);
+    }
+    return null;
   }
 }

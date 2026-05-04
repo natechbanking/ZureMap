@@ -146,6 +146,7 @@ export class CanvasVisibilityService {
 
     const PAD = 24;
     const LABEL_H = 32;
+    const MIN_Y = 8;
     const nameBySubscriptionId = new Map(activeSubscriptions.map(s => [s.subscriptionId, s.name]));
     const map = new Map<string, RgBound[]>();
     for (const bound of rgBounds) {
@@ -166,7 +167,7 @@ export class CanvasVisibilityService {
         subscriptionId,
         name: customContainerNames.get(`sub::${subscriptionId}`) ?? defaultSubName,
         x: xMin - PAD,
-        y: yMin - PAD - LABEL_H,
+        y: Math.max(MIN_Y, yMin - PAD - LABEL_H),
         collapsed,
         width: collapsed ? Math.max(320, Math.ceil(defaultSubName.length * 7.5) + 96) : xMax - xMin + PAD * 2,
         height: collapsed ? LABEL_H + 12 : yMax - yMin + PAD * 2 + LABEL_H,

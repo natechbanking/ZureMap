@@ -361,14 +361,13 @@ export class CanvasVisibilityService {
 
   computeK8sClusterBounds(
     scopeBounds: K8sScopeBound[],
-    nsBounds: K8sNamespaceBound[],
+    namespaceBounds: K8sNamespaceBound[],
     nodes: DiagramNode[],
     collapsedK8sClusters: Set<string>,
     customContainerNames: Map<string, string>,
   ): K8sClusterBound[] {
     // Use scope bounds when available (multiple scopes), otherwise fall back to namespace bounds
-    const containerBounds: { x: number; y: number; width: number; height: number }[] =
-      scopeBounds.length > 0 ? scopeBounds : nsBounds;
+    const containerBounds = scopeBounds.length > 0 ? scopeBounds : namespaceBounds;
 
     if (containerBounds.length === 0) return [];
 
@@ -376,7 +375,7 @@ export class CanvasVisibilityService {
 
     // Always produce a single synthetic cluster container to avoid multiple
     // overlapping boxes when multiple AKS nodes exist on the canvas.
-    const allBounds: { x: number; y: number; width: number; height: number }[] = [...containerBounds];
+    const boundsToMeasure: { x: number; y: number; width: number; height: number }[] = [...containerBounds];
 
     // Expand bounds to include any AKS cluster nodes on the canvas
     const aksNodes = nodes.filter(
@@ -384,13 +383,13 @@ export class CanvasVisibilityService {
         && n.resourceType?.toLowerCase().includes('managedcluster'),
     );
     for (const aks of aksNodes) {
-      allBounds.push({ x: aks.position.x, y: aks.position.y, width: aks.size.width, height: aks.size.height });
+      boundsToMeasure.push({ x: aks.position.x, y: aks.position.y, width: aks.size.width, height: aks.size.height });
     }
 
-    const xMin = Math.min(...allBounds.map(b => b.x));
-    const yMin = Math.min(...allBounds.map(b => b.y));
-    const xMax = Math.max(...allBounds.map(b => b.x + b.width));
-    const yMax = Math.max(...allBounds.map(b => b.y + b.height));
+    const xMin = Math.min(...boundsToMeasure.map(b => b.x));
+    const yMin = Math.min(...boundsToMeasure.map(b => b.y));
+    const xMax = Math.max(...boundsToMeasure.map(b => b.x + b.width));
+    const yMax = Math.max(...boundsToMeasure.map(b => b.y + b.height));
     const clusterId = '__k8s-cluster__';
     const collapsed = collapsedK8sClusters.has(clusterId);
     const name = customContainerNames.get(`k8scluster::${clusterId}`) ?? 'Kubernetes Cluster';

@@ -55,7 +55,7 @@ export interface CanvasDragMoveResult {
 @Injectable({ providedIn: 'root' })
 export class CanvasDragService {
   onDocumentMouseMove(ctx: CanvasDragMoveContext): CanvasDragMoveResult {
-    const k8sNone = {
+    const preservedK8sStates = {
       k8sNamespaceDragState: ctx.k8sNamespaceDragState,
       k8sScopeDragState: ctx.k8sScopeDragState,
       k8sClusterDragState: ctx.k8sClusterDragState,
@@ -72,7 +72,7 @@ export class CanvasDragService {
         subscriptionDragState: ctx.subscriptionDragState,
         vmDragState: ctx.vmDragState,
         rgDragState: ctx.rgDragState,
-        ...k8sNone,
+        ...preservedK8sStates,
       };
     }
 
@@ -97,7 +97,7 @@ export class CanvasDragService {
           subscriptionDragState: ctx.subscriptionDragState,
           vmDragState: ctx.vmDragState,
           rgDragState: ctx.rgDragState,
-          ...k8sNone,
+          ...preservedK8sStates,
         };
       }
       return {
@@ -108,7 +108,7 @@ export class CanvasDragService {
         subscriptionDragState: ctx.subscriptionDragState,
         vmDragState: ctx.vmDragState,
         rgDragState: ctx.rgDragState,
-        ...k8sNone,
+        ...preservedK8sStates,
       };
     }
 
@@ -125,7 +125,7 @@ export class CanvasDragService {
           subscriptionDragState: { subscriptionId: ctx.subscriptionDragState.subscriptionId, lastX: ctx.event.clientX, lastY: ctx.event.clientY },
           vmDragState: ctx.vmDragState,
           rgDragState: ctx.rgDragState,
-          ...k8sNone,
+          ...preservedK8sStates,
         };
       }
       return {
@@ -136,7 +136,7 @@ export class CanvasDragService {
         subscriptionDragState: ctx.subscriptionDragState,
         vmDragState: ctx.vmDragState,
         rgDragState: ctx.rgDragState,
-        ...k8sNone,
+        ...preservedK8sStates,
       };
     }
 
@@ -153,7 +153,7 @@ export class CanvasDragService {
           subscriptionDragState: ctx.subscriptionDragState,
           vmDragState: { vmId: ctx.vmDragState.vmId, lastX: ctx.event.clientX, lastY: ctx.event.clientY },
           rgDragState: ctx.rgDragState,
-          ...k8sNone,
+          ...preservedK8sStates,
         };
       }
       return {
@@ -164,7 +164,7 @@ export class CanvasDragService {
         subscriptionDragState: ctx.subscriptionDragState,
         vmDragState: ctx.vmDragState,
         rgDragState: ctx.rgDragState,
-        ...k8sNone,
+        ...preservedK8sStates,
       };
     }
 
@@ -181,7 +181,7 @@ export class CanvasDragService {
           subscriptionDragState: ctx.subscriptionDragState,
           vmDragState: ctx.vmDragState,
           rgDragState: { id: ctx.rgDragState.id, lastX: ctx.event.clientX, lastY: ctx.event.clientY },
-          ...k8sNone,
+          ...preservedK8sStates,
         };
       }
       return {
@@ -192,7 +192,7 @@ export class CanvasDragService {
         subscriptionDragState: ctx.subscriptionDragState,
         vmDragState: ctx.vmDragState,
         rgDragState: ctx.rgDragState,
-        ...k8sNone,
+        ...preservedK8sStates,
       };
     }
 
@@ -222,7 +222,7 @@ export class CanvasDragService {
         subscriptionDragState: ctx.subscriptionDragState,
         vmDragState: ctx.vmDragState,
         rgDragState: ctx.rgDragState,
-        ...k8sNone,
+        ...preservedK8sStates,
       };
     }
 
@@ -252,7 +252,7 @@ export class CanvasDragService {
         subscriptionDragState: ctx.subscriptionDragState,
         vmDragState: ctx.vmDragState,
         rgDragState: ctx.rgDragState,
-        ...k8sNone,
+        ...preservedK8sStates,
       };
     }
 
@@ -282,7 +282,7 @@ export class CanvasDragService {
         subscriptionDragState: ctx.subscriptionDragState,
         vmDragState: ctx.vmDragState,
         rgDragState: ctx.rgDragState,
-        ...k8sNone,
+        ...preservedK8sStates,
       };
     }
 
@@ -305,7 +305,7 @@ export class CanvasDragService {
         subscriptionDragState: ctx.subscriptionDragState,
         vmDragState: ctx.vmDragState,
         rgDragState: ctx.rgDragState,
-        ...k8sNone,
+        ...preservedK8sStates,
       };
     }
 
@@ -317,7 +317,7 @@ export class CanvasDragService {
       subscriptionDragState: ctx.subscriptionDragState,
       vmDragState: ctx.vmDragState,
       rgDragState: ctx.rgDragState,
-      ...k8sNone,
+      ...preservedK8sStates,
     };
   }
 }

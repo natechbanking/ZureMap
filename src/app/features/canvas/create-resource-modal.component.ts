@@ -65,7 +65,7 @@ const AZURE_REGIONS = [
             }
           </div>
           <div class="flex-1 min-w-0">
-            <p class="text-sm font-semibold text-gray-900">Add Azure Resource</p>
+            <p class="text-sm font-semibold text-gray-900">{{ isK8s ? 'Add K8s Resource' : 'Add Azure Resource' }}</p>
             <p class="text-xs text-gray-400 truncate">{{ resourceLabel }}</p>
           </div>
           <button
@@ -96,28 +96,30 @@ const AZURE_REGIONS = [
           <!-- Location + Resource Group -->
           <div class="grid grid-cols-2 gap-3">
             <div>
-              <label for="cr-location" class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Location</label>
+              <label for="cr-location" class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">{{ isK8s ? 'Scope / Category' : 'Location' }}</label>
               <input
                 id="cr-location"
                 type="text"
-                list="azure-regions-list"
+                [attr.list]="isK8s ? null : 'azure-regions-list'"
                 class="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition"
-                placeholder="eastus"
+                [placeholder]="isK8s ? 'e.g. shared-services' : 'eastus'"
                 [(ngModel)]="form.location"
               />
-              <datalist id="azure-regions-list">
-                @for (r of regions; track r) {
-                  <option [value]="r"></option>
-                }
-              </datalist>
+              @if (!isK8s) {
+                <datalist id="azure-regions-list">
+                  @for (r of regions; track r) {
+                    <option [value]="r"></option>
+                  }
+                </datalist>
+              }
             </div>
             <div>
-              <label for="cr-rg" class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Resource Group</label>
+              <label for="cr-rg" class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">{{ isK8s ? 'Namespace' : 'Resource Group' }}</label>
               <input
                 id="cr-rg"
                 type="text"
                 class="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition"
-                placeholder="my-rg"
+                [placeholder]="isK8s ? 'e.g. my-namespace' : 'my-rg'"
                 [(ngModel)]="form.resourceGroup"
               />
             </div>
@@ -270,6 +272,10 @@ export class CreateResourceModalComponent implements OnInit {
   @Output() dismissed = new EventEmitter<void>();
 
   readonly regions = AZURE_REGIONS;
+
+  get isK8s(): boolean {
+    return this.resourceType.startsWith('kubernetes/');
+  }
 
   readonly statuses: { value: NodeStatus; label: string }[] = [
     { value: 'running', label: 'Running' },

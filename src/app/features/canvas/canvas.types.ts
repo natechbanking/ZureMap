@@ -40,6 +40,38 @@ export interface RouteTableBound {
   height: number;
 }
 
+export interface K8sNamespaceBound {
+  id: string;
+  scopeId: string;
+  name: string;
+  collapsed: boolean;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export interface K8sScopeBound {
+  id: string;
+  scopeId: string;
+  name: string;
+  collapsed: boolean;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export interface K8sClusterBound {
+  id: string;
+  name: string;
+  collapsed: boolean;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 export type TagRuleOperator = 'eq' | 'neq' | 'contains' | 'exists' | 'notexists';
 export type HighlightRuleType = 'tag' | 'internal-item';
 

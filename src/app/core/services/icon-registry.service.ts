@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 
-export const RESOURCE_TYPE_MAP: Record<string, { label: string; icon: string }> = {
+export const RESOURCE_TYPE_MAP: Record<string, { label: string; icon: string; category?: string }> = {
   'microsoft.compute/virtualmachines':              { label: 'Virtual Machine',       icon: 'compute/10021-icon-service-Virtual-Machine.svg' },
   'microsoft.compute/disks':                        { label: 'Managed Disk',          icon: 'compute/10032-icon-service-Disks.svg' },
   'microsoft.compute/virtualmachinescalesets':      { label: 'VM Scale Set',          icon: 'compute/10034-icon-service-VM-Scale-Sets.svg' },
@@ -103,6 +103,17 @@ export const RESOURCE_TYPE_MAP: Record<string, { label: string; icon: string }> 
   'microsoft.devtestlab/schedules':                 { label: 'Schedule',               icon: 'general/10833-icon-service-Scheduler.svg' },
   'microsoft.resources/subscriptions':              { label: 'Subscription',           icon: 'general/10002-icon-service-Subscriptions.svg' },
   'microsoft.resources/resourcegroups':             { label: 'Resource Group',         icon: 'general/10007-icon-service-Resource-Groups.svg' },
+  'kubernetes/namespace':                           { label: 'K8s Namespace',          icon: 'containers/10023-icon-service-Kubernetes-Services.svg', category: 'kubernetes' },
+  'kubernetes/cluster':                             { label: 'K8s Cluster',            icon: 'containers/10023-icon-service-Kubernetes-Services.svg', category: 'kubernetes' },
+  'kubernetes/deployment':                          { label: 'K8s Deployment',         icon: 'containers/10023-icon-service-Kubernetes-Services.svg', category: 'kubernetes' },
+  'kubernetes/service':                             { label: 'K8s Service',            icon: 'containers/10023-icon-service-Kubernetes-Services.svg', category: 'kubernetes' },
+  'kubernetes/pod':                                 { label: 'K8s Pod',                icon: 'containers/10023-icon-service-Kubernetes-Services.svg', category: 'kubernetes' },
+  'kubernetes/daemonset':                           { label: 'K8s DaemonSet',          icon: 'containers/10023-icon-service-Kubernetes-Services.svg', category: 'kubernetes' },
+  'kubernetes/statefulset':                         { label: 'K8s StatefulSet',        icon: 'containers/10023-icon-service-Kubernetes-Services.svg', category: 'kubernetes' },
+  'kubernetes/cronjob':                             { label: 'K8s CronJob',            icon: 'containers/10023-icon-service-Kubernetes-Services.svg', category: 'kubernetes' },
+  'kubernetes/configmap':                           { label: 'K8s ConfigMap',          icon: 'containers/10023-icon-service-Kubernetes-Services.svg', category: 'kubernetes' },
+  'kubernetes/secret':                              { label: 'K8s Secret',             icon: 'containers/10023-icon-service-Kubernetes-Services.svg', category: 'kubernetes' },
+  'kubernetes/ingress':                             { label: 'K8s Ingress',            icon: 'containers/10023-icon-service-Kubernetes-Services.svg', category: 'kubernetes' },
 };
 
 @Injectable({ providedIn: 'root' })
@@ -143,7 +154,7 @@ export class IconRegistryService {
 
   getResourceTypeCatalog(): { type: string; label: string; iconUrl: string; category: string }[] {
     return Object.entries(RESOURCE_TYPE_MAP).map(([type, meta]) => {
-      const category = meta.icon.split('/')[0];
+      const category = meta.category || meta.icon.split('/')[0];
       return { type, label: meta.label, iconUrl: this.getIconUrl(type), category };
     }).sort((a, b) => a.label.localeCompare(b.label));
   }

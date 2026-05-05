@@ -74,4 +74,49 @@ export class CanvasCollapseService {
 
     return { next, clearSelection: selectedInRt };
   }
+
+  toggleK8sNamespace(
+    collapsed: Set<string>,
+    nsId: string,
+    selectedNode: DiagramNode | null,
+  ): { next: Set<string>; clearSelection: boolean } {
+    const next = new Set(collapsed);
+    if (next.has(nsId)) {
+      next.delete(nsId);
+      return { next, clearSelection: false };
+    }
+    next.add(nsId);
+    const selectedNsId = `${selectedNode?.metadata?.subscriptionId || ''}::${selectedNode?.metadata?.resourceGroup || selectedNode?.groupId || ''}`;
+    return { next, clearSelection: !!selectedNode && selectedNode.group === 'k8sNamespace' && selectedNsId === nsId };
+  }
+
+  toggleK8sScope(
+    collapsed: Set<string>,
+    scopeId: string,
+    selectedNode: DiagramNode | null,
+  ): { next: Set<string>; clearSelection: boolean } {
+    const next = new Set(collapsed);
+    if (next.has(scopeId)) {
+      next.delete(scopeId);
+      return { next, clearSelection: false };
+    }
+    next.add(scopeId);
+    const selectedScope = selectedNode?.metadata?.subscriptionId || '';
+    return { next, clearSelection: !!selectedNode && selectedNode.group === 'k8sNamespace' && selectedScope === scopeId };
+  }
+
+  toggleK8sCluster(
+    collapsed: Set<string>,
+    clusterId: string,
+    selectedNode: DiagramNode | null,
+  ): { next: Set<string>; clearSelection: boolean } {
+    const next = new Set(collapsed);
+    if (next.has(clusterId)) {
+      next.delete(clusterId);
+      return { next, clearSelection: false };
+    }
+    next.add(clusterId);
+    // Collapse cluster hides all k8sNamespace nodes
+    return { next, clearSelection: !!selectedNode && selectedNode.group === 'k8sNamespace' };
+  }
 }

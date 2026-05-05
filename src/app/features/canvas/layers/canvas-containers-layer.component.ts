@@ -12,7 +12,7 @@ import {
 import { CommonModule } from '@angular/common';
 import { DrawingTool } from '../../../core/models/annotation.model';
 import { IconRegistryService } from '../../../core/services/icon-registry.service';
-import { RgBound, SubscriptionBound, VmBound, RouteTableBound, SizeOffset, TagHighlightInfo, TagHighlightResizeDragState, SubscriptionDragState, VmDragState, RgDragState } from '../canvas.types';
+import { RgBound, SubscriptionBound, VmBound, RouteTableBound, K8sNamespaceBound, K8sScopeBound, K8sClusterBound, SizeOffset, TagHighlightInfo, TagHighlightResizeDragState, SubscriptionDragState, VmDragState, RgDragState } from '../canvas.types';
 
 const ZERO_OFFSET: SizeOffset = { top: 0, right: 0, bottom: 0, left: 0 };
 
@@ -30,11 +30,14 @@ export class CanvasContainersLayerComponent implements AfterViewChecked {
   @Input() rgBounds: RgBound[] = [];
   @Input() vmBounds: VmBound[] = [];
   @Input() routeTableBounds: RouteTableBound[] = [];
+  @Input() k8sNamespaceBounds: K8sNamespaceBound[] = [];
+  @Input() k8sScopeBounds: K8sScopeBound[] = [];
+  @Input() k8sClusterBounds: K8sClusterBound[] = [];
   @Input() subTagHighlights!: Map<string, TagHighlightInfo>;
   @Input() rgTagHighlights!: Map<string, TagHighlightInfo>;
   @Input() selectedTagHighlightRuleId: string | null = null;
   @Input() tagHighlightResizeDrag: TagHighlightResizeDragState | null = null;
-  @Input() renamingContainer: { type: 'rg' | 'sub' | 'vm' | 'rt'; id: string } | null = null;
+  @Input() renamingContainer: { type: 'rg' | 'sub' | 'vm' | 'rt' | 'k8sns' | 'k8sscope' | 'k8scluster'; id: string } | null = null;
   @Input() renamingValue = '';
   @Input() activeTool: DrawingTool = 'pointer';
   @Input() subscriptionDragState: SubscriptionDragState | null = null;
@@ -49,12 +52,18 @@ export class CanvasContainersLayerComponent implements AfterViewChecked {
   @Output() toggleRgCollapsed = new EventEmitter<string>();
   @Output() toggleVmCollapsed = new EventEmitter<string>();
   @Output() toggleRouteTableCollapsed = new EventEmitter<string>();
+  @Output() toggleK8sNamespaceCollapsed = new EventEmitter<string>();
+  @Output() toggleK8sScopeCollapsed = new EventEmitter<string>();
+  @Output() toggleK8sClusterCollapsed = new EventEmitter<string>();
+  @Output() k8sNamespaceMouseDown = new EventEmitter<{ event: MouseEvent; nsId: string }>();
+  @Output() k8sScopeMouseDown = new EventEmitter<{ event: MouseEvent; scopeId: string }>();
+  @Output() k8sClusterMouseDown = new EventEmitter<{ event: MouseEvent; clusterId: string }>();
   @Output() tagHighlightSelected = new EventEmitter<{ ruleId: string; event: Event }>();
   @Output() tagHighlightResizeMouseDown = new EventEmitter<{ event: MouseEvent; ruleId: string; handle: string }>();
   @Output() renameValueChange = new EventEmitter<string>();
   @Output() commitRename = new EventEmitter<void>();
   @Output() cancelRename = new EventEmitter<void>();
-  @Output() startRename = new EventEmitter<{ type: 'rg' | 'sub' | 'vm' | 'rt'; id: string; name: string }>();
+  @Output() startRename = new EventEmitter<{ type: 'rg' | 'sub' | 'vm' | 'rt' | 'k8sns' | 'k8sscope' | 'k8scluster'; id: string; name: string }>();
 
   readonly resizeHandles = [
     { id: 'nw', left: '0%',   top: '0%',   cursor: 'nw-resize' },
@@ -69,6 +78,7 @@ export class CanvasContainersLayerComponent implements AfterViewChecked {
 
   readonly subscriptionIconUrl = inject(IconRegistryService).getIconUrl('microsoft.resources/subscriptions');
   readonly rgIconUrl = inject(IconRegistryService).getIconUrl('microsoft.resources/resourcegroups');
+  readonly k8sIconUrl = inject(IconRegistryService).getIconUrl('kubernetes/cluster');
 
   get isSubscriptionDragging(): boolean { return this.subscriptionDragState !== null; }
   get isRgDragging(): boolean { return this.rgDragState !== null; }

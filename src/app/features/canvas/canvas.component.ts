@@ -55,6 +55,9 @@ import {
   SubscriptionBound,
   VmBound,
   RouteTableBound,
+  K8sNamespaceBound,
+  K8sScopeBound,
+  K8sClusterBound,
   ResourceEditorDraft,
   SizeOffset,
   TagHighlightInfo,
@@ -183,6 +186,9 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
   rgBounds: RgBound[] = [];
   vmBounds: VmBound[] = [];
   routeTableBounds: RouteTableBound[] = [];
+  k8sNamespaceBounds: K8sNamespaceBound[] = [];
+  k8sScopeBounds: K8sScopeBound[] = [];
+  k8sClusterBounds: K8sClusterBound[] = [];
 
   /** Map of rgBound.id → highlight info for matched tag rules. */
   rgTagHighlights = new Map<string, TagHighlightInfo>();
@@ -202,6 +208,9 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
   private collapsedSubscriptions = new Set<string>();
   private collapsedVmGroups = new Set<string>();
   private collapsedRouteTableGroups = new Set<string>();
+  private collapsedK8sNamespaces = new Set<string>();
+  private collapsedK8sScopes = new Set<string>();
+  private collapsedK8sClusters = new Set<string>();
   private isResolvingRgOverlaps = false;
   private autosaveTimer: number | null = null;
 
@@ -338,7 +347,7 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
   }
 
   // Container rename
-  renamingContainer: { type: 'rg' | 'sub' | 'vm' | 'rt'; id: string } | null = null;
+  renamingContainer: { type: 'rg' | 'sub' | 'vm' | 'rt' | 'k8sns' | 'k8sscope' | 'k8scluster'; id: string } | null = null;
   renamingValue = '';
 
   // Floating toolbar drag
@@ -789,12 +798,13 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
     for (const t of data.tags) {
       if (t.key.trim()) tags[t.key.trim()] = t.value;
     }
+    const isK8sWorkload = this.activeResourceType.startsWith('kubernetes/');
     const node: DiagramNode = {
       id,
       label: data.name,
       resourceType: this.activeResourceType,
       iconUrl,
-      group: 'standalone',
+      group: isK8sWorkload ? 'k8sNamespace' : 'standalone',
       groupId: data.resourceGroup || 'custom',
       position: pos,
       size: { width: 160, height: 80 },
@@ -1310,6 +1320,39 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
     this.refreshVisibility(this.store.nodes(), this.store.edges());
   }
 
+  toggleK8sNamespaceCollapsed(nsId: string): void {
+    const result = this.collapseSvc.toggleK8sNamespace(
+      this.collapsedK8sNamespaces,
+      nsId,
+      this.store.selectedNode(),
+    );
+    this.collapsedK8sNamespaces = result.next;
+    if (result.clearSelection) this.store.selectNode(null);
+    this.refreshVisibility(this.store.nodes(), this.store.edges());
+  }
+
+  toggleK8sScopeCollapsed(scopeId: string): void {
+    const result = this.collapseSvc.toggleK8sScope(
+      this.collapsedK8sScopes,
+      scopeId,
+      this.store.selectedNode(),
+    );
+    this.collapsedK8sScopes = result.next;
+    if (result.clearSelection) this.store.selectNode(null);
+    this.refreshVisibility(this.store.nodes(), this.store.edges());
+  }
+
+  toggleK8sClusterCollapsed(clusterId: string): void {
+    const result = this.collapseSvc.toggleK8sCluster(
+      this.collapsedK8sClusters,
+      clusterId,
+      this.store.selectedNode(),
+    );
+    this.collapsedK8sClusters = result.next;
+    if (result.clearSelection) this.store.selectNode(null);
+    this.refreshVisibility(this.store.nodes(), this.store.edges());
+  }
+
   private refreshVisibility(nodes: DiagramNode[], edges: ReturnType<DiagramStore['edges']>): void {
     const visibility = this.visibilitySvc.derive({
       nodes,
@@ -1319,6 +1362,9 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
       collapsedResourceGroups: this.collapsedResourceGroups,
       collapsedVmGroups: this.collapsedVmGroups,
       collapsedRouteTableGroups: this.collapsedRouteTableGroups,
+      collapsedK8sNamespaces: this.collapsedK8sNamespaces,
+      collapsedK8sScopes: this.collapsedK8sScopes,
+      collapsedK8sClusters: this.collapsedK8sClusters,
       customContainerNames: this.store.customContainerNames(),
       selectedEdgeId: this.selectedEdgeId,
     });
@@ -1328,6 +1374,9 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
     this.subscriptionBounds = visibility.subscriptionBounds;
     this.vmBounds = visibility.vmBounds;
     this.routeTableBounds = visibility.routeTableBounds;
+    this.k8sNamespaceBounds = visibility.k8sNamespaceBounds;
+    this.k8sScopeBounds = visibility.k8sScopeBounds;
+    this.k8sClusterBounds = visibility.k8sClusterBounds;
     if (this.selectedEdgeId && !visibility.selectedEdgeVisible) {
       this.selectedEdgeId = null;
     }
@@ -2422,7 +2471,7 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
   }
 
   // ── Container rename ──────────────────────────────────────────────────────
-  startRename(type: 'rg' | 'sub' | 'vm' | 'rt', id: string, currentName: string): void {
+  startRename(type: 'rg' | 'sub' | 'vm' | 'rt' | 'k8sns' | 'k8sscope' | 'k8scluster', id: string, currentName: string): void {
     this.renamingContainer = { type, id };
     this.renamingValue = currentName;
   }

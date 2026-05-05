@@ -55,6 +55,9 @@ import {
   SubscriptionBound,
   VmBound,
   RouteTableBound,
+  K8sNamespaceBound,
+  K8sScopeBound,
+  K8sClusterBound,
   ResourceEditorDraft,
   SizeOffset,
   TagHighlightInfo,
@@ -64,6 +67,9 @@ import {
   VmDragState,
   NodeDragState,
   RgDragState,
+  K8sNamespaceDragState,
+  K8sScopeDragState,
+  K8sClusterDragState,
   EdgeWaypointDragState,
   AnnWaypointDragState,
   AnnEndpointDragState,
@@ -184,6 +190,9 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
   rgBounds: RgBound[] = [];
   vmBounds: VmBound[] = [];
   routeTableBounds: RouteTableBound[] = [];
+  k8sNamespaceBounds: K8sNamespaceBound[] = [];
+  k8sScopeBounds: K8sScopeBound[] = [];
+  k8sClusterBounds: K8sClusterBound[] = [];
 
   /** Map of rgBound.id → highlight info for matched tag rules. */
   rgTagHighlights = new Map<string, TagHighlightInfo>();
@@ -203,6 +212,9 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
   private collapsedSubscriptions = new Set<string>();
   private collapsedVmGroups = new Set<string>();
   private collapsedRouteTableGroups = new Set<string>();
+  private collapsedK8sNamespaces = new Set<string>();
+  private collapsedK8sScopes = new Set<string>();
+  private collapsedK8sClusters = new Set<string>();
   private isResolvingRgOverlaps = false;
   private autosaveTimer: number | null = null;
 
@@ -324,6 +336,9 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
   get isSubscriptionDragging(): boolean { return this.subscriptionDragState !== null; }
   vmDragState: VmDragState | null = null;
   get isVmDragging(): boolean { return this.vmDragState !== null; }
+  k8sNamespaceDragState: K8sNamespaceDragState | null = null;
+  k8sScopeDragState: K8sScopeDragState | null = null;
+  k8sClusterDragState: K8sClusterDragState | null = null;
 
   // Individual node mouse drag
   nodeDragState: NodeDragState | null = null;
@@ -343,7 +358,7 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
   }
 
   // Container rename
-  renamingContainer: { type: 'rg' | 'sub' | 'vm' | 'rt'; id: string } | null = null;
+  renamingContainer: { type: 'rg' | 'sub' | 'vm' | 'rt' | 'k8sns' | 'k8sscope' | 'k8scluster'; id: string } | null = null;
   renamingValue = '';
 
   // Floating toolbar drag
@@ -635,6 +650,9 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
       subscriptionDragState: this.subscriptionDragState,
       vmDragState: this.vmDragState,
       rgDragState: this.rgDragState,
+      k8sNamespaceDragState: this.k8sNamespaceDragState,
+      k8sScopeDragState: this.k8sScopeDragState,
+      k8sClusterDragState: this.k8sClusterDragState,
       annDragId: this.annDragId,
       annDragMouse: this.annDragMouse,
       annDragOrigin: this.annDragOrigin,
@@ -645,6 +663,9 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
       moveSubscriptionGroup: (subscriptionId, delta) => this.store.moveSubscriptionGroup(subscriptionId, delta),
       moveVmGroup: (vmId, delta) => this.store.moveVmGroup(vmId, delta),
       moveResourceGroup: (id, delta) => this.store.moveNodeGroup(id, delta),
+      moveK8sNamespaceGroup: (nsKey, delta) => this.store.moveK8sNamespaceGroup(nsKey, delta),
+      moveK8sScopeGroup: (scopeKey, delta) => this.store.moveK8sScopeGroup(scopeKey, delta),
+      moveK8sClusterGroup: delta => this.store.moveK8sClusterGroup(delta),
       updateAnnotation: (id, changes) => this.store.updateAnnotation(id, changes),
     });
     if (!result.handled) return;
@@ -654,6 +675,9 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
     this.subscriptionDragState = result.subscriptionDragState;
     this.vmDragState = result.vmDragState;
     this.rgDragState = result.rgDragState;
+    this.k8sNamespaceDragState = result.k8sNamespaceDragState;
+    this.k8sScopeDragState = result.k8sScopeDragState;
+    this.k8sClusterDragState = result.k8sClusterDragState;
   }
 
   onCanvasWheel(event: WheelEvent): void {
@@ -779,6 +803,9 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
     this.subscriptionDragState = null;
     this.vmDragState = null;
     this.rgDragState = null;
+    this.k8sNamespaceDragState = null;
+    this.k8sScopeDragState = null;
+    this.k8sClusterDragState = null;
     this.nodeDragState = null;
     this.annDragId = null;
     this.edgeWaypointDragState = null;
@@ -835,12 +862,13 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
     for (const t of data.tags) {
       if (t.key.trim()) tags[t.key.trim()] = t.value;
     }
+    const isK8sWorkload = this.activeResourceType.startsWith('kubernetes/');
     const node: DiagramNode = {
       id,
       label: data.name,
       resourceType: this.activeResourceType,
       iconUrl,
-      group: 'standalone',
+      group: isK8sWorkload ? 'k8sNamespace' : 'standalone',
       groupId: data.resourceGroup || 'custom',
       position: pos,
       size: { width: 160, height: 80 },
@@ -1448,6 +1476,39 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
     this.refreshVisibility(this.store.nodes(), this.store.edges());
   }
 
+  toggleK8sNamespaceCollapsed(nsId: string): void {
+    const result = this.collapseSvc.toggleK8sNamespace(
+      this.collapsedK8sNamespaces,
+      nsId,
+      this.store.selectedNode(),
+    );
+    this.collapsedK8sNamespaces = result.next;
+    if (result.clearSelection) this.store.selectNode(null);
+    this.refreshVisibility(this.store.nodes(), this.store.edges());
+  }
+
+  toggleK8sScopeCollapsed(scopeId: string): void {
+    const result = this.collapseSvc.toggleK8sScope(
+      this.collapsedK8sScopes,
+      scopeId,
+      this.store.selectedNode(),
+    );
+    this.collapsedK8sScopes = result.next;
+    if (result.clearSelection) this.store.selectNode(null);
+    this.refreshVisibility(this.store.nodes(), this.store.edges());
+  }
+
+  toggleK8sClusterCollapsed(clusterId: string): void {
+    const result = this.collapseSvc.toggleK8sCluster(
+      this.collapsedK8sClusters,
+      clusterId,
+      this.store.selectedNode(),
+    );
+    this.collapsedK8sClusters = result.next;
+    if (result.clearSelection) this.store.selectNode(null);
+    this.refreshVisibility(this.store.nodes(), this.store.edges());
+  }
+
   private refreshVisibility(nodes: DiagramNode[], edges: ReturnType<DiagramStore['edges']>): void {
     const visibility = this.visibilitySvc.derive({
       nodes,
@@ -1457,6 +1518,9 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
       collapsedResourceGroups: this.collapsedResourceGroups,
       collapsedVmGroups: this.collapsedVmGroups,
       collapsedRouteTableGroups: this.collapsedRouteTableGroups,
+      collapsedK8sNamespaces: this.collapsedK8sNamespaces,
+      collapsedK8sScopes: this.collapsedK8sScopes,
+      collapsedK8sClusters: this.collapsedK8sClusters,
       customContainerNames: this.store.customContainerNames(),
       selectedEdgeId: this.selectedEdgeId,
     });
@@ -1466,6 +1530,9 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
     this.subscriptionBounds = visibility.subscriptionBounds;
     this.vmBounds = visibility.vmBounds;
     this.routeTableBounds = visibility.routeTableBounds;
+    this.k8sNamespaceBounds = visibility.k8sNamespaceBounds;
+    this.k8sScopeBounds = visibility.k8sScopeBounds;
+    this.k8sClusterBounds = visibility.k8sClusterBounds;
     if (this.selectedEdgeId && !visibility.selectedEdgeVisible) {
       this.selectedEdgeId = null;
     }
@@ -1784,6 +1851,30 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
     event.stopPropagation();
     this.store.pushUndo();
     this.vmDragState = { vmId, lastX: event.clientX, lastY: event.clientY };
+  }
+
+  onK8sNamespaceMouseDown(event: MouseEvent, nsId: string): void {
+    if (this.activeTool !== 'pointer') return;
+    event.preventDefault();
+    event.stopPropagation();
+    this.store.pushUndo();
+    this.k8sNamespaceDragState = { nsId, lastX: event.clientX, lastY: event.clientY };
+  }
+
+  onK8sScopeMouseDown(event: MouseEvent, scopeId: string): void {
+    if (this.activeTool !== 'pointer') return;
+    event.preventDefault();
+    event.stopPropagation();
+    this.store.pushUndo();
+    this.k8sScopeDragState = { scopeId, lastX: event.clientX, lastY: event.clientY };
+  }
+
+  onK8sClusterMouseDown(event: MouseEvent, clusterId: string): void {
+    if (this.activeTool !== 'pointer') return;
+    event.preventDefault();
+    event.stopPropagation();
+    this.store.pushUndo();
+    this.k8sClusterDragState = { clusterId, lastX: event.clientX, lastY: event.clientY };
   }
 
   onNodeMouseDown(event: MouseEvent, node: DiagramNode): void {
@@ -2660,7 +2751,7 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
   }
 
   // ── Container rename ──────────────────────────────────────────────────────
-  startRename(type: 'rg' | 'sub' | 'vm' | 'rt', id: string, currentName: string): void {
+  startRename(type: 'rg' | 'sub' | 'vm' | 'rt' | 'k8sns' | 'k8sscope' | 'k8scluster', id: string, currentName: string): void {
     this.renamingContainer = { type, id };
     this.renamingValue = currentName;
   }

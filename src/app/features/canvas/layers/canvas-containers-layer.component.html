@@ -35,7 +35,6 @@
       (click)="$event.stopPropagation()"
       (keydown)="$event.stopPropagation()"
     >
-      <img [src]="subscriptionIconUrl" alt="" class="w-4 h-4 object-contain flex-shrink-0 opacity-90" (error)="$any($event.target).style.display='none'" />
       @if (renamingContainer?.type === 'sub' && renamingContainer?.id === bound.subscriptionId) {
         <input
           #renameInput
@@ -124,7 +123,6 @@
       (click)="$event.stopPropagation()"
       (keydown)="$event.stopPropagation()"
     >
-      <img [src]="rgIconUrl" alt="" class="w-4 h-4 object-contain flex-shrink-0" (error)="$any($event.target).style.display='none'" />
       @if (renamingContainer?.type === 'rg' && renamingContainer?.id === bound.id) {
         <input
           #renameInput
@@ -265,6 +263,170 @@
         [title]="bound.collapsed ? 'Expand routes' : 'Collapse routes'"
         (mousedown)="$event.stopPropagation()"
         (click)="toggleRouteTableCollapsed.emit(bound.id); $event.stopPropagation()"
+      >
+        {{ bound.collapsed ? '+' : '-' }}
+      </button>
+    </div>
+  </div>
+}
+
+<!-- K8s cluster boxes (outermost — dark slate) -->
+@for (bound of k8sClusterBounds; track bound.id) {
+  <div
+    class="absolute rounded-2xl border-2 border-dashed pointer-events-none"
+    [style.border-color]="'#64748b'"
+    [style.background-color]="'rgba(241,245,249,0.35)'"
+    [style.left.px]="bound.x"
+    [style.top.px]="bound.y"
+    [style.width.px]="bound.width"
+    [style.height.px]="bound.height"
+  >
+    <div
+      class="absolute flex items-center gap-2 px-3 py-2 rounded-t-2xl select-none pointer-events-auto hover:bg-slate-100/60 transition-colors"
+      [class.cursor-grab]="activeTool === 'pointer'"
+      [class.cursor-crosshair]="activeTool !== 'pointer'"
+      style="z-index: 5; height: 40px; top: 0; left: 0; right: 0"
+      role="presentation"
+      (mousedown)="k8sClusterMouseDown.emit({ event: $event, clusterId: bound.id })"
+      (click)="$event.stopPropagation()"
+      (keydown)="$event.stopPropagation()"
+    >
+      <img [src]="k8sIconUrl" alt="" class="w-5 h-5 object-contain flex-shrink-0 opacity-90" (error)="$any($event.target).style.display='none'" />
+      @if (renamingContainer?.type === 'k8scluster' && renamingContainer?.id === bound.id) {
+        <input
+          #renameInput
+          class="text-sm font-semibold text-slate-700 bg-transparent border-b border-slate-400 outline-none min-w-0 flex-1"
+          [value]="renamingValue"
+          (input)="renameValueChange.emit($any($event.target).value)"
+          (blur)="commitRename.emit()"
+          (keydown.enter)="commitRename.emit()"
+          (keydown.escape)="$event.stopPropagation(); cancelRename.emit()"
+          (mousedown)="$event.stopPropagation()"
+          (click)="$event.stopPropagation()"
+        />
+      } @else {
+        <span
+          class="text-sm font-semibold text-slate-700 tracking-wide truncate flex-1"
+          title="Double-click to rename"
+          (dblclick)="$event.stopPropagation(); startRename.emit({ type: 'k8scluster', id: bound.id, name: bound.name })"
+        >{{ bound.name }}</span>
+      }
+      <button
+        type="button"
+        data-export-hide
+        class="ml-auto w-5 h-5 rounded text-slate-700 hover:bg-slate-200/70 transition-colors"
+        [title]="bound.collapsed ? 'Expand cluster' : 'Collapse cluster'"
+        (mousedown)="$event.stopPropagation()"
+        (click)="toggleK8sClusterCollapsed.emit(bound.id); $event.stopPropagation()"
+      >
+        {{ bound.collapsed ? '+' : '-' }}
+      </button>
+    </div>
+  </div>
+}
+
+<!-- K8s scope boxes (middle — purple) -->
+@for (bound of k8sScopeBounds; track bound.id) {
+  <div
+    class="absolute rounded-2xl border-2 border-dashed pointer-events-none"
+    [style.border-color]="'#c084fc'"
+    [style.background-color]="'rgba(250,245,255,0.3)'"
+    [style.left.px]="bound.x"
+    [style.top.px]="bound.y"
+    [style.width.px]="bound.width"
+    [style.height.px]="bound.height"
+  >
+    <div
+      class="absolute flex items-center gap-2 px-3 py-2 rounded-t-2xl select-none pointer-events-auto hover:bg-purple-100/60 transition-colors"
+      [class.cursor-grab]="activeTool === 'pointer'"
+      [class.cursor-crosshair]="activeTool !== 'pointer'"
+      style="z-index: 8; height: 36px; top: 0; left: 0; right: 0"
+      role="presentation"
+      (mousedown)="k8sScopeMouseDown.emit({ event: $event, scopeId: bound.id })"
+      (click)="$event.stopPropagation()"
+      (keydown)="$event.stopPropagation()"
+    >
+      @if (renamingContainer?.type === 'k8sscope' && renamingContainer?.id === bound.id) {
+        <input
+          #renameInput
+          class="text-xs font-semibold text-purple-700 bg-transparent border-b border-purple-400 outline-none min-w-0 flex-1"
+          [value]="renamingValue"
+          (input)="renameValueChange.emit($any($event.target).value)"
+          (blur)="commitRename.emit()"
+          (keydown.enter)="commitRename.emit()"
+          (keydown.escape)="$event.stopPropagation(); cancelRename.emit()"
+          (mousedown)="$event.stopPropagation()"
+          (click)="$event.stopPropagation()"
+        />
+      } @else {
+        <span
+          class="text-xs font-semibold text-purple-700 tracking-wide truncate flex-1"
+          title="Double-click to rename"
+          (dblclick)="$event.stopPropagation(); startRename.emit({ type: 'k8sscope', id: bound.id, name: bound.name })"
+        >{{ bound.name }}</span>
+      }
+      <button
+        type="button"
+        data-export-hide
+        class="ml-auto w-5 h-5 rounded text-purple-700 hover:bg-purple-200/70 transition-colors"
+        [title]="bound.collapsed ? 'Expand scope' : 'Collapse scope'"
+        (mousedown)="$event.stopPropagation()"
+        (click)="toggleK8sScopeCollapsed.emit(bound.id); $event.stopPropagation()"
+      >
+        {{ bound.collapsed ? '+' : '-' }}
+      </button>
+    </div>
+  </div>
+}
+
+<!-- K8s namespace boxes (innermost — teal) -->
+@for (bound of k8sNamespaceBounds; track bound.id) {
+  <div
+    class="absolute rounded-xl border border-dashed pointer-events-none"
+    [style.border-color]="'#2dd4bf'"
+    [style.background-color]="'rgba(240,253,250,0.3)'"
+    [style.left.px]="bound.x"
+    [style.top.px]="bound.y"
+    [style.width.px]="bound.width"
+    [style.height.px]="bound.height"
+  >
+    <div
+      class="absolute flex items-center gap-2 px-3 py-1.5 rounded-t-xl select-none pointer-events-auto hover:bg-teal-100/50 transition-colors"
+      [class.cursor-grab]="activeTool === 'pointer'"
+      [class.cursor-crosshair]="activeTool !== 'pointer'"
+      style="z-index: 15; height: 32px; top: 0; left: 0; right: 0"
+      role="presentation"
+      (mousedown)="k8sNamespaceMouseDown.emit({ event: $event, nsId: bound.id })"
+      (click)="$event.stopPropagation()"
+      (keydown)="$event.stopPropagation()"
+    >
+      <img [src]="k8sIconUrl" alt="" class="w-4 h-4 object-contain flex-shrink-0" (error)="$any($event.target).style.display='none'" />
+      @if (renamingContainer?.type === 'k8sns' && renamingContainer?.id === bound.id) {
+        <input
+          #renameInput
+          class="text-xs font-semibold text-teal-700 bg-transparent border-b border-teal-400 outline-none min-w-0 flex-1"
+          [value]="renamingValue"
+          (input)="renameValueChange.emit($any($event.target).value)"
+          (blur)="commitRename.emit()"
+          (keydown.enter)="commitRename.emit()"
+          (keydown.escape)="$event.stopPropagation(); cancelRename.emit()"
+          (mousedown)="$event.stopPropagation()"
+          (click)="$event.stopPropagation()"
+        />
+      } @else {
+        <span
+          class="text-xs font-semibold text-teal-700 tracking-wide truncate flex-1"
+          title="Double-click to rename"
+          (dblclick)="$event.stopPropagation(); startRename.emit({ type: 'k8sns', id: bound.id, name: bound.name })"
+        >{{ bound.name }}</span>
+      }
+      <button
+        type="button"
+        data-export-hide
+        class="ml-auto w-5 h-5 rounded text-teal-700 hover:bg-teal-200/70 transition-colors"
+        [title]="bound.collapsed ? 'Expand namespace' : 'Collapse namespace'"
+        (mousedown)="$event.stopPropagation()"
+        (click)="toggleK8sNamespaceCollapsed.emit(bound.id); $event.stopPropagation()"
       >
         {{ bound.collapsed ? '+' : '-' }}
       </button>

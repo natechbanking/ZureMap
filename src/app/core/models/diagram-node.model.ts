@@ -2,7 +2,7 @@ import { AzureResource } from './azure-resource.model';
 import { NodeCostData } from './cost-data.model';
 
 export type NodeStatus = 'running' | 'stopped' | 'failed' | 'unknown';
-export type LayoutGroup = 'resourceGroup' | 'vnet' | 'subnet' | 'standalone';
+export type LayoutGroup = 'resourceGroup' | 'vnet' | 'subnet' | 'standalone' | 'k8sNamespace';
 export type DriftStatus = 'matched' | 'missing' | 'unplanned';
 export type PortSide = 'top' | 'right' | 'bottom' | 'left';
 

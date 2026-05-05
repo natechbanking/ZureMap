@@ -138,6 +138,24 @@ export interface RgDragState {
   lastY: number;
 }
 
+export interface K8sNamespaceDragState {
+  nsId: string;
+  lastX: number;
+  lastY: number;
+}
+
+export interface K8sScopeDragState {
+  scopeId: string;
+  lastX: number;
+  lastY: number;
+}
+
+export interface K8sClusterDragState {
+  clusterId: string;
+  lastX: number;
+  lastY: number;
+}
+
 export interface EdgeWaypointDragState {
   edgeId: string;
   waypointIndex: number;

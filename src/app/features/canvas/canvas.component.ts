@@ -67,6 +67,9 @@ import {
   VmDragState,
   NodeDragState,
   RgDragState,
+  K8sNamespaceDragState,
+  K8sScopeDragState,
+  K8sClusterDragState,
   EdgeWaypointDragState,
   AnnWaypointDragState,
   EdgeLinkDragState,
@@ -328,6 +331,9 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
   get isSubscriptionDragging(): boolean { return this.subscriptionDragState !== null; }
   vmDragState: VmDragState | null = null;
   get isVmDragging(): boolean { return this.vmDragState !== null; }
+  k8sNamespaceDragState: K8sNamespaceDragState | null = null;
+  k8sScopeDragState: K8sScopeDragState | null = null;
+  k8sClusterDragState: K8sClusterDragState | null = null;
 
   // Individual node mouse drag
   nodeDragState: NodeDragState | null = null;
@@ -627,6 +633,9 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
       subscriptionDragState: this.subscriptionDragState,
       vmDragState: this.vmDragState,
       rgDragState: this.rgDragState,
+      k8sNamespaceDragState: this.k8sNamespaceDragState,
+      k8sScopeDragState: this.k8sScopeDragState,
+      k8sClusterDragState: this.k8sClusterDragState,
       annDragId: this.annDragId,
       annDragMouse: this.annDragMouse,
       annDragOrigin: this.annDragOrigin,
@@ -637,6 +646,9 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
       moveSubscriptionGroup: (subscriptionId, delta) => this.store.moveSubscriptionGroup(subscriptionId, delta),
       moveVmGroup: (vmId, delta) => this.store.moveVmGroup(vmId, delta),
       moveResourceGroup: (id, delta) => this.store.moveNodeGroup(id, delta),
+      moveK8sNamespaceGroup: (nsKey, delta) => this.store.moveK8sNamespaceGroup(nsKey, delta),
+      moveK8sScopeGroup: (scopeKey, delta) => this.store.moveK8sScopeGroup(scopeKey, delta),
+      moveK8sClusterGroup: delta => this.store.moveK8sClusterGroup(delta),
       updateAnnotation: (id, changes) => this.store.updateAnnotation(id, changes),
     });
     if (!result.handled) return;
@@ -646,6 +658,9 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
     this.subscriptionDragState = result.subscriptionDragState;
     this.vmDragState = result.vmDragState;
     this.rgDragState = result.rgDragState;
+    this.k8sNamespaceDragState = result.k8sNamespaceDragState;
+    this.k8sScopeDragState = result.k8sScopeDragState;
+    this.k8sClusterDragState = result.k8sClusterDragState;
   }
 
   onCanvasWheel(event: WheelEvent): void {
@@ -744,6 +759,9 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
     this.subscriptionDragState = null;
     this.vmDragState = null;
     this.rgDragState = null;
+    this.k8sNamespaceDragState = null;
+    this.k8sScopeDragState = null;
+    this.k8sClusterDragState = null;
     this.nodeDragState = null;
     this.annDragId = null;
     this.edgeWaypointDragState = null;
@@ -1695,6 +1713,30 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
     event.stopPropagation();
     this.store.pushUndo();
     this.vmDragState = { vmId, lastX: event.clientX, lastY: event.clientY };
+  }
+
+  onK8sNamespaceMouseDown(event: MouseEvent, nsId: string): void {
+    if (this.activeTool !== 'pointer') return;
+    event.preventDefault();
+    event.stopPropagation();
+    this.store.pushUndo();
+    this.k8sNamespaceDragState = { nsId, lastX: event.clientX, lastY: event.clientY };
+  }
+
+  onK8sScopeMouseDown(event: MouseEvent, scopeId: string): void {
+    if (this.activeTool !== 'pointer') return;
+    event.preventDefault();
+    event.stopPropagation();
+    this.store.pushUndo();
+    this.k8sScopeDragState = { scopeId, lastX: event.clientX, lastY: event.clientY };
+  }
+
+  onK8sClusterMouseDown(event: MouseEvent, clusterId: string): void {
+    if (this.activeTool !== 'pointer') return;
+    event.preventDefault();
+    event.stopPropagation();
+    this.store.pushUndo();
+    this.k8sClusterDragState = { clusterId, lastX: event.clientX, lastY: event.clientY };
   }
 
   onNodeMouseDown(event: MouseEvent, node: DiagramNode): void {

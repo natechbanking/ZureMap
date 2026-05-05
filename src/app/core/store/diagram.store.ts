@@ -250,6 +250,48 @@ export class DiagramStore {
     this.bumpRevision();
   }
 
+  moveK8sNamespaceGroup(nsKey: string, delta: { dx: number; dy: number }): void {
+    // nsKey is `${scopeId}::${namespace}`
+    this.nodes.update(current =>
+      current.map(n => {
+        if (n.group !== 'k8sNamespace') return n;
+        const ns = n.metadata?.resourceGroup || n.groupId || '';
+        const scopeId = n.metadata?.subscriptionId || '';
+        if (`${scopeId}::${ns}` !== nsKey) return n;
+        const pos = { x: Math.max(0, n.position.x + delta.dx), y: Math.max(0, n.position.y + delta.dy) };
+        return { ...n, position: pos };
+      })
+    );
+    this.bumpRevision();
+  }
+
+  moveK8sScopeGroup(scopeKey: string, delta: { dx: number; dy: number }): void {
+    // scopeKey is scopeId or '__unknown-scope__'
+    this.nodes.update(current =>
+      current.map(n => {
+        if (n.group !== 'k8sNamespace') return n;
+        const scopeId = n.metadata?.subscriptionId || '';
+        const key = scopeId || '__unknown-scope__';
+        if (key !== scopeKey) return n;
+        const pos = { x: Math.max(0, n.position.x + delta.dx), y: Math.max(0, n.position.y + delta.dy) };
+        return { ...n, position: pos };
+      })
+    );
+    this.bumpRevision();
+  }
+
+  moveK8sClusterGroup(delta: { dx: number; dy: number }): void {
+    // Moves all K8s namespace nodes (single synthetic cluster)
+    this.nodes.update(current =>
+      current.map(n => {
+        if (n.group !== 'k8sNamespace') return n;
+        const pos = { x: Math.max(0, n.position.x + delta.dx), y: Math.max(0, n.position.y + delta.dy) };
+        return { ...n, position: pos };
+      })
+    );
+    this.bumpRevision();
+  }
+
   detachNodeFromParent(childId: string, parentId: string): void {
     this.nodes.update(current =>
       current.map(n => {

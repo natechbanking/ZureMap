@@ -6,6 +6,9 @@ import {
   SubscriptionDragState,
   ToolbarDragState,
   VmDragState,
+  K8sNamespaceDragState,
+  K8sScopeDragState,
+  K8sClusterDragState,
 } from './canvas.types';
 
 export interface CanvasDragMoveContext {
@@ -17,6 +20,9 @@ export interface CanvasDragMoveContext {
   subscriptionDragState: SubscriptionDragState | null;
   vmDragState: VmDragState | null;
   rgDragState: RgDragState | null;
+  k8sNamespaceDragState: K8sNamespaceDragState | null;
+  k8sScopeDragState: K8sScopeDragState | null;
+  k8sClusterDragState: K8sClusterDragState | null;
   annDragId: string | null;
   annDragMouse: { x: number; y: number };
   annDragOrigin: { x: number; y: number; x2?: number; y2?: number };
@@ -27,6 +33,9 @@ export interface CanvasDragMoveContext {
   moveSubscriptionGroup: (subscriptionId: string, delta: { dx: number; dy: number }) => void;
   moveVmGroup: (vmId: string, delta: { dx: number; dy: number }) => void;
   moveResourceGroup: (id: string, delta: { dx: number; dy: number }) => void;
+  moveK8sNamespaceGroup: (nsKey: string, delta: { dx: number; dy: number }) => void;
+  moveK8sScopeGroup: (scopeKey: string, delta: { dx: number; dy: number }) => void;
+  moveK8sClusterGroup: (delta: { dx: number; dy: number }) => void;
   updateAnnotation: (id: string, changes: { x: number; y: number; x2?: number; y2?: number }) => void;
 }
 
@@ -38,11 +47,20 @@ export interface CanvasDragMoveResult {
   subscriptionDragState: SubscriptionDragState | null;
   vmDragState: VmDragState | null;
   rgDragState: RgDragState | null;
+  k8sNamespaceDragState: K8sNamespaceDragState | null;
+  k8sScopeDragState: K8sScopeDragState | null;
+  k8sClusterDragState: K8sClusterDragState | null;
 }
 
 @Injectable({ providedIn: 'root' })
 export class CanvasDragService {
   onDocumentMouseMove(ctx: CanvasDragMoveContext): CanvasDragMoveResult {
+    const k8sNone = {
+      k8sNamespaceDragState: ctx.k8sNamespaceDragState,
+      k8sScopeDragState: ctx.k8sScopeDragState,
+      k8sClusterDragState: ctx.k8sClusterDragState,
+    };
+
     if (ctx.toolbarDragState) {
       const dx = ctx.event.clientX - ctx.toolbarDragState.lastX;
       const dy = ctx.event.clientY - ctx.toolbarDragState.lastY;
@@ -54,6 +72,7 @@ export class CanvasDragService {
         subscriptionDragState: ctx.subscriptionDragState,
         vmDragState: ctx.vmDragState,
         rgDragState: ctx.rgDragState,
+        ...k8sNone,
       };
     }
 
@@ -78,6 +97,7 @@ export class CanvasDragService {
           subscriptionDragState: ctx.subscriptionDragState,
           vmDragState: ctx.vmDragState,
           rgDragState: ctx.rgDragState,
+          ...k8sNone,
         };
       }
       return {
@@ -88,6 +108,7 @@ export class CanvasDragService {
         subscriptionDragState: ctx.subscriptionDragState,
         vmDragState: ctx.vmDragState,
         rgDragState: ctx.rgDragState,
+        ...k8sNone,
       };
     }
 
@@ -104,6 +125,7 @@ export class CanvasDragService {
           subscriptionDragState: { subscriptionId: ctx.subscriptionDragState.subscriptionId, lastX: ctx.event.clientX, lastY: ctx.event.clientY },
           vmDragState: ctx.vmDragState,
           rgDragState: ctx.rgDragState,
+          ...k8sNone,
         };
       }
       return {
@@ -114,6 +136,7 @@ export class CanvasDragService {
         subscriptionDragState: ctx.subscriptionDragState,
         vmDragState: ctx.vmDragState,
         rgDragState: ctx.rgDragState,
+        ...k8sNone,
       };
     }
 
@@ -130,6 +153,7 @@ export class CanvasDragService {
           subscriptionDragState: ctx.subscriptionDragState,
           vmDragState: { vmId: ctx.vmDragState.vmId, lastX: ctx.event.clientX, lastY: ctx.event.clientY },
           rgDragState: ctx.rgDragState,
+          ...k8sNone,
         };
       }
       return {
@@ -140,6 +164,7 @@ export class CanvasDragService {
         subscriptionDragState: ctx.subscriptionDragState,
         vmDragState: ctx.vmDragState,
         rgDragState: ctx.rgDragState,
+        ...k8sNone,
       };
     }
 
@@ -156,6 +181,7 @@ export class CanvasDragService {
           subscriptionDragState: ctx.subscriptionDragState,
           vmDragState: ctx.vmDragState,
           rgDragState: { id: ctx.rgDragState.id, lastX: ctx.event.clientX, lastY: ctx.event.clientY },
+          ...k8sNone,
         };
       }
       return {
@@ -166,6 +192,97 @@ export class CanvasDragService {
         subscriptionDragState: ctx.subscriptionDragState,
         vmDragState: ctx.vmDragState,
         rgDragState: ctx.rgDragState,
+        ...k8sNone,
+      };
+    }
+
+    if (ctx.k8sNamespaceDragState) {
+      const dx = (ctx.event.clientX - ctx.k8sNamespaceDragState.lastX) / ctx.zoomLevel;
+      const dy = (ctx.event.clientY - ctx.k8sNamespaceDragState.lastY) / ctx.zoomLevel;
+      if (dx !== 0 || dy !== 0) {
+        ctx.moveK8sNamespaceGroup(ctx.k8sNamespaceDragState.nsId, { dx, dy });
+        return {
+          handled: true,
+          toolbarPos: ctx.toolbarPos,
+          toolbarDragState: ctx.toolbarDragState,
+          nodeDragState: ctx.nodeDragState,
+          subscriptionDragState: ctx.subscriptionDragState,
+          vmDragState: ctx.vmDragState,
+          rgDragState: ctx.rgDragState,
+          k8sNamespaceDragState: { nsId: ctx.k8sNamespaceDragState.nsId, lastX: ctx.event.clientX, lastY: ctx.event.clientY },
+          k8sScopeDragState: ctx.k8sScopeDragState,
+          k8sClusterDragState: ctx.k8sClusterDragState,
+        };
+      }
+      return {
+        handled: true,
+        toolbarPos: ctx.toolbarPos,
+        toolbarDragState: ctx.toolbarDragState,
+        nodeDragState: ctx.nodeDragState,
+        subscriptionDragState: ctx.subscriptionDragState,
+        vmDragState: ctx.vmDragState,
+        rgDragState: ctx.rgDragState,
+        ...k8sNone,
+      };
+    }
+
+    if (ctx.k8sScopeDragState) {
+      const dx = (ctx.event.clientX - ctx.k8sScopeDragState.lastX) / ctx.zoomLevel;
+      const dy = (ctx.event.clientY - ctx.k8sScopeDragState.lastY) / ctx.zoomLevel;
+      if (dx !== 0 || dy !== 0) {
+        ctx.moveK8sScopeGroup(ctx.k8sScopeDragState.scopeId, { dx, dy });
+        return {
+          handled: true,
+          toolbarPos: ctx.toolbarPos,
+          toolbarDragState: ctx.toolbarDragState,
+          nodeDragState: ctx.nodeDragState,
+          subscriptionDragState: ctx.subscriptionDragState,
+          vmDragState: ctx.vmDragState,
+          rgDragState: ctx.rgDragState,
+          k8sNamespaceDragState: ctx.k8sNamespaceDragState,
+          k8sScopeDragState: { scopeId: ctx.k8sScopeDragState.scopeId, lastX: ctx.event.clientX, lastY: ctx.event.clientY },
+          k8sClusterDragState: ctx.k8sClusterDragState,
+        };
+      }
+      return {
+        handled: true,
+        toolbarPos: ctx.toolbarPos,
+        toolbarDragState: ctx.toolbarDragState,
+        nodeDragState: ctx.nodeDragState,
+        subscriptionDragState: ctx.subscriptionDragState,
+        vmDragState: ctx.vmDragState,
+        rgDragState: ctx.rgDragState,
+        ...k8sNone,
+      };
+    }
+
+    if (ctx.k8sClusterDragState) {
+      const dx = (ctx.event.clientX - ctx.k8sClusterDragState.lastX) / ctx.zoomLevel;
+      const dy = (ctx.event.clientY - ctx.k8sClusterDragState.lastY) / ctx.zoomLevel;
+      if (dx !== 0 || dy !== 0) {
+        ctx.moveK8sClusterGroup({ dx, dy });
+        return {
+          handled: true,
+          toolbarPos: ctx.toolbarPos,
+          toolbarDragState: ctx.toolbarDragState,
+          nodeDragState: ctx.nodeDragState,
+          subscriptionDragState: ctx.subscriptionDragState,
+          vmDragState: ctx.vmDragState,
+          rgDragState: ctx.rgDragState,
+          k8sNamespaceDragState: ctx.k8sNamespaceDragState,
+          k8sScopeDragState: ctx.k8sScopeDragState,
+          k8sClusterDragState: { clusterId: ctx.k8sClusterDragState.clusterId, lastX: ctx.event.clientX, lastY: ctx.event.clientY },
+        };
+      }
+      return {
+        handled: true,
+        toolbarPos: ctx.toolbarPos,
+        toolbarDragState: ctx.toolbarDragState,
+        nodeDragState: ctx.nodeDragState,
+        subscriptionDragState: ctx.subscriptionDragState,
+        vmDragState: ctx.vmDragState,
+        rgDragState: ctx.rgDragState,
+        ...k8sNone,
       };
     }
 
@@ -188,6 +305,7 @@ export class CanvasDragService {
         subscriptionDragState: ctx.subscriptionDragState,
         vmDragState: ctx.vmDragState,
         rgDragState: ctx.rgDragState,
+        ...k8sNone,
       };
     }
 
@@ -199,6 +317,7 @@ export class CanvasDragService {
       subscriptionDragState: ctx.subscriptionDragState,
       vmDragState: ctx.vmDragState,
       rgDragState: ctx.rgDragState,
+      ...k8sNone,
     };
   }
 }

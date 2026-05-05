@@ -53,7 +53,9 @@ export class CanvasVisibilityService {
     const isVisibleBySubscription = (n: DiagramNode) => {
       const subscriptionId = n.metadata?.subscriptionId || '';
       if (n.group === 'k8sNamespace') {
-        return !collapsedK8sScopes.has(subscriptionId);
+        // Hidden if its scope is collapsed
+        const scopeKey = subscriptionId || '__unknown-scope__';
+        return !collapsedK8sScopes.has(scopeKey);
       }
       return !collapsedSubscriptions.has(subscriptionId);
     };
@@ -61,6 +63,8 @@ export class CanvasVisibilityService {
     const baseVisibleNodes = nodes.filter(n => {
       if (!isVisibleBySubscription(n)) return false;
       if (n.group === 'k8sNamespace') {
+        // Hide all K8s nodes when the synthetic cluster is collapsed
+        if (collapsedK8sClusters.has('__k8s-cluster__')) return false;
         const ns = n.metadata?.resourceGroup || n.groupId || '';
         const scopeId = n.metadata?.subscriptionId || '';
         if (!ns) return true;
@@ -116,7 +120,7 @@ export class CanvasVisibilityService {
     const routeTableBounds = this.computeRouteTableBounds(baseVisibleNodes, collapsedRouteTableGroups, customContainerNames);
     const k8sNamespaceBounds = this.computeK8sNamespaceBounds(nodes.filter(isVisibleBySubscription), collapsedK8sNamespaces, customContainerNames);
     const k8sScopeBounds = this.computeK8sScopeBounds(k8sNamespaceBounds, nodes, activeSubscriptions, collapsedK8sScopes, customContainerNames);
-    const k8sClusterBounds = this.computeK8sClusterBounds(k8sScopeBounds, nodes, collapsedK8sClusters, customContainerNames);
+    const k8sClusterBounds = this.computeK8sClusterBounds(k8sScopeBounds, k8sNamespaceBounds, nodes, collapsedK8sClusters, customContainerNames);
 
     return { visibleNodes, visibleEdges, rgBounds, subscriptionBounds, vmBounds, routeTableBounds, k8sNamespaceBounds, k8sScopeBounds, k8sClusterBounds, selectedEdgeVisible };
   }
@@ -338,16 +342,18 @@ export class CanvasVisibilityService {
       const yMin = Math.min(...groups.map(g => g.y));
       const xMax = Math.max(...groups.map(g => g.x + g.width));
       const yMax = Math.max(...groups.map(g => g.y + g.height));
-      const collapsed = collapsedK8sScopes.has(scopeId);
-      const defaultName = nameByScope.get(scopeId) || customContainerNames.get(`k8sscope::${scopeId}`) || scopeId || 'Unknown scope';
+      const scopeKey = scopeId || '__unknown-scope__';
+      const collapsed = collapsedK8sScopes.has(scopeKey);
+      const defaultName = nameByScope.get(scopeId) || scopeId || 'Unknown scope';
+      const name = customContainerNames.get(`k8sscope::${scopeKey}`) ?? defaultName;
       return {
-        id: scopeId || '__unknown-scope__',
+        id: scopeKey,
         scopeId,
-        name: customContainerNames.get(`k8sscope::${scopeId}`) ?? defaultName,
+        name,
         collapsed,
         x: xMin - PAD,
         y: yMin - PAD - LABEL_H,
-        width: collapsed ? Math.max(320, Math.ceil(defaultName.length * 7.5) + 96) : xMax - xMin + PAD * 2,
+        width: collapsed ? Math.max(320, Math.ceil(name.length * 7.5) + 96) : xMax - xMin + PAD * 2,
         height: collapsed ? LABEL_H + 12 : yMax - yMin + PAD * 2 + LABEL_H,
       };
     });
@@ -355,59 +361,48 @@ export class CanvasVisibilityService {
 
   computeK8sClusterBounds(
     scopeBounds: K8sScopeBound[],
+    nsBounds: K8sNamespaceBound[],
     nodes: DiagramNode[],
     collapsedK8sClusters: Set<string>,
     customContainerNames: Map<string, string>,
   ): K8sClusterBound[] {
-    if (scopeBounds.length === 0) return [];
+    // Use scope bounds when available (multiple scopes), otherwise fall back to namespace bounds
+    const containerBounds: { x: number; y: number; width: number; height: number }[] =
+      scopeBounds.length > 0 ? scopeBounds : nsBounds;
 
-    // Find AKS cluster nodes
+    if (containerBounds.length === 0) return [];
+
+    const PAD = 28; const LABEL_H = 36;
+
+    // Always produce a single synthetic cluster container to avoid multiple
+    // overlapping boxes when multiple AKS nodes exist on the canvas.
+    const allBounds: { x: number; y: number; width: number; height: number }[] = [...containerBounds];
+
+    // Expand bounds to include any AKS cluster nodes on the canvas
     const aksNodes = nodes.filter(
       n => n.group === 'standalone'
         && n.resourceType?.toLowerCase().includes('managedcluster'),
     );
-    if (aksNodes.length === 0) {
-      // No explicit cluster node — create a synthetic cluster bound
-      const xMin = Math.min(...scopeBounds.map(b => b.x));
-      const yMin = Math.min(...scopeBounds.map(b => b.y));
-      const xMax = Math.max(...scopeBounds.map(b => b.x + b.width));
-      const yMax = Math.max(...scopeBounds.map(b => b.y + b.height));
-      const PAD = 28; const LABEL_H = 36;
-      return [{
-        id: '__k8s-cluster__',
-        name: customContainerNames.get('k8scluster::__k8s-cluster__') ?? 'Kubernetes Cluster',
-        collapsed: collapsedK8sClusters.has('__k8s-cluster__'),
-        x: xMin - PAD,
-        y: yMin - PAD - LABEL_H,
-        width: xMax - xMin + PAD * 2,
-        height: yMax - yMin + PAD * 2 + LABEL_H,
-      }];
+    for (const aks of aksNodes) {
+      allBounds.push({ x: aks.position.x, y: aks.position.y, width: aks.size.width, height: aks.size.height });
     }
 
-    const PAD = 28; const LABEL_H = 36;
-    return aksNodes.map(aks => {
-      const allBounds = [...scopeBounds];
-      // Include the AKS node itself in bounds
-      allBounds.push({
-        id: aks.id, scopeId: '', name: aks.label,
-        collapsed: false,
-        x: aks.position.x, y: aks.position.y,
-        width: aks.size.width, height: aks.size.height,
-      });
-      const xMin = Math.min(...allBounds.map(b => b.x));
-      const yMin = Math.min(...allBounds.map(b => b.y));
-      const xMax = Math.max(...allBounds.map(b => b.x + b.width));
-      const yMax = Math.max(...allBounds.map(b => b.y + b.height));
-      const collapsed = collapsedK8sClusters.has(aks.id);
-      return {
-        id: aks.id,
-        name: customContainerNames.get(`k8scluster::${aks.id}`) ?? aks.label,
-        collapsed,
-        x: xMin - PAD,
-        y: yMin - PAD - LABEL_H,
-        width: collapsed ? Math.max(320, Math.ceil(aks.label.length * 7.5) + 96) : xMax - xMin + PAD * 2,
-        height: collapsed ? LABEL_H + 12 : yMax - yMin + PAD * 2 + LABEL_H,
-      };
-    });
+    const xMin = Math.min(...allBounds.map(b => b.x));
+    const yMin = Math.min(...allBounds.map(b => b.y));
+    const xMax = Math.max(...allBounds.map(b => b.x + b.width));
+    const yMax = Math.max(...allBounds.map(b => b.y + b.height));
+    const clusterId = '__k8s-cluster__';
+    const collapsed = collapsedK8sClusters.has(clusterId);
+    const name = customContainerNames.get(`k8scluster::${clusterId}`) ?? 'Kubernetes Cluster';
+
+    return [{
+      id: clusterId,
+      name,
+      collapsed,
+      x: xMin - PAD,
+      y: yMin - PAD - LABEL_H,
+      width: collapsed ? Math.max(320, Math.ceil(name.length * 7.5) + 96) : xMax - xMin + PAD * 2,
+      height: collapsed ? LABEL_H + 12 : yMax - yMin + PAD * 2 + LABEL_H,
+    }];
   }
 }

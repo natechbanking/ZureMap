@@ -3,8 +3,10 @@ const { Router } = require('express');
 const { runAz, azErrorBody } = require('../lib/az-cli');
 const { log } = require('../lib/logger');
 
+const DEVICE_CODE_TIMEOUT_MS = 5 * 60 * 1000;
+
 const router = Router();
-let deviceCodeLogin = null;
+let deviceCodeLogin = null; // { promise, child, timer }
 
 function parseDeviceCodePrompt(text) {
   const urlMatch = text.match(/https?:\/\/\S+/i);
@@ -17,14 +19,33 @@ function parseDeviceCodePrompt(text) {
   };
 }
 
-function startDeviceCodeLogin() {
-  if (deviceCodeLogin) return deviceCodeLogin.promise;
+function cancelDeviceCodeLogin() {
+  if (!deviceCodeLogin) return;
+  clearTimeout(deviceCodeLogin.timer);
+  deviceCodeLogin.child?.kill();
+  deviceCodeLogin = null;
+}
 
-  deviceCodeLogin = {};
-  deviceCodeLogin.promise = new Promise((resolve, reject) => {
+function startDeviceCodeLogin(force = false) {
+  if (deviceCodeLogin && !force) return deviceCodeLogin.promise;
+
+  cancelDeviceCodeLogin();
+
+  const entry = { child: null, timer: null, promise: null };
+  deviceCodeLogin = entry;
+
+  entry.promise = new Promise((resolve, reject) => {
     const child = spawn('az', ['login', '--use-device-code'], {
       stdio: ['ignore', 'pipe', 'pipe'],
     });
+    entry.child = child;
+
+    entry.timer = setTimeout(() => {
+      log('warn', 'Device code login timed out after 5 minutes');
+      if (deviceCodeLogin === entry) deviceCodeLogin = null;
+      child.kill();
+      reject(Object.assign(new Error('Device code login timed out'), { azRaw: 'Login timed out after 5 minutes' }));
+    }, DEVICE_CODE_TIMEOUT_MS);
 
     let output = '';
     let settled = false;
@@ -42,31 +63,32 @@ function startDeviceCodeLogin() {
     child.stderr.on('data', onChunk);
 
     child.on('error', (err) => {
+      clearTimeout(entry.timer);
+      if (deviceCodeLogin === entry) deviceCodeLogin = null;
       if (!settled) {
         settled = true;
         reject(Object.assign(err, { azRaw: output || err.message }));
       }
-      deviceCodeLogin = null;
     });
 
     child.on('exit', (code) => {
+      clearTimeout(entry.timer);
+      if (deviceCodeLogin === entry) deviceCodeLogin = null;
       if (code === 0) {
         log('info', 'Device code login completed successfully');
       } else {
         log('warn', `Device code login exited with code ${code}`);
       }
-
       if (!settled) {
         settled = true;
         reject(Object.assign(new Error(output || `az login exited with code ${code}`), {
           azRaw: output || `az login exited with code ${code}`,
         }));
       }
-      deviceCodeLogin = null;
     });
   });
 
-  return deviceCodeLogin.promise;
+  return entry.promise;
 }
 
 router.get('/login-status', async (req, res) => {
@@ -91,10 +113,11 @@ router.post('/login', async (req, res) => {
   }
 });
 
-router.post('/login-device-code', async (_req, res) => {
+router.post('/login-device-code', async (req, res) => {
   try {
-    const prompt = await startDeviceCodeLogin();
-    log('info', `Device code login started for ${prompt.verificationUrl}`);
+    const force = req.body?.force === true;
+    const prompt = await startDeviceCodeLogin(force);
+    log('info', `Device code login started for ${prompt.verificationUrl}${force ? ' (forced)' : ''}`);
     res.json(prompt);
   } catch (err) {
     res.status(500).json(azErrorBody(err.azRaw ?? err.message));

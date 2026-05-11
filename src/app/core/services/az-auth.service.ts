@@ -26,8 +26,8 @@ export class AzAuthService {
     return this.http.post<void>(`${this.base}/login`, {}).pipe(catchError(liftAzError));
   }
 
-  loginWithDeviceCode(): Observable<DeviceCodeLogin> {
-    return this.http.post<DeviceCodeLogin>(`${this.base}/login-device-code`, {}).pipe(catchError(liftAzError));
+  loginWithDeviceCode(force = false): Observable<DeviceCodeLogin> {
+    return this.http.post<DeviceCodeLogin>(`${this.base}/login-device-code`, force ? { force: true } : {}).pipe(catchError(liftAzError));
   }
 
   listSubscriptions(): Observable<AzureSubscription[]> {

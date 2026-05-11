@@ -508,7 +508,7 @@ interface ConnectionType {
                   </button>
                   <button
                     type="button"
-                    (click)="loginWithDeviceCode()"
+                    (click)="loginWithDeviceCode(true)"
                     class="py-2.5 px-4 border border-blue-200 text-blue-800 rounded-lg font-medium hover:bg-blue-100 transition-colors text-sm cursor-pointer"
                   >
                     New Code
@@ -683,10 +683,11 @@ export class ScanComponent implements OnInit, OnDestroy {
     });
   }
 
-  loginWithDeviceCode(): void {
+  loginWithDeviceCode(force = false): void {
     this.deviceCodeLoginPending.set(true);
+    if (force) this.deviceCodeLogin.set(null);
     this.store.scanPhase.set('idle');
-    this.auth.loginWithDeviceCode().subscribe({
+    this.auth.loginWithDeviceCode(force).subscribe({
       next: (prompt) => {
         this.needsLogin = true;
         this.deviceCodeLogin.set(prompt);
@@ -709,6 +710,12 @@ export class ScanComponent implements OnInit, OnDestroy {
           this.clearDeviceCodeLoginState();
           this.needsLogin = false;
           this.loadSubscriptions();
+        } else if (status.code && status.code !== 'AUTH_REQUIRED') {
+          this.clearDeviceCodeLoginState();
+          this.needsLogin = false;
+          this.store.scanPhase.set('error');
+          this.store.errorMessage.set(status.error ?? 'An unexpected error occurred.');
+          this.scanError.set({ code: status.code, detail: status.detail ?? status.error ?? '' });
         }
       },
       error: () => {

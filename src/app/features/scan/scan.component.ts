@@ -1,7 +1,7 @@
-import { Component, inject, NgZone, OnInit, signal } from '@angular/core';
+import { Component, inject, NgZone, OnDestroy, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
-import { AzAuthService } from '../../core/services/az-auth.service';
+import { AzAuthService, DeviceCodeLogin } from '../../core/services/az-auth.service';
 import { ResourceGraphService } from '../../core/services/resource-graph.service';
 import { ResourceMapperService } from '../../core/services/resource-mapper.service';
 import { ConnectionResolverService } from '../../core/services/connection-resolver.service';
@@ -486,16 +486,56 @@ interface ConnectionType {
         @if (needsLogin) {
           <div class="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
             <p class="text-sm text-gray-700 mb-3">
-              Azure CLI login required. Click below to authenticate.
+              Azure CLI authentication is required in the same environment where ZureMap is running.
             </p>
-            <button
-              (click)="login()"
-              class="w-full py-2.5 px-4 bg-azure-blue text-white rounded-lg font-medium hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
-            >
-              <span>Login with Azure CLI</span>
-            </button>
+            @if (deviceCodeLogin(); as prompt) {
+              <div class="mb-4 rounded-lg border border-blue-200 bg-white p-4">
+                <p class="text-xs font-semibold uppercase tracking-wide text-blue-700 mb-2">Device Code Login</p>
+                <p class="text-sm text-gray-700 mb-3">Open <a [href]="prompt.verificationUrl" target="_blank" rel="noopener noreferrer" class="text-blue-700 underline">{{ prompt.verificationUrl }}</a> and enter this code:</p>
+                <div class="font-mono text-2xl font-bold tracking-[0.3em] text-center text-blue-900 bg-blue-50 border border-blue-200 rounded-lg px-4 py-3">
+                  {{ prompt.userCode }}
+                </div>
+                <p class="text-xs text-gray-500 mt-3">
+                  ZureMap checks automatically every few seconds after you complete sign-in.
+                </p>
+                <div class="mt-3 flex gap-2">
+                  <button
+                    type="button"
+                    (click)="checkDeviceCodeLogin()"
+                    class="flex-1 py-2.5 px-4 bg-azure-blue text-white rounded-lg font-medium hover:bg-blue-700 transition-colors text-sm cursor-pointer"
+                  >
+                    I Completed Sign-In
+                  </button>
+                  <button
+                    type="button"
+                    (click)="loginWithDeviceCode(true)"
+                    class="py-2.5 px-4 border border-blue-200 text-blue-800 rounded-lg font-medium hover:bg-blue-100 transition-colors text-sm cursor-pointer"
+                  >
+                    New Code
+                  </button>
+                </div>
+              </div>
+            }
+
+            <div class="grid grid-cols-1 gap-2">
+              <button
+                type="button"
+                (click)="loginWithDeviceCode()"
+                [disabled]="deviceCodeLoginPending()"
+                class="w-full py-2.5 px-4 bg-azure-blue text-white rounded-lg font-medium hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                <span>{{ deviceCodeLoginPending() ? 'Starting Device Code Login…' : 'Login with Device Code' }}</span>
+              </button>
+              <button
+                type="button"
+                (click)="login()"
+                class="w-full py-2.5 px-4 bg-white text-gray-700 border border-gray-300 rounded-lg font-medium hover:bg-gray-50 transition-colors flex items-center justify-center gap-2"
+              >
+                <span>Login with Azure CLI</span>
+              </button>
+            </div>
             <p class="text-xs text-gray-400 mt-2 text-center">
-              Requires Azure CLI installed and <code>az login</code> access
+              Use standard <code>az login</code> for local dev, or device code when the app runs in Docker and a mounted <code>.azure</code> cache is not enough.
             </p>
           </div>
         }
@@ -504,7 +544,7 @@ interface ConnectionType {
     </div>
   `,
 })
-export class ScanComponent implements OnInit {
+export class ScanComponent implements OnInit, OnDestroy {
   store = inject(DiagramStore);
   private auth = inject(AzAuthService);
   private resourceGraph = inject(ResourceGraphService);
@@ -518,6 +558,10 @@ export class ScanComponent implements OnInit {
 
   readonly isDemo = environment.isDemo;
   needsLogin = false;
+  readonly deviceCodeLogin = signal<DeviceCodeLogin | null>(null);
+  readonly deviceCodeLoginPending = signal(false);
+  readonly deviceCodePolling = signal(false);
+  private deviceCodePollTimer: number | null = null;
   showAdvancedOptions = false;
   optionsGenerateConnections = true;
   optionsIncludeAppSlots = false;
@@ -574,11 +618,16 @@ export class ScanComponent implements OnInit {
     this.enterStartChoice();
   }
 
+  ngOnDestroy(): void {
+    this.stopDeviceCodePolling();
+  }
+
   get supportsAutosavePicker(): boolean {
     return this.autosave.supportsLocalFileAutosave();
   }
 
   enterStartChoice(): void {
+    this.clearDeviceCodeLoginState();
     this.needsLogin = false;
     this.optionsGenerateConnections = true;
     this.optionsIncludeAppSlots = false;
@@ -597,12 +646,20 @@ export class ScanComponent implements OnInit {
 
   beginAzureScanFlow(): void {
     void this.autosave.disable();
+    this.clearDeviceCodeLoginState();
     this.needsLogin = false;
     this.store.scanPhase.set('idle');
     this.auth.checkLoginStatus().subscribe({
       next: (status) => {
         if (status.loggedIn) {
           this.loadSubscriptions();
+        } else if (status.code && status.code !== 'AUTH_REQUIRED') {
+          this.store.scanPhase.set('error');
+          this.store.errorMessage.set(this.describeLoginStatusFailure(status.error));
+          this.scanError.set({
+            code: status.code,
+            detail: status.detail ?? status.error ?? '',
+          });
         } else {
           this.needsLogin = true;
         }
@@ -614,6 +671,7 @@ export class ScanComponent implements OnInit {
   }
 
   login(): void {
+    this.clearDeviceCodeLoginState();
     this.store.scanPhase.set('authenticating');
     this.auth.login().subscribe({
       next: () => this.loadSubscriptions(),
@@ -623,6 +681,78 @@ export class ScanComponent implements OnInit {
         this.scanError.set({ code: err.azCode ?? 'SERVER_ERROR', detail: err.azDetail ?? err.message ?? '' });
       },
     });
+  }
+
+  loginWithDeviceCode(force = false): void {
+    this.deviceCodeLoginPending.set(true);
+    if (force) this.deviceCodeLogin.set(null);
+    this.store.scanPhase.set('idle');
+    this.auth.loginWithDeviceCode(force).subscribe({
+      next: (prompt) => {
+        this.needsLogin = true;
+        this.deviceCodeLogin.set(prompt);
+        this.deviceCodeLoginPending.set(false);
+        this.startDeviceCodePolling();
+      },
+      error: (err) => {
+        this.deviceCodeLoginPending.set(false);
+        this.store.scanPhase.set('error');
+        this.store.errorMessage.set(err.message ?? 'Device code login failed');
+        this.scanError.set({ code: err.azCode ?? 'SERVER_ERROR', detail: err.azDetail ?? err.message ?? '' });
+      },
+    });
+  }
+
+  checkDeviceCodeLogin(): void {
+    this.auth.checkLoginStatus().subscribe({
+      next: (status) => {
+        if (status.loggedIn) {
+          this.clearDeviceCodeLoginState();
+          this.needsLogin = false;
+          this.loadSubscriptions();
+        } else if (status.code && status.code !== 'AUTH_REQUIRED') {
+          this.clearDeviceCodeLoginState();
+          this.needsLogin = false;
+          this.store.scanPhase.set('error');
+          this.store.errorMessage.set(status.error ?? 'An unexpected error occurred.');
+          this.scanError.set({ code: status.code, detail: status.detail ?? status.error ?? '' });
+        }
+      },
+      error: () => {
+        // Ignore transient polling failures while the user completes device-code login.
+      },
+    });
+  }
+
+  private describeLoginStatusFailure(message?: string): string {
+    const normalized = (message ?? '').trim();
+    if (!normalized) {
+      return 'Azure CLI authentication is not ready.';
+    }
+    if (normalized.includes('Please run \'az login\'')) {
+      return 'Azure CLI found an account, but ZureMap could not obtain an ARM access token. If you are running Docker, authenticate in the same container/runtime. Windows-hosted Azure CLI tokens usually cannot be reused by the Linux container, so use az login --use-device-code inside the container or run from WSL.';
+    }
+    return normalized;
+  }
+
+  private startDeviceCodePolling(): void {
+    this.stopDeviceCodePolling();
+    this.deviceCodePolling.set(true);
+    this.deviceCodePollTimer = window.setInterval(() => this.checkDeviceCodeLogin(), 5000);
+  }
+
+  private stopDeviceCodePolling(): void {
+    if (this.deviceCodePollTimer !== null) {
+      window.clearInterval(this.deviceCodePollTimer);
+      this.deviceCodePollTimer = null;
+    }
+    this.deviceCodePolling.set(false);
+  }
+
+  private clearDeviceCodeLoginState(): void {
+    this.stopDeviceCodePolling();
+    this.deviceCodeLogin.set(null);
+    this.deviceCodeLoginPending.set(false);
   }
 
   private loadSubscriptions(): void {

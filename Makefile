@@ -1,6 +1,7 @@
 .PHONY: help install dev start proxy serve build build-prod build-demo demo test test-watch \
        lint clean map-icons check \
-       docker-build docker-up docker-down docker-logs
+       docker-build docker-up docker-down docker-logs \
+       docker-up-device-code docker-down-device-code
 
 # Default target
 help: ## Show this help
@@ -96,6 +97,16 @@ docker-down: ## Stop and remove the container
 
 docker-logs: ## Tail container logs
 	docker compose logs -f
+
+docker-up-device-code: ## Build local image and run without .azure mount to test in-app device-code login
+	docker build -t zuremap-local .
+	docker rm -f zuremap-device-code 2>/dev/null || true
+	docker run -d --name zuremap-device-code -p 3001:3001 zuremap-local
+	@echo "→  Open: http://localhost:3001"
+	@echo "→  Use: Login with Device Code"
+
+docker-down-device-code: ## Stop the no-mount device-code test container
+	docker rm -f zuremap-device-code
 
 # ---------------------------------------------------------------------------
 # Internal / prerequisites

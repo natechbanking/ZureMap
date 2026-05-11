@@ -41,6 +41,7 @@ describe('ScanComponent', () => {
         { provide: AzAuthService, useValue: {
           checkLoginStatus: () => of({ loggedIn: true }),
           login: () => of(undefined),
+          loginWithDeviceCode: () => of({ verificationUrl: 'https://microsoft.com/devicelogin', userCode: 'ABC-123', message: 'Use the code ABC-123' }),
           listSubscriptions: () => of([makeSubscription()]),
         } },
         { provide: ResourceGraphService, useValue: {} },
@@ -111,6 +112,21 @@ describe('ScanComponent', () => {
     expect(store.scanPhase()).toBe('idle');
   });
 
+  it('beginAzureScanFlow shows login panel when AUTH_REQUIRED is returned', () => {
+    const auth = TestBed.inject(AzAuthService) as unknown as { checkLoginStatus: jasmine.Spy };
+    auth.checkLoginStatus = jasmine.createSpy('checkLoginStatus').and.returnValue(of({
+      loggedIn: false,
+      error: "Azure CLI authentication required. Please run 'az login' and try again.",
+      code: 'AUTH_REQUIRED',
+      detail: 'The current account still needs interactive authentication.',
+    }));
+
+    component.beginAzureScanFlow();
+
+    expect(component.needsLogin).toBeTrue();
+    expect(store.scanPhase()).toBe('idle');
+  });
+
   it('startEmptyCanvas clears and navigates when autosave is declined', async () => {
     if (environment.isDemo) {
       pending('Demo mode bypasses autosave prompt flow');
@@ -124,5 +140,28 @@ describe('ScanComponent', () => {
     expect(autosave.disable).toHaveBeenCalled();
     expect(store.canvasSessionMode()).toBe('empty');
     expect(router.navigate).toHaveBeenCalledWith(['/canvas']);
+  });
+
+  it('loginWithDeviceCode shows the prompt and starts polling', () => {
+    spyOn(window, 'setInterval').and.returnValue(123 as unknown as number);
+
+    component.loginWithDeviceCode();
+
+    expect(component.deviceCodeLogin()?.userCode).toBe('ABC-123');
+    expect(component.deviceCodePolling()).toBeTrue();
+  });
+
+  it('checkDeviceCodeLogin loads subscriptions after successful device-code sign-in', () => {
+    const auth = TestBed.inject(AzAuthService) as unknown as {
+      checkLoginStatus: jasmine.Spy;
+      listSubscriptions: jasmine.Spy;
+    };
+    auth.checkLoginStatus = jasmine.createSpy('checkLoginStatus').and.returnValue(of({ loggedIn: true }));
+    auth.listSubscriptions = jasmine.createSpy('listSubscriptions').and.returnValue(of([makeSubscription({ subscriptionId: 'sub-1' })]));
+
+    component.checkDeviceCodeLogin();
+
+    expect(auth.listSubscriptions).toHaveBeenCalled();
+    expect(store.scanPhase()).toBe('selecting-subscription');
   });
 });

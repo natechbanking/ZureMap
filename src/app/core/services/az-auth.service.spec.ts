@@ -16,7 +16,7 @@ describe('AzAuthService', () => {
   afterEach(() => httpMock.verify());
 
   it('checks login status', () => {
-    let result: { loggedIn: boolean } | undefined;
+    let result: { loggedIn: boolean; error?: string } | undefined;
     service.checkLoginStatus().subscribe(v => (result = v));
 
     httpMock.expectOne('/api/az/login-status').flush({ loggedIn: true });
@@ -28,6 +28,15 @@ describe('AzAuthService', () => {
     const req = httpMock.expectOne('/api/az/login');
     expect(req.request.method).toBe('POST');
     req.flush({});
+  });
+
+  it('starts device code login', () => {
+    let result: unknown;
+    service.loginWithDeviceCode().subscribe(v => (result = v));
+    const req = httpMock.expectOne('/api/az/login-device-code');
+    expect(req.request.method).toBe('POST');
+    req.flush({ verificationUrl: 'https://microsoft.com/devicelogin', userCode: 'ABC-123', message: 'Use the code ABC-123' });
+    expect(result).toEqual({ verificationUrl: 'https://microsoft.com/devicelogin', userCode: 'ABC-123', message: 'Use the code ABC-123' });
   });
 
   it('lists subscriptions', () => {

@@ -111,6 +111,41 @@ Then open [http://localhost:3001](http://localhost:3001) in your browser.
 
 > **First time?** Run `az login` on your host machine first so the credentials directory exists before mounting it.
 
+#### Docker on Windows
+
+If you run the published Linux container on Windows via Docker Desktop, mounting `%USERPROFILE%\.azure` into `/home/zuremap/.azure` is not enough for scans.
+
+- Subscription/profile metadata may be readable, so the app can appear signed in.
+- The ARM access token cache created by Azure CLI on Windows is not reusable inside the Linux container.
+- Result: subscription selection may work, but `Start Scan` fails until the container performs its own `az login`.
+
+Recommended options on Windows:
+
+1. Run ZureMap from WSL and authenticate inside WSL, then mount the WSL-side `~/.azure`.
+2. Or start the container normally and use ZureMap's built-in **Login with Device Code** action in the browser.
+3. If you prefer the terminal, authenticate inside the container with device code:
+
+```powershell
+docker run -d `
+  --name zuremap `
+  -p 3001:3001 `
+  ghcr.io/natechsa/zuremap:latest
+
+docker exec -it zuremap az login --use-device-code
+```
+
+Then open [http://localhost:3001](http://localhost:3001) and start the scan.
+
+If you still want to mount the Windows `.azure` directory for profile files, use a Windows path and expect to complete login inside the container anyway:
+
+```powershell
+docker run -d `
+  --name zuremap `
+  -p 3001:3001 `
+  -v "${env:USERPROFILE}\\.azure:/home/zuremap/.azure" `
+  ghcr.io/natechsa/zuremap:latest
+```
+
 #### Pin to a specific version
 
 ```bash

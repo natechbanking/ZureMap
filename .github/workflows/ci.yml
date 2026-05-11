@@ -262,7 +262,7 @@ jobs:
             org.opencontainers.image.description=Visualise Microsoft Azure infrastructure as interactive diagrams
             org.opencontainers.image.vendor=natechsa
 
-      - uses: docker/build-push-action@v6
+      - uses: docker/build-push-action@v7
         with:
           context: .
           push: true

@@ -989,8 +989,8 @@ describe('CanvasComponent', () => {
 
       component.nodeContainerActions.set('n-shape', {
         kind: 'bind',
-        label: 'Bound to rectangle',
-        title: 'Bound to rectangle',
+        label: 'Bind to rectangle',
+        title: 'Bind to rectangle',
         targetType: 'shape',
         targetId: 'shape-1',
       });

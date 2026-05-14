@@ -118,6 +118,10 @@ interface AnnotationClipboardPayload {
 }
 
 type CanvasClipboardPayload = NodeClipboardPayload | AnnotationClipboardPayload;
+interface ShapeBindCandidate {
+  annotation: Annotation;
+  bounds: { x: number; y: number; width: number; height: number };
+}
 
 @Component({
   selector: 'app-canvas',
@@ -1566,8 +1570,11 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
   }
 
   private recomputeNodeContainerActions(): void {
-    const byId = new Map(this.store.nodes().map(n => [n.id, n]));
-    const annById = new Map(this.store.annotations().map(a => [a.id, a]));
+    const allNodes = this.store.nodes();
+    const allAnnotations = this.store.annotations();
+    const byId = new Map(allNodes.map(n => [n.id, n]));
+    const annById = new Map(allAnnotations.map(a => [a.id, a]));
+    const shapeCandidates = this.collectShapeBindCandidates(allAnnotations);
     const parentMap = this.childToParentMap();
     const actions = new Map<string, NodeContainerAction>();
     for (const node of this.visibleNodes) {
@@ -1605,12 +1612,16 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
         });
         continue;
       }
-      actions.set(node.id, this.bindActionForUnboundNode(node, byId));
+      actions.set(node.id, this.bindActionForUnboundNode(node, byId, shapeCandidates));
     }
     this.nodeContainerActions = actions;
   }
 
-  private bindActionForUnboundNode(node: DiagramNode, byId: Map<string, DiagramNode>): NodeContainerAction {
+  private bindActionForUnboundNode(
+    node: DiagramNode,
+    byId: Map<string, DiagramNode>,
+    shapeCandidates: ShapeBindCandidate[],
+  ): NodeContainerAction {
     const cx = node.position.x + node.size.width / 2;
     const cy = node.position.y + node.size.height / 2;
     const allCandidates: { area: number; action: NodeContainerAction }[] = [];
@@ -1624,8 +1635,8 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
       if (!parent || parent.id === node.id || this.isDescendantNode(parent.id, node.id, byId)) continue;
       pushCandidate(b, {
         kind: 'bind',
-        label: `Bound to ${parent.label}`,
-        title: `Bound to ${parent.label}`,
+        label: `Bind to ${parent.label}`,
+        title: `Bind to ${parent.label}`,
         targetType: 'parent',
         targetId: parent.id,
       });
@@ -1635,8 +1646,8 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
       if (!parent || parent.id === node.id || this.isDescendantNode(parent.id, node.id, byId)) continue;
       pushCandidate(b, {
         kind: 'bind',
-        label: `Bound to ${parent.label}`,
-        title: `Bound to ${parent.label}`,
+        label: `Bind to ${parent.label}`,
+        title: `Bind to ${parent.label}`,
         targetType: 'parent',
         targetId: parent.id,
       });
@@ -1644,8 +1655,8 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
     for (const b of this.rgBounds) {
       pushCandidate(b, {
         kind: 'bind',
-        label: `Bound to ${b.name}`,
-        title: `Bound to ${b.name}`,
+        label: `Bind to ${b.name}`,
+        title: `Bind to ${b.name}`,
         targetType: 'rg',
         targetId: b.id,
       });
@@ -1653,7 +1664,7 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
     for (const b of this.subscriptionBounds) {
       pushCandidate(b, {
         kind: 'bind-disabled',
-        label: `Bound to ${b.name}`,
+        label: `Bind to ${b.name}`,
         title: 'Subscription container does not have bind support yet',
         targetType: 'unsupported',
         targetId: b.id,
@@ -1662,7 +1673,7 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
     for (const b of this.k8sNamespaceBounds) {
       pushCandidate(b, {
         kind: 'bind-disabled',
-        label: `Bound to ${b.name}`,
+        label: `Bind to ${b.name}`,
         title: 'Kubernetes namespace container does not have bind support yet',
         targetType: 'unsupported',
         targetId: b.id,
@@ -1671,7 +1682,7 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
     for (const b of this.k8sScopeBounds) {
       pushCandidate(b, {
         kind: 'bind-disabled',
-        label: `Bound to ${b.name}`,
+        label: `Bind to ${b.name}`,
         title: 'Kubernetes scope container does not have bind support yet',
         targetType: 'unsupported',
         targetId: b.id,
@@ -1680,23 +1691,19 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
     for (const b of this.k8sClusterBounds) {
       pushCandidate(b, {
         kind: 'bind-disabled',
-        label: `Bound to ${b.name}`,
+        label: `Bind to ${b.name}`,
         title: 'Kubernetes cluster container does not have bind support yet',
         targetType: 'unsupported',
         targetId: b.id,
       });
     }
-    for (const ann of this.store.annotations()) {
-      if (ann.type !== 'rect' && ann.type !== 'ellipse' && ann.type !== 'diamond') continue;
-      const w = ann.width ?? 0;
-      const h = ann.height ?? 0;
-      if (w <= 0 || h <= 0) continue;
-      pushCandidate({ x: ann.x, y: ann.y, width: w, height: h }, {
+    for (const shapeCandidate of shapeCandidates) {
+      pushCandidate(shapeCandidate.bounds, {
         kind: 'bind',
-        label: `Bound to ${this.shapeLabel(ann)}`,
-        title: `Bound to ${this.shapeLabel(ann)}`,
+        label: `Bind to ${this.shapeLabel(shapeCandidate.annotation)}`,
+        title: `Bind to ${this.shapeLabel(shapeCandidate.annotation)}`,
         targetType: 'shape',
-        targetId: ann.id,
+        targetId: shapeCandidate.annotation.id,
       });
     }
 
@@ -1708,8 +1715,8 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
     if (parent && parent.id !== node.id && !this.isDescendantNode(parent.id, node.id, byId)) {
       return {
         kind: 'bind',
-        label: `Bound to ${parent.label}`,
-        title: `Bound to ${parent.label}`,
+        label: `Bind to ${parent.label}`,
+        title: `Bind to ${parent.label}`,
         targetType: 'parent',
         targetId: parent.id,
       };
@@ -1722,14 +1729,29 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
       const rgTargetId = rgBound?.id ?? `${nodeSub}::${nodeRg}`;
       return {
         kind: 'bind',
-        label: `Bound to ${nodeRg}`,
-        title: `Bound to ${nodeRg}`,
+        label: `Bind to ${nodeRg}`,
+        title: `Bind to ${nodeRg}`,
         targetType: 'rg',
         targetId: rgTargetId,
       };
     }
 
     return { kind: 'none', label: '', title: '' };
+  }
+
+  private collectShapeBindCandidates(annotations: Annotation[]): ShapeBindCandidate[] {
+    const candidates: ShapeBindCandidate[] = [];
+    for (const ann of annotations) {
+      if (ann.type !== 'rect' && ann.type !== 'ellipse' && ann.type !== 'diamond') continue;
+      const width = ann.width ?? 0;
+      const height = ann.height ?? 0;
+      if (width <= 0 || height <= 0) continue;
+      candidates.push({
+        annotation: ann,
+        bounds: { x: ann.x, y: ann.y, width, height },
+      });
+    }
+    return candidates;
   }
 
   private shapeLabel(ann: Annotation): string {
@@ -2724,7 +2746,8 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
     const action = this.nodeContainerActions.get(nodeId);
     if (!action || action.kind !== 'bind' || !action.targetType || !action.targetId) return;
     const targetId = action.targetId;
-    const node = this.store.nodes().find(n => n.id === nodeId);
+    const currentNodes = this.store.nodes();
+    const node = currentNodes.find(n => n.id === nodeId);
     if (!node) return;
     this.store.pushUndo();
     if (action.targetType === 'parent') {
@@ -2732,7 +2755,7 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
       return;
     }
     if (action.targetType === 'shape') {
-      this.store.setNodes(this.store.nodes().map(n => {
+      this.store.setNodes(currentNodes.map(n => {
         if (n.id !== nodeId) return n;
         return { ...n, custom: { ...(n.custom ?? {}), boundShapeAnnotationId: targetId } };
       }));
@@ -2742,7 +2765,7 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
       const splitIdx = targetId.indexOf('::');
       const targetSubscriptionId = splitIdx >= 0 ? targetId.slice(0, splitIdx) : '';
       const targetRgName = splitIdx >= 0 ? targetId.slice(splitIdx + 2) : targetId;
-      this.store.setNodes(this.store.nodes().map(n => {
+      this.store.setNodes(currentNodes.map(n => {
         if (n.id !== nodeId) return n;
         return {
           ...n,

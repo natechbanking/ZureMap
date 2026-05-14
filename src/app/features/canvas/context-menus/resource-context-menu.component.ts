@@ -60,7 +60,7 @@ import { ActionIconComponent } from '../../../shared/components/action-icon/acti
             (click)="bindToParent.emit()"
           >
             <app-action-icon icon="link" iconClass="w-3.5 h-3.5 shrink-0 text-green-700" />
-            {{ bindLabel || 'Bound to container' }}
+            {{ bindLabel || 'Bind to container' }}
           </button>
         </div>
       }

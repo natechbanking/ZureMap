@@ -9,7 +9,8 @@ import { CommonModule } from '@angular/common';
 import { DiagramNodeComponent } from '../diagram-node/diagram-node.component';
 import { DiagramNode } from '../../../core/models/diagram-node.model';
 import { DrawingTool } from '../../../core/models/annotation.model';
-import { NodeDragState } from '../canvas.types';
+import { NodeContainerAction, NodeDragState } from '../canvas.types';
+import { ActionIconComponent } from '../../../shared/components/action-icon/action-icon.component';
 import {
   ContextMenuRequest,
   InternalItemMoveRequest,
@@ -36,7 +37,7 @@ import {
 @Component({
   selector: 'app-canvas-nodes-layer',
   standalone: true,
-  imports: [CommonModule, DiagramNodeComponent],
+  imports: [CommonModule, DiagramNodeComponent, ActionIconComponent],
   templateUrl: './canvas-nodes-layer.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -50,6 +51,7 @@ export class CanvasNodesLayerComponent {
   @Input() finOpsActive = false;
   @Input() zoomLevel = 1;
   @Input() isLinking = false;
+  @Input() nodeContainerActions: Map<string, NodeContainerAction> = new Map<string, NodeContainerAction>();
 
   @Output() nodeMouseDown = new EventEmitter<{ event: MouseEvent; node: DiagramNode }>();
   @Output() portMouseDown = new EventEmitter<{ event: MouseEvent; node: DiagramNode; portId: string }>();
@@ -61,7 +63,7 @@ export class CanvasNodesLayerComponent {
   @Output() nodeRotateStarted = new EventEmitter<void>();
   @Output() nodeRotated = new EventEmitter<NodeRotateRequest>();
   @Output() contextMenuRequested = new EventEmitter<ContextMenuRequest>();
-  @Output() breakOut = new EventEmitter<{ nodeId: string; parentId: string | null }>();
+  @Output() nodeContainerAction = new EventEmitter<string>();
 
   @Output() routeTableExpansionChanged = new EventEmitter<RouteTableExpansionRequest>();
   @Output() virtualNetworkExpansionChanged = new EventEmitter<VirtualNetworkExpansionRequest>();
@@ -80,15 +82,7 @@ export class CanvasNodesLayerComponent {
   @Output() connectionExpansionChanged = new EventEmitter<ConnectionExpansionRequest>();
   @Output() dnsZoneExpansionChanged = new EventEmitter<DnsZoneExpansionRequest>();
 
-  canDetachFromResourceGroup(node: DiagramNode): boolean {
-    return node.group === 'resourceGroup';
-  }
-
-  breakOutTitle(node: DiagramNode, parentId: string | null): string {
-    if (parentId) return `Break out of ${this.parentLabelById.get(parentId) ?? 'container'}`;
-    if (this.canDetachFromResourceGroup(node)) {
-      return `Break out of ${node.metadata?.['resourceGroup'] || node.groupId || 'resource group'}`;
-    }
-    return 'Break out of resource group';
+  containerActionFor(nodeId: string): NodeContainerAction | null {
+    return this.nodeContainerActions.get(nodeId) ?? null;
   }
 }

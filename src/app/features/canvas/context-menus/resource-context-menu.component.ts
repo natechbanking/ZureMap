@@ -51,10 +51,23 @@ import { ActionIconComponent } from '../../../shared/components/action-icon/acti
           Visualize tags @if (tagCount > 0) { ({{ tagCount }}) }
         </button>
       </div>
+      @if (showBind) {
+        <div class="border-t border-gray-100 py-0.5">
+          <button
+            type="button"
+            class="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-left text-green-700 hover:bg-green-50"
+            [title]="bindTitle"
+            (click)="bindToParent.emit()"
+          >
+            <app-action-icon icon="link" iconClass="w-3.5 h-3.5 shrink-0 text-green-700" />
+            {{ bindLabel || 'Bound to container' }}
+          </button>
+        </div>
+      }
       @if (parentLabel) {
         <div class="border-t border-gray-100 py-0.5">
-          <button type="button" class="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-left text-gray-700 hover:bg-gray-50" (click)="detachFromParent.emit()">
-            <app-action-icon icon="detach" iconClass="w-3.5 h-3.5 shrink-0 text-gray-400" />
+          <button type="button" class="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-left text-red-600 hover:bg-red-50" (click)="detachFromParent.emit()">
+            <app-action-icon icon="detach" iconClass="w-3.5 h-3.5 shrink-0 text-red-600" />
             Break out of {{ parentLabel }}
           </button>
         </div>
@@ -81,6 +94,9 @@ export class ResourceContextMenuComponent {
   @Input({ required: true }) x!: number;
   @Input({ required: true }) y!: number;
   @Input() parentLabel: string | null = null;
+  @Input() showBind = false;
+  @Input() bindLabel = '';
+  @Input() bindTitle = '';
   @Input() showResetBreakout = false;
   @Input() resetBreakoutLabel = '';
   @Input() canPaste = false;
@@ -91,6 +107,7 @@ export class ResourceContextMenuComponent {
   @Output() copyName = new EventEmitter<void>();
   @Output() copyResourceId = new EventEmitter<void>();
   @Output() visualizeTags = new EventEmitter<void>();
+  @Output() bindToParent = new EventEmitter<void>();
   @Output() detachFromParent = new EventEmitter<void>();
   @Output() resetBreakout = new EventEmitter<void>();
   @Output() delete = new EventEmitter<void>();

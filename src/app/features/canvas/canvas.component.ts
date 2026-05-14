@@ -2079,6 +2079,15 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
     this.marqueeState = { startX: canvasX, startY: canvasY, currentX: canvasX, currentY: canvasY, ctrlHeld: event.ctrlKey || event.metaKey };
   }
 
+  onCanvasBackgroundContextMenu(event: MouseEvent): void {
+    if (this.activeTool !== 'pointer') return;
+    const canvasPt = this.canvasPointFromClient(event.clientX, event.clientY);
+    if (this.nodeAtCanvasPoint(canvasPt.x, canvasPt.y)) return;
+    const rg = this.rgAtCanvasPoint(canvasPt.x, canvasPt.y);
+    if (!rg) return;
+    this.onRgContextMenu(event, rg);
+  }
+
   onDragStart(event: DragEvent, node: DiagramNode): void {
     const rect = (event.target as HTMLElement).getBoundingClientRect();
     this.dragOffset = { x: event.clientX - rect.left, y: event.clientY - rect.top };
@@ -2185,6 +2194,21 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
         canvasY <= node.position.y + node.size.height
       ) {
         return node;
+      }
+    }
+    return undefined;
+  }
+
+  private rgAtCanvasPoint(canvasX: number, canvasY: number): RgBound | undefined {
+    for (let i = this.rgBounds.length - 1; i >= 0; i--) {
+      const rg = this.rgBounds[i];
+      if (
+        canvasX >= rg.x &&
+        canvasX <= rg.x + rg.width &&
+        canvasY >= rg.y &&
+        canvasY <= rg.y + rg.height
+      ) {
+        return rg;
       }
     }
     return undefined;

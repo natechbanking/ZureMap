@@ -1,4 +1,5 @@
-import { ApplicationConfig, provideZoneChangeDetection } from '@angular/core';
+import { APP_INITIALIZER, ApplicationConfig, provideZoneChangeDetection } from '@angular/core';
+import { IconRegistryService } from './core/services/icon-registry.service';
 import { NoPreloading, provideRouter, withComponentInputBinding, withHashLocation, withPreloading } from '@angular/router';
 import { provideHttpClient, withFetch, withInterceptors } from '@angular/common/http';
 
@@ -16,5 +17,11 @@ export const appConfig: ApplicationConfig = {
       ...(environment.isDemo ? [withHashLocation()] : []),
     ),
     provideHttpClient(withFetch(), withInterceptors([demoInterceptor])),
+    {
+      provide: APP_INITIALIZER,
+      multi: true,
+      deps: [IconRegistryService],
+      useFactory: (icons: IconRegistryService) => () => icons.loadManifest(),
+    },
   ],
 };

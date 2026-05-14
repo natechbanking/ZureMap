@@ -58,6 +58,7 @@ import {
   K8sNamespaceBound,
   K8sScopeBound,
   K8sClusterBound,
+  DrawnContainerBound,
   ResourceEditorDraft,
   SizeOffset,
   TagHighlightInfo,
@@ -198,6 +199,7 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
   k8sNamespaceBounds: K8sNamespaceBound[] = [];
   k8sScopeBounds: K8sScopeBound[] = [];
   k8sClusterBounds: K8sClusterBound[] = [];
+  drawnContainerBounds: DrawnContainerBound[] = [];
   nodeContainerActions = new Map<string, NodeContainerAction>();
 
   /** Map of rgBound.id → highlight info for matched tag rules. */
@@ -364,7 +366,7 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
   }
 
   // Container rename
-  renamingContainer: { type: 'rg' | 'sub' | 'vm' | 'rt' | 'k8sns' | 'k8sscope' | 'k8scluster'; id: string } | null = null;
+  renamingContainer: { type: 'rg' | 'sub' | 'vm' | 'rt' | 'k8sns' | 'k8sscope' | 'k8scluster' | 'drawn'; id: string } | null = null;
   renamingValue = '';
 
   // Floating toolbar drag
@@ -847,6 +849,10 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
     this.clearDrawBindPreviewPorts();
   }
 
+  get discoveredResourceTypes(): string[] {
+    return [...new Set(this.store.nodes().map(n => n.resourceType).filter(Boolean))];
+  }
+
   onResourceTypeChange(type: string): void {
     this.activeResourceType = type;
   }
@@ -1065,7 +1071,7 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
     // priority — they live in the HTML overlay layer that renders above nodes.
     // All other annotation types defer to a node under the pointer so nodes
     // stay reachable through shapes, arrows, and freehand paths.
-    const isOpaqueAnnotation = ann.type === 'image' || ann.type === 'text' || ann.type === 'sticky';
+    const isOpaqueAnnotation = ann.type === 'image' || ann.type === 'text' || ann.type === 'sticky' || !!ann.container;
     if (!isOpaqueAnnotation) {
       const canvasPt = this.canvasPointFromClient(e.clientX, e.clientY);
       const nodeUnder = this.nodeAtCanvasPoint(canvasPt.x, canvasPt.y);
@@ -1536,6 +1542,19 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
     this.refreshVisibility(this.store.nodes(), this.store.edges());
   }
 
+  toggleDrawnContainerCollapsed(annotationId: string): void {
+    const ann = this.store.annotations().find(a => a.id === annotationId);
+    if (!ann?.container) return;
+    this.store.pushUndo();
+    this.store.updateAnnotation(annotationId, {
+      container: {
+        ...ann.container,
+        collapsed: !ann.container.collapsed,
+      },
+    });
+    this.refreshVisibility(this.store.nodes(), this.store.edges());
+  }
+
   private refreshVisibility(nodes: DiagramNode[], edges: ReturnType<DiagramStore['edges']>): void {
     const visibility = this.visibilitySvc.derive({
       nodes,
@@ -1551,8 +1570,18 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
       customContainerNames: this.store.customContainerNames(),
       selectedEdgeId: this.selectedEdgeId,
     });
-    this.visibleNodes = visibility.visibleNodes;
-    this.visibleEdges = visibility.visibleEdges;
+    this.drawnContainerBounds = this.computeDrawnContainerBounds(this.store.annotations());
+    const collapsedDrawnIds = new Set(this.drawnContainerBounds.filter(b => b.collapsed).map(b => b.id));
+    const filteredVisibleNodes = collapsedDrawnIds.size === 0
+      ? visibility.visibleNodes
+      : visibility.visibleNodes.filter(n => !collapsedDrawnIds.has(n.custom?.boundShapeAnnotationId ?? ''));
+    const visibleIds = new Set(filteredVisibleNodes.map(n => n.id));
+    this.visibleNodes = filteredVisibleNodes;
+    this.visibleEdges = visibility.visibleEdges.filter(e => {
+      const srcOk = e.sourceAnnotationId ? true : visibleIds.has(e.sourceId);
+      const tgtOk = e.targetAnnotationId ? true : visibleIds.has(e.targetId);
+      return srcOk && tgtOk;
+    });
     this.rgBounds = visibility.rgBounds;
     this.subscriptionBounds = visibility.subscriptionBounds;
     this.vmBounds = visibility.vmBounds;
@@ -1561,7 +1590,7 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
     this.k8sScopeBounds = visibility.k8sScopeBounds;
     this.k8sClusterBounds = visibility.k8sClusterBounds;
     this.recomputeNodeContainerActions();
-    if (this.selectedEdgeId && !visibility.selectedEdgeVisible) {
+    if (this.selectedEdgeId && !this.visibleEdges.some(e => e.id === this.selectedEdgeId)) {
       this.selectedEdgeId = null;
     }
     this.resolveSubscriptionContainerOverlaps(this.subscriptionBounds);
@@ -1754,7 +1783,30 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
     return candidates;
   }
 
+  private computeDrawnContainerBounds(annotations: Annotation[]): DrawnContainerBound[] {
+    const HEADER_H = 32;
+    const COLLAPSED_EXTRA = 8;
+    const MIN_W = 180;
+    return annotations
+      .filter(a => a.type === 'rect' && !!a.container && (a.width ?? 0) > 0 && (a.height ?? 0) > 0)
+      .map(a => {
+        const width = Math.max(MIN_W, a.width ?? 0);
+        const collapsed = !!a.container?.collapsed;
+        return {
+          id: a.id,
+          kind: a.container!.kind,
+          name: a.container!.name || (a.container!.kind === 'rg' ? 'Resource Group' : 'Subscription'),
+          collapsed,
+          x: a.x,
+          y: a.y,
+          width,
+          height: collapsed ? HEADER_H + COLLAPSED_EXTRA : (a.height ?? HEADER_H + COLLAPSED_EXTRA),
+        };
+      });
+  }
+
   private shapeLabel(ann: Annotation): string {
+    if (ann.container) return ann.container.name || (ann.container.kind === 'rg' ? 'Resource Group' : 'Subscription');
     if (ann.type === 'rect') return 'rectangle';
     if (ann.type === 'ellipse') return 'ellipse';
     if (ann.type === 'diamond') return 'diamond';
@@ -2156,6 +2208,12 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
     event.stopPropagation();
     this.store.pushUndo();
     this.vmDragState = { vmId, lastX: event.clientX, lastY: event.clientY };
+  }
+
+  onDrawnContainerMouseDown(event: MouseEvent, annotationId: string): void {
+    const ann = this.store.annotations().find(a => a.id === annotationId);
+    if (!ann) return;
+    this.onAnnotationMouseDown(event, ann);
   }
 
   onK8sNamespaceMouseDown(event: MouseEvent, nsId: string): void {
@@ -3136,7 +3194,7 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
   }
 
   // ── Container rename ──────────────────────────────────────────────────────
-  startRename(type: 'rg' | 'sub' | 'vm' | 'rt' | 'k8sns' | 'k8sscope' | 'k8scluster', id: string, currentName: string): void {
+  startRename(type: 'rg' | 'sub' | 'vm' | 'rt' | 'k8sns' | 'k8sscope' | 'k8scluster' | 'drawn', id: string, currentName: string): void {
     this.renamingContainer = { type, id };
     this.renamingValue = currentName;
   }
@@ -3146,6 +3204,21 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
     const { type, id } = this.renamingContainer;
     const trimmed = this.renamingValue.trim();
     this.store.pushUndo();
+    if (type === 'drawn') {
+      const ann = this.store.annotations().find(a => a.id === id);
+      if (ann?.container) {
+        this.store.updateAnnotation(id, {
+          container: {
+            ...ann.container,
+            name: trimmed || (ann.container.kind === 'rg' ? 'Resource Group' : 'Subscription'),
+          },
+        });
+      }
+      this.renamingContainer = null;
+      this.renamingValue = '';
+      this.refreshVisibility(this.store.nodes(), this.store.edges());
+      return;
+    }
     this.store.setCustomContainerName(`${type}::${id}`, trimmed || null);
     this.renamingContainer = null;
     this.renamingValue = '';

@@ -13,7 +13,15 @@ describe('DrawingToolbarComponent', () => {
         {
           provide: IconRegistryService,
           useValue: {
-            getResourceTypeCatalog: () => [],
+            getHybridResourceTypeCatalog: () => [
+              {
+                type: 'microsoft.compute/virtualmachines',
+                label: 'Virtual Machine',
+                iconUrl: 'icons/compute/10021-icon-service-Virtual-Machine.svg',
+                category: 'compute',
+                source: 'curated',
+              },
+            ],
           },
         },
       ],
@@ -22,6 +30,12 @@ describe('DrawingToolbarComponent', () => {
     fixture = TestBed.createComponent(DrawingToolbarComponent);
     component = fixture.componentInstance;
     fixture.detectChanges();
+  });
+
+  it('uses hybrid resource catalog on init', () => {
+    expect(component.resourceCatalog.length).toBe(1);
+    expect(component.resourceCatalog[0].source).toBe('curated');
+    expect(component.resourceCategories).toContain('compute');
   });
 
   it('adds a tag rule from the unified builder when rule type is tag', () => {
@@ -92,5 +106,25 @@ describe('DrawingToolbarComponent', () => {
     expect(component.ruleSummary(internalRule)).toContain('label contains "port"');
     expect(component.ruleDetail(internalRule)).toContain('#111111');
     expect(component.ruleSwatchColor(internalRule)).toBe('#eeeeee');
+  });
+
+  it('includes RG/subscription container tools and emits toolChange', () => {
+    const emitSpy = spyOn(component.toolChange, 'emit');
+    const rgTool = component.tools.find(t => t.id === 'rgContainer');
+    const subTool = component.tools.find(t => t.id === 'subscriptionContainer');
+
+    expect(rgTool).toBeDefined();
+    expect(subTool).toBeDefined();
+
+    component.toolChange.emit('rgContainer');
+    expect(emitSpy).toHaveBeenCalledWith('rgContainer');
+  });
+
+  it('returns active hint for new container tools', () => {
+    component.activeTool = 'rgContainer';
+    expect(component.getActiveToolHint()).toContain('resource group container');
+
+    component.activeTool = 'subscriptionContainer';
+    expect(component.getActiveToolHint()).toContain('subscription container');
   });
 });

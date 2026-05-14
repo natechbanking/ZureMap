@@ -983,6 +983,33 @@ describe('CanvasComponent', () => {
       expect(action?.targetId).toBe('shape-1');
     });
 
+    it('uses drawn container name in bind label', () => {
+      const node = makeDiagramNode({
+        id: 'n-drawn',
+        group: 'standalone',
+        position: { x: 100, y: 100 },
+        size: { width: 100, height: 60 },
+      });
+      const drawn = makeAnnotation({
+        id: 'drawn-rg-1',
+        type: 'rect',
+        x: 80,
+        y: 80,
+        width: 260,
+        height: 180,
+        container: { kind: 'rg', name: 'App RG', collapsed: false },
+      });
+      store.setNodes([node]);
+      store.setAnnotations([drawn]);
+      component.visibleNodes = [node];
+
+      (component as unknown as { recomputeNodeContainerActions: () => void }).recomputeNodeContainerActions();
+      const action = component.nodeContainerActions.get('n-drawn');
+      expect(action?.kind).toBe('bind');
+      expect(action?.label).toBe('Bind to App RG');
+      expect(action?.targetType).toBe('shape');
+    });
+
     it('binds a node to shape and then breaks out via unified action', () => {
       const node = makeDiagramNode({ id: 'n-shape', group: 'standalone' });
       store.setNodes([node]);

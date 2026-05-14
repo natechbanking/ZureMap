@@ -11,7 +11,7 @@ interface Tool {
   label: string;
   key: string;
   icon: string;
-  category: 'select' | 'draw' | 'shape' | 'annotate';
+  category: 'select' | 'draw' | 'shape' | 'annotate' | 'container';
 }
 
 type TabId = 'tools' | 'style' | 'actions' | 'highlight' | 'azure';
@@ -21,6 +21,7 @@ interface ResourceCatalogEntry {
   label: string;
   iconUrl: string;
   category: string;
+  source: 'curated' | 'manifest' | 'discovered';
 }
 
 const AZURE_RESOURCE_DND_TYPE = 'application/x-zuremap-azure-resource';
@@ -33,6 +34,8 @@ const TOOLS: Tool[] = [
   { id: 'rect',     label: 'Rectangle', key: 'R', icon: 'M3 4 L17 4 L17 16 L3 16 Z', category: 'shape' },
   { id: 'ellipse',  label: 'Ellipse',   key: 'E', icon: 'M10 4 A7 5 0 1 0 10 16 A7 5 0 1 0 10 4', category: 'shape' },
   { id: 'diamond',  label: 'Diamond',   key: 'D', icon: 'M10 2 L18 10 L10 18 L2 10 Z', category: 'shape' },
+  { id: 'rgContainer', label: 'RG Container', key: 'G', icon: 'M2 4 L18 4 L18 17 L2 17 Z M2 8 L18 8', category: 'container' },
+  { id: 'subscriptionContainer', label: 'Sub Container', key: 'U', icon: 'M2 3 L18 3 L18 17 L2 17 Z M2 7 L18 7', category: 'container' },
   { id: 'text',     label: 'Text',      key: 'T', icon: 'M3 5 L17 5 M10 5 L10 17 M7 17 L13 17', category: 'annotate' },
   { id: 'sticky',   label: 'Note',      key: 'S', icon: 'M3 3 L14 3 L17 6 L17 17 L3 17 Z M14 3 L14 6 L17 6', category: 'annotate' },
 ];
@@ -958,6 +961,7 @@ export class DrawingToolbarComponent implements OnInit {
   @Input() tagRules: TagRule[] = [];
   @Input() availableTags = new Map<string, Set<string>>();
   @Input() activeResourceType = '';
+  @Input() discoveredResourceTypes: string[] = [];
 
   @Output() tagRulesChange = new EventEmitter<TagRule[]>();
 
@@ -1005,7 +1009,7 @@ export class DrawingToolbarComponent implements OnInit {
   selectedResourceLabel = '';
 
   ngOnInit(): void {
-    this.resourceCatalog = this.iconRegistry.getResourceTypeCatalog();
+    this.resourceCatalog = this.iconRegistry.getHybridResourceTypeCatalog(this.discoveredResourceTypes);
     const cats = [...new Set(this.resourceCatalog.map(e => e.category))].sort();
     this.resourceCategories = cats;
   }
@@ -1181,6 +1185,7 @@ export class DrawingToolbarComponent implements OnInit {
     { id: 'select' as const, label: 'Selection' },
     { id: 'draw' as const, label: 'Lines' },
     { id: 'shape' as const, label: 'Shapes' },
+    { id: 'container' as const, label: 'Containers' },
     { id: 'annotate' as const, label: 'Annotations' },
   ];
 
@@ -1212,6 +1217,8 @@ export class DrawingToolbarComponent implements OnInit {
       ellipse: 'Click and drag to draw an ellipse',
       diamond: 'Click and drag to draw a diamond',
       sticky: 'Click to place a sticky note',
+      rgContainer: 'Drag to draw a resource group container',
+      subscriptionContainer: 'Drag to draw a subscription container',
       resource: `Click canvas to place${this.selectedResourceLabel ? ': ' + this.selectedResourceLabel : ''}`,
     };
     return hints[this.activeTool];
@@ -1267,7 +1274,19 @@ export class DrawingToolbarComponent implements OnInit {
   onKey(e: KeyboardEvent): void {
     if ((e.target as HTMLElement).matches('input,textarea,[contenteditable]')) return;
     const hasModifier = e.ctrlKey || e.metaKey || e.altKey;
-    const map: Record<string, DrawingTool> = { v: 'pointer', p: 'draw', l: 'line', a: 'arrow', t: 'text', r: 'rect', e: 'ellipse', d: 'diamond', s: 'sticky' };
+    const map: Record<string, DrawingTool> = {
+      v: 'pointer',
+      p: 'draw',
+      l: 'line',
+      a: 'arrow',
+      t: 'text',
+      r: 'rect',
+      e: 'ellipse',
+      d: 'diamond',
+      s: 'sticky',
+      g: 'rgContainer',
+      u: 'subscriptionContainer',
+    };
     const tool = map[e.key.toLowerCase()];
     if (!hasModifier && tool) { e.preventDefault(); this.toolChange.emit(tool); }
     if (e.key === 'Escape') this.toolChange.emit('pointer');

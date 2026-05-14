@@ -849,6 +849,10 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
     this.clearDrawBindPreviewPorts();
   }
 
+  get discoveredResourceTypes(): string[] {
+    return [...new Set(this.store.nodes().map(n => n.resourceType).filter(Boolean))];
+  }
+
   onResourceTypeChange(type: string): void {
     this.activeResourceType = type;
   }

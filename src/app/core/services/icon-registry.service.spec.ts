@@ -31,4 +31,42 @@ describe('IconRegistryService', () => {
 
     expect(url).toBe('icons/other/custom-icon.svg');
   });
+
+  it('builds hybrid catalog with precedence curated > manifest > discovered', async () => {
+    spyOn(window, 'fetch').and.resolveTo(new Response(JSON.stringify({ mappings: {
+      'microsoft.compute/virtualmachines': 'other/wrong.svg',
+      'microsoft.manifest/only': 'analytics/00039-icon-service-Event-Hubs.svg',
+    } }), { status: 200 }));
+
+    await service.loadManifest();
+
+    const catalog = service.getHybridResourceTypeCatalog([
+      'microsoft.manifest/only',
+      'microsoft.discovered/thing',
+      'microsoft.compute/virtualmachines',
+    ]);
+
+    const vm = catalog.find(e => e.type === 'microsoft.compute/virtualmachines');
+    const manifestOnly = catalog.find(e => e.type === 'microsoft.manifest/only');
+    const discoveredOnly = catalog.find(e => e.type === 'microsoft.discovered/thing');
+
+    expect(vm?.source).toBe('curated');
+    expect(vm?.iconUrl).toContain('compute/10021-icon-service-Virtual-Machine.svg');
+
+    expect(manifestOnly?.source).toBe('manifest');
+    expect(manifestOnly?.iconUrl).toContain('analytics/00039-icon-service-Event-Hubs.svg');
+
+    expect(discoveredOnly?.source).toBe('discovered');
+    expect(discoveredOnly?.label).toBe('thing');
+    expect(discoveredOnly?.category).toBe('discovered');
+  });
+
+  it('deduplicates discovered entries by normalized type', () => {
+    const catalog = service.getHybridResourceTypeCatalog([
+      'MICROSOFT.CUSTOM/widgets',
+      'microsoft.custom/widgets',
+    ]);
+
+    expect(catalog.filter(e => e.type === 'microsoft.custom/widgets').length).toBe(1);
+  });
 });

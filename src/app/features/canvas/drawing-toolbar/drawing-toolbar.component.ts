@@ -21,6 +21,7 @@ interface ResourceCatalogEntry {
   label: string;
   iconUrl: string;
   category: string;
+  source: 'curated' | 'manifest' | 'discovered';
 }
 
 const AZURE_RESOURCE_DND_TYPE = 'application/x-zuremap-azure-resource';
@@ -960,6 +961,7 @@ export class DrawingToolbarComponent implements OnInit {
   @Input() tagRules: TagRule[] = [];
   @Input() availableTags = new Map<string, Set<string>>();
   @Input() activeResourceType = '';
+  @Input() discoveredResourceTypes: string[] = [];
 
   @Output() tagRulesChange = new EventEmitter<TagRule[]>();
 
@@ -1007,7 +1009,7 @@ export class DrawingToolbarComponent implements OnInit {
   selectedResourceLabel = '';
 
   ngOnInit(): void {
-    this.resourceCatalog = this.iconRegistry.getResourceTypeCatalog();
+    this.resourceCatalog = this.iconRegistry.getHybridResourceTypeCatalog(this.discoveredResourceTypes);
     const cats = [...new Set(this.resourceCatalog.map(e => e.category))].sort();
     this.resourceCategories = cats;
   }

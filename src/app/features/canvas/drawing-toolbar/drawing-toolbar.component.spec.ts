@@ -13,7 +13,15 @@ describe('DrawingToolbarComponent', () => {
         {
           provide: IconRegistryService,
           useValue: {
-            getResourceTypeCatalog: () => [],
+            getHybridResourceTypeCatalog: () => [
+              {
+                type: 'microsoft.compute/virtualmachines',
+                label: 'Virtual Machine',
+                iconUrl: 'icons/compute/10021-icon-service-Virtual-Machine.svg',
+                category: 'compute',
+                source: 'curated',
+              },
+            ],
           },
         },
       ],
@@ -22,6 +30,12 @@ describe('DrawingToolbarComponent', () => {
     fixture = TestBed.createComponent(DrawingToolbarComponent);
     component = fixture.componentInstance;
     fixture.detectChanges();
+  });
+
+  it('uses hybrid resource catalog on init', () => {
+    expect(component.resourceCatalog.length).toBe(1);
+    expect(component.resourceCatalog[0].source).toBe('curated');
+    expect(component.resourceCategories).toContain('compute');
   });
 
   it('adds a tag rule from the unified builder when rule type is tag', () => {

@@ -75,6 +75,7 @@ import {
   AnnEndpointDragState,
   EdgeLinkDragState,
   TagRule,
+  NodeContainerAction,
 } from './canvas.types';
 import { CanvasEdgeEditorService } from './canvas-edge-editor.service';
 import { CanvasResourceEditorService } from './canvas-resource-editor.service';
@@ -117,6 +118,10 @@ interface AnnotationClipboardPayload {
 }
 
 type CanvasClipboardPayload = NodeClipboardPayload | AnnotationClipboardPayload;
+interface ShapeBindCandidate {
+  annotation: Annotation;
+  bounds: { x: number; y: number; width: number; height: number };
+}
 
 @Component({
   selector: 'app-canvas',
@@ -193,6 +198,7 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
   k8sNamespaceBounds: K8sNamespaceBound[] = [];
   k8sScopeBounds: K8sScopeBound[] = [];
   k8sClusterBounds: K8sClusterBound[] = [];
+  nodeContainerActions = new Map<string, NodeContainerAction>();
 
   /** Map of rgBound.id → highlight info for matched tag rules. */
   rgTagHighlights = new Map<string, TagHighlightInfo>();
@@ -641,6 +647,10 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
       return;
     }
 
+    const draggedAnnBefore = this.annDragId
+      ? this.store.annotations().find(a => a.id === this.annDragId)
+      : null;
+    const draggedNodeIdsBefore = this.nodeDragState?.ids ?? [];
     const result = this.dragSvc.onDocumentMouseMove({
       event: e,
       zoomLevel: this.zoomLevel,
@@ -678,6 +688,17 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
     this.k8sNamespaceDragState = result.k8sNamespaceDragState;
     this.k8sScopeDragState = result.k8sScopeDragState;
     this.k8sClusterDragState = result.k8sClusterDragState;
+    if (draggedNodeIdsBefore.length > 0 && result.nodeDragState?.hasMoved) {
+      this.expandBoundShapesForNodes(draggedNodeIdsBefore);
+    }
+    if (this.annDragId && draggedAnnBefore) {
+      const draggedAnnAfter = this.store.annotations().find(a => a.id === this.annDragId);
+      if (draggedAnnAfter) {
+        const dx = draggedAnnAfter.x - draggedAnnBefore.x;
+        const dy = draggedAnnAfter.y - draggedAnnBefore.y;
+        this.moveNodesBoundToShape(this.annDragId, dx, dy);
+      }
+    }
   }
 
   onCanvasWheel(event: WheelEvent): void {
@@ -1141,6 +1162,7 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
     if (text) {
       this.store.updateAnnotation(this.editingAnnotation.id, { text });
     } else {
+      this.clearShapeBinding(this.editingAnnotation.id);
       this.store.deleteAnnotation(this.editingAnnotation.id);
     }
     this.editingAnnotation = null;
@@ -1149,6 +1171,7 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
 
   cancelEdit(): void {
     if (this.editingAnnotation && !this.editingAnnotation.text) {
+      this.clearShapeBinding(this.editingAnnotation.id);
       this.store.deleteAnnotation(this.editingAnnotation.id);
     }
     this.editingAnnotation = null;
@@ -1268,6 +1291,10 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
     if (!ids.length) return;
     this.store.pushUndo();
     const idSet = new Set(ids);
+    this.store.setNodes(this.store.nodes().map(n => {
+      if (!n.custom?.boundShapeAnnotationId || !idSet.has(n.custom.boundShapeAnnotationId)) return n;
+      return { ...n, custom: { ...(n.custom ?? {}), boundShapeAnnotationId: undefined } };
+    }));
     this.store.setAnnotations(this.store.annotations().filter(a => !idSet.has(a.id)));
     this.selectedAnnotationId = null;
     this.selectedAnnotationIds = [];
@@ -1533,12 +1560,290 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
     this.k8sNamespaceBounds = visibility.k8sNamespaceBounds;
     this.k8sScopeBounds = visibility.k8sScopeBounds;
     this.k8sClusterBounds = visibility.k8sClusterBounds;
+    this.recomputeNodeContainerActions();
     if (this.selectedEdgeId && !visibility.selectedEdgeVisible) {
       this.selectedEdgeId = null;
     }
     this.resolveSubscriptionContainerOverlaps(this.subscriptionBounds);
     this.resolveRgContainerOverlaps(this.rgBounds);
     this.recomputeTagHighlights(nodes);
+  }
+
+  private recomputeNodeContainerActions(): void {
+    const allNodes = this.store.nodes();
+    const allAnnotations = this.store.annotations();
+    const byId = new Map(allNodes.map(n => [n.id, n]));
+    const annById = new Map(allAnnotations.map(a => [a.id, a]));
+    const shapeCandidates = this.collectShapeBindCandidates(allAnnotations);
+    const parentMap = this.childToParentMap();
+    const actions = new Map<string, NodeContainerAction>();
+    for (const node of this.visibleNodes) {
+      const boundShapeId = node.custom?.boundShapeAnnotationId;
+      const boundShape = boundShapeId ? annById.get(boundShapeId) : undefined;
+      if (boundShape) {
+        actions.set(node.id, {
+          kind: 'breakout',
+          label: `Break out of ${this.shapeLabel(boundShape)}`,
+          title: `Break out of ${this.shapeLabel(boundShape)}`,
+          targetType: 'shape',
+          targetId: boundShape.id,
+        });
+        continue;
+      }
+      const parentId = parentMap.get(node.id) ?? null;
+      if (parentId) {
+        actions.set(node.id, {
+          kind: 'breakout',
+          label: `Break out of ${this.parentLabelById().get(parentId) ?? 'container'}`,
+          title: `Break out of ${this.parentLabelById().get(parentId) ?? 'container'}`,
+          targetType: 'parent',
+          targetId: parentId,
+        });
+        continue;
+      }
+      if (node.group === 'resourceGroup') {
+        const rgLabel = node.metadata?.resourceGroup || node.groupId || 'resource group';
+        actions.set(node.id, {
+          kind: 'breakout',
+          label: `Break out of ${rgLabel}`,
+          title: `Break out of ${rgLabel}`,
+          targetType: 'rg',
+          targetId: node.groupId,
+        });
+        continue;
+      }
+      actions.set(node.id, this.bindActionForUnboundNode(node, byId, shapeCandidates));
+    }
+    this.nodeContainerActions = actions;
+  }
+
+  private bindActionForUnboundNode(
+    node: DiagramNode,
+    byId: Map<string, DiagramNode>,
+    shapeCandidates: ShapeBindCandidate[],
+  ): NodeContainerAction {
+    const cx = node.position.x + node.size.width / 2;
+    const cy = node.position.y + node.size.height / 2;
+    const allCandidates: { area: number; action: NodeContainerAction }[] = [];
+    const pushCandidate = (bounds: { x: number; y: number; width: number; height: number }, action: NodeContainerAction): void => {
+      if (cx < bounds.x || cx > bounds.x + bounds.width || cy < bounds.y || cy > bounds.y + bounds.height) return;
+      allCandidates.push({ area: bounds.width * bounds.height, action });
+    };
+
+    for (const b of this.vmBounds) {
+      const parent = byId.get(b.id);
+      if (!parent || parent.id === node.id || this.isDescendantNode(parent.id, node.id, byId)) continue;
+      pushCandidate(b, {
+        kind: 'bind',
+        label: `Bind to ${parent.label}`,
+        title: `Bind to ${parent.label}`,
+        targetType: 'parent',
+        targetId: parent.id,
+      });
+    }
+    for (const b of this.routeTableBounds) {
+      const parent = byId.get(b.id);
+      if (!parent || parent.id === node.id || this.isDescendantNode(parent.id, node.id, byId)) continue;
+      pushCandidate(b, {
+        kind: 'bind',
+        label: `Bind to ${parent.label}`,
+        title: `Bind to ${parent.label}`,
+        targetType: 'parent',
+        targetId: parent.id,
+      });
+    }
+    for (const b of this.rgBounds) {
+      pushCandidate(b, {
+        kind: 'bind',
+        label: `Bind to ${b.name}`,
+        title: `Bind to ${b.name}`,
+        targetType: 'rg',
+        targetId: b.id,
+      });
+    }
+    for (const b of this.subscriptionBounds) {
+      pushCandidate(b, {
+        kind: 'bind-disabled',
+        label: `Bind to ${b.name}`,
+        title: 'Subscription container does not have bind support yet',
+        targetType: 'unsupported',
+        targetId: b.id,
+      });
+    }
+    for (const b of this.k8sNamespaceBounds) {
+      pushCandidate(b, {
+        kind: 'bind-disabled',
+        label: `Bind to ${b.name}`,
+        title: 'Kubernetes namespace container does not have bind support yet',
+        targetType: 'unsupported',
+        targetId: b.id,
+      });
+    }
+    for (const b of this.k8sScopeBounds) {
+      pushCandidate(b, {
+        kind: 'bind-disabled',
+        label: `Bind to ${b.name}`,
+        title: 'Kubernetes scope container does not have bind support yet',
+        targetType: 'unsupported',
+        targetId: b.id,
+      });
+    }
+    for (const b of this.k8sClusterBounds) {
+      pushCandidate(b, {
+        kind: 'bind-disabled',
+        label: `Bind to ${b.name}`,
+        title: 'Kubernetes cluster container does not have bind support yet',
+        targetType: 'unsupported',
+        targetId: b.id,
+      });
+    }
+    for (const shapeCandidate of shapeCandidates) {
+      pushCandidate(shapeCandidate.bounds, {
+        kind: 'bind',
+        label: `Bind to ${this.shapeLabel(shapeCandidate.annotation)}`,
+        title: `Bind to ${this.shapeLabel(shapeCandidate.annotation)}`,
+        targetType: 'shape',
+        targetId: shapeCandidate.annotation.id,
+      });
+    }
+
+    allCandidates.sort((a, b) => a.area - b.area);
+    const best = allCandidates[0]?.action;
+    if (best) return best;
+
+    const parent = node.parentId ? byId.get(node.parentId) : null;
+    if (parent && parent.id !== node.id && !this.isDescendantNode(parent.id, node.id, byId)) {
+      return {
+        kind: 'bind',
+        label: `Bind to ${parent.label}`,
+        title: `Bind to ${parent.label}`,
+        targetType: 'parent',
+        targetId: parent.id,
+      };
+    }
+
+    const nodeSub = node.metadata?.subscriptionId || '';
+    const nodeRg = node.metadata?.resourceGroup || '';
+    if (nodeRg) {
+      const rgBound = this.rgBounds.find(b => b.name === nodeRg && b.subscriptionId === nodeSub);
+      const rgTargetId = rgBound?.id ?? `${nodeSub}::${nodeRg}`;
+      return {
+        kind: 'bind',
+        label: `Bind to ${nodeRg}`,
+        title: `Bind to ${nodeRg}`,
+        targetType: 'rg',
+        targetId: rgTargetId,
+      };
+    }
+
+    return { kind: 'none', label: '', title: '' };
+  }
+
+  private collectShapeBindCandidates(annotations: Annotation[]): ShapeBindCandidate[] {
+    const candidates: ShapeBindCandidate[] = [];
+    for (const ann of annotations) {
+      if (ann.type !== 'rect' && ann.type !== 'ellipse' && ann.type !== 'diamond') continue;
+      const width = ann.width ?? 0;
+      const height = ann.height ?? 0;
+      if (width <= 0 || height <= 0) continue;
+      candidates.push({
+        annotation: ann,
+        bounds: { x: ann.x, y: ann.y, width, height },
+      });
+    }
+    return candidates;
+  }
+
+  private shapeLabel(ann: Annotation): string {
+    if (ann.type === 'rect') return 'rectangle';
+    if (ann.type === 'ellipse') return 'ellipse';
+    if (ann.type === 'diamond') return 'diamond';
+    return 'shape';
+  }
+
+  private clearShapeBinding(shapeId: string): void {
+    this.store.setNodes(this.store.nodes().map(n => {
+      if (n.custom?.boundShapeAnnotationId !== shapeId) return n;
+      return { ...n, custom: { ...(n.custom ?? {}), boundShapeAnnotationId: undefined } };
+    }));
+  }
+
+  private moveNodesBoundToShape(shapeId: string, dx: number, dy: number): void {
+    if (dx === 0 && dy === 0) return;
+    this.store.setNodes(this.store.nodes().map(n => {
+      if (n.custom?.boundShapeAnnotationId !== shapeId) return n;
+      return {
+        ...n,
+        position: {
+          x: Math.max(0, n.position.x + dx),
+          y: Math.max(0, n.position.y + dy),
+        },
+      };
+    }));
+  }
+
+  private expandBoundShapesForNodes(nodeIds: string[]): void {
+    if (nodeIds.length === 0) return;
+    const EXPAND_PAD = 20;
+    const nodesById = new Map(this.store.nodes().map(n => [n.id, n]));
+    const annById = new Map(this.store.annotations().map(a => [a.id, a]));
+    const shapeBoundsById = new Map<string, { left: number; top: number; right: number; bottom: number }>();
+
+    for (const nodeId of nodeIds) {
+      const node = nodesById.get(nodeId);
+      const shapeId = node?.custom?.boundShapeAnnotationId;
+      if (!node || !shapeId) continue;
+      const shape = annById.get(shapeId);
+      if (!shape || (shape.type !== 'rect' && shape.type !== 'ellipse' && shape.type !== 'diamond')) continue;
+      const width = shape.width ?? 0;
+      const height = shape.height ?? 0;
+      if (width <= 0 || height <= 0) continue;
+
+      const current = shapeBoundsById.get(shapeId) ?? {
+        left: shape.x,
+        top: shape.y,
+        right: shape.x + width,
+        bottom: shape.y + height,
+      };
+      const nodeLeft = node.position.x - EXPAND_PAD;
+      const nodeTop = node.position.y - EXPAND_PAD;
+      const nodeRight = node.position.x + node.size.width + EXPAND_PAD;
+      const nodeBottom = node.position.y + node.size.height + EXPAND_PAD;
+      current.left = Math.min(current.left, nodeLeft);
+      current.top = Math.min(current.top, nodeTop);
+      current.right = Math.max(current.right, nodeRight);
+      current.bottom = Math.max(current.bottom, nodeBottom);
+      shapeBoundsById.set(shapeId, current);
+    }
+
+    if (shapeBoundsById.size === 0) return;
+    this.store.setAnnotations(this.store.annotations().map(a => {
+      const nextBounds = shapeBoundsById.get(a.id);
+      if (!nextBounds) return a;
+      const nextWidth = Math.max(20, nextBounds.right - nextBounds.left);
+      const nextHeight = Math.max(20, nextBounds.bottom - nextBounds.top);
+      return {
+        ...a,
+        x: nextBounds.left,
+        y: nextBounds.top,
+        width: nextWidth,
+        height: nextHeight,
+      };
+    }));
+  }
+
+  private isDescendantNode(startId: string, targetId: string, byId: Map<string, DiagramNode>): boolean {
+    const queue = [...(byId.get(startId)?.children ?? [])];
+    const seen = new Set<string>();
+    while (queue.length > 0) {
+      const currentId = queue.shift()!;
+      if (currentId === targetId) return true;
+      if (seen.has(currentId)) continue;
+      seen.add(currentId);
+      const current = byId.get(currentId);
+      if (current?.children?.length) queue.push(...current.children);
+    }
+    return false;
   }
 
   private resolveSubscriptionContainerOverlaps(bounds: SubscriptionBound[]): void {
@@ -1879,6 +2184,8 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
 
   onNodeMouseDown(event: MouseEvent, node: DiagramNode): void {
     if (this.activeTool !== 'pointer') return;
+    const target = event.target as HTMLElement | null;
+    if (target?.closest('[data-node-resize-handle], [data-node-rotate-handle]')) return;
     event.preventDefault();
     event.stopPropagation();
     this.selectedAnnotationId = null;
@@ -2435,15 +2742,90 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
     this.store.detachNodeFromResourceGroup(nodeId);
   }
 
+  bindNode(nodeId: string): void {
+    const action = this.nodeContainerActions.get(nodeId);
+    if (!action || action.kind !== 'bind' || !action.targetType || !action.targetId) return;
+    const targetId = action.targetId;
+    const currentNodes = this.store.nodes();
+    const node = currentNodes.find(n => n.id === nodeId);
+    if (!node) return;
+    this.store.pushUndo();
+    if (action.targetType === 'parent') {
+      this.store.reattachNodeToParent(nodeId, targetId);
+      return;
+    }
+    if (action.targetType === 'shape') {
+      this.store.setNodes(currentNodes.map(n => {
+        if (n.id !== nodeId) return n;
+        return { ...n, custom: { ...(n.custom ?? {}), boundShapeAnnotationId: targetId } };
+      }));
+      return;
+    }
+    if (action.targetType === 'rg') {
+      const splitIdx = targetId.indexOf('::');
+      const targetSubscriptionId = splitIdx >= 0 ? targetId.slice(0, splitIdx) : '';
+      const targetRgName = splitIdx >= 0 ? targetId.slice(splitIdx + 2) : targetId;
+      this.store.setNodes(currentNodes.map(n => {
+        if (n.id !== nodeId) return n;
+        return {
+          ...n,
+          group: 'resourceGroup',
+          groupId: targetRgName,
+          metadata: {
+            ...n.metadata,
+            resourceGroup: targetRgName,
+            subscriptionId: targetSubscriptionId || n.metadata?.subscriptionId,
+          },
+        };
+      }));
+    }
+  }
+
+  onNodeContainerAction(nodeId: string): void {
+    const action = this.nodeContainerActions.get(nodeId);
+    if (!action || action.kind === 'none' || action.kind === 'bind-disabled') return;
+    if (action.kind === 'breakout') {
+      if (action.targetType === 'shape') {
+        this.store.pushUndo();
+        this.store.setNodes(this.store.nodes().map(n => {
+          if (n.id !== nodeId) return n;
+          return { ...n, custom: { ...(n.custom ?? {}), boundShapeAnnotationId: undefined } };
+        }));
+        return;
+      }
+      const parentId = this.childToParentMap().get(nodeId) ?? null;
+      this.breakOutNode(nodeId, parentId);
+      return;
+    }
+    this.bindNode(nodeId);
+  }
+
   canDetachFromResourceGroup(node: DiagramNode): boolean {
     return node.group === 'resourceGroup';
   }
 
   parentLabelForNode(node: DiagramNode): string | null {
+    const shape = node.custom?.boundShapeAnnotationId
+      ? this.store.annotations().find(a => a.id === node.custom!.boundShapeAnnotationId)
+      : undefined;
+    if (shape) return this.shapeLabel(shape);
     const parentId = this.childToParentMap().get(node.id);
     if (parentId) return this.parentLabelById().get(parentId) ?? 'container';
     if (this.canDetachFromResourceGroup(node)) return node.metadata?.resourceGroup || node.groupId || 'resource group';
     return null;
+  }
+
+  contextBindLabel(node: DiagramNode): string {
+    return this.nodeContainerActions.get(node.id)?.label ?? '';
+  }
+
+  canBindFromContext(node: DiagramNode): boolean {
+    const action = this.nodeContainerActions.get(node.id);
+    return !!action && action.kind === 'bind';
+  }
+
+  bindTitleForNode(node: DiagramNode): string {
+    return this.nodeContainerActions.get(node.id)?.title ?? '';
   }
 
   canResetBreakout(node: DiagramNode): boolean {
@@ -2513,9 +2895,11 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
   ctxAnnDelete(): void {
     if (!this.ctxMenuSvc.annotationContextMenu) return;
     this.store.pushUndo();
-    this.store.deleteAnnotation(this.ctxMenuSvc.annotationContextMenu.annotationId);
-    if (this.selectedAnnotationId === this.ctxMenuSvc.annotationContextMenu.annotationId) this.selectedAnnotationId = null;
-    this.selectedAnnotationIds = this.selectedAnnotationIds.filter(id => id !== this.ctxMenuSvc.annotationContextMenu!.annotationId);
+    const annId = this.ctxMenuSvc.annotationContextMenu.annotationId;
+    this.clearShapeBinding(annId);
+    this.store.deleteAnnotation(annId);
+    if (this.selectedAnnotationId === annId) this.selectedAnnotationId = null;
+    this.selectedAnnotationIds = this.selectedAnnotationIds.filter(id => id !== annId);
     this.closeContextMenu();
   }
 
@@ -2595,6 +2979,7 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
     });
     nodes = this.pushSiblings(nodes, req.nodeId);
     this.store.setNodes(nodes);
+    this.expandBoundShapesForNodes([req.nodeId]);
   }
 
   onNodeRotated(req: NodeRotateRequest): void {

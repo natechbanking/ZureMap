@@ -35,6 +35,7 @@ export interface NodeInternalItem {
 
 export interface NodeCustomization {
   description?: string;
+  boundShapeAnnotationId?: string;
   internalItems?: NodeInternalItem[];
   panelState?: Partial<Record<
     'routeTable' | 'virtualNetwork' | 'nsg' | 'storageAccount' | 'vm' | 'aks' | 'uai' |

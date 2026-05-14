@@ -297,6 +297,7 @@
 
       <button
         type="button"
+        data-node-rotate-handle
         data-export-hide
         class="absolute -top-5 left-1/2 -translate-x-1/2 w-4 h-4 rounded-full border border-gray-300 bg-white shadow-sm cursor-grab hover:border-blue-400 hover:bg-blue-50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
         title="Rotate resource"
@@ -310,8 +311,9 @@
 
       <button
         type="button"
+        data-node-resize-handle
         data-export-hide
-        class="absolute -right-1 -bottom-1 w-3.5 h-3.5 rounded-sm border border-gray-300 bg-white shadow-sm cursor-se-resize hover:border-blue-400 hover:bg-blue-50 flex items-center justify-center"
+        class="absolute right-0.5 bottom-0.5 z-20 w-4 h-4 rounded-sm border border-gray-300 bg-white shadow-sm cursor-se-resize hover:border-blue-400 hover:bg-blue-50 flex items-center justify-center"
         title="Resize resource"
         (mousedown)="onResizeMouseDown($event)"
       >

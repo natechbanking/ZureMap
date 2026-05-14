@@ -72,6 +72,17 @@ export interface K8sClusterBound {
   height: number;
 }
 
+export type NodeContainerActionKind = 'none' | 'breakout' | 'bind' | 'bind-disabled';
+export type NodeContainerTargetType = 'parent' | 'rg' | 'shape' | 'unsupported';
+
+export interface NodeContainerAction {
+  kind: NodeContainerActionKind;
+  label: string;
+  title: string;
+  targetType?: NodeContainerTargetType;
+  targetId?: string;
+}
+
 export type TagRuleOperator = 'eq' | 'neq' | 'contains' | 'exists' | 'notexists';
 export type HighlightRuleType = 'tag' | 'internal-item';
 

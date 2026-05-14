@@ -955,4 +955,165 @@ describe('CanvasComponent', () => {
       expect(updated?.custom?.panelState?.['storageAccount']).toBeFalse();
     });
   });
+
+  describe('custom shape binding', () => {
+    it('computes a bind action when an unbound node is inside a shape container', () => {
+      const node = makeDiagramNode({
+        id: 'n-shape',
+        group: 'standalone',
+        position: { x: 100, y: 100 },
+        size: { width: 160, height: 80 },
+      });
+      const shape = makeAnnotation({
+        id: 'shape-1',
+        type: 'rect',
+        x: 90,
+        y: 90,
+        width: 260,
+        height: 200,
+      });
+      store.setNodes([node]);
+      store.setAnnotations([shape]);
+      component.visibleNodes = [node];
+
+      (component as unknown as { recomputeNodeContainerActions: () => void }).recomputeNodeContainerActions();
+      const action = component.nodeContainerActions.get('n-shape');
+      expect(action?.kind).toBe('bind');
+      expect(action?.targetType).toBe('shape');
+      expect(action?.targetId).toBe('shape-1');
+    });
+
+    it('binds a node to shape and then breaks out via unified action', () => {
+      const node = makeDiagramNode({ id: 'n-shape', group: 'standalone' });
+      store.setNodes([node]);
+
+      component.nodeContainerActions.set('n-shape', {
+        kind: 'bind',
+        label: 'Bind to rectangle',
+        title: 'Bind to rectangle',
+        targetType: 'shape',
+        targetId: 'shape-1',
+      });
+      component.onNodeContainerAction('n-shape');
+      let updated = store.nodes().find(n => n.id === 'n-shape');
+      expect(updated?.custom?.boundShapeAnnotationId).toBe('shape-1');
+
+      component.nodeContainerActions.set('n-shape', {
+        kind: 'breakout',
+        label: 'Break out of rectangle',
+        title: 'Break out of rectangle',
+        targetType: 'shape',
+        targetId: 'shape-1',
+      });
+      component.onNodeContainerAction('n-shape');
+      updated = store.nodes().find(n => n.id === 'n-shape');
+      expect(updated?.custom?.boundShapeAnnotationId).toBeUndefined();
+    });
+
+    it('moves bound nodes when their bound shape is dragged', () => {
+      interface DragSvcTestContext {
+        updateAnnotation: (id: string, changes: { x: number; y: number }) => void;
+        toolbarPos: { x: number; y: number };
+        toolbarDragState: unknown;
+        nodeDragState: unknown;
+        subscriptionDragState: unknown;
+        vmDragState: unknown;
+        rgDragState: unknown;
+        k8sNamespaceDragState: unknown;
+        k8sScopeDragState: unknown;
+        k8sClusterDragState: unknown;
+      }
+      const node = makeDiagramNode({
+        id: 'n-shape',
+        group: 'standalone',
+        position: { x: 100, y: 120 },
+        custom: { boundShapeAnnotationId: 'shape-1' },
+      });
+      const shape = makeAnnotation({
+        id: 'shape-1',
+        type: 'rect',
+        x: 10,
+        y: 20,
+        width: 200,
+        height: 140,
+      });
+      store.setNodes([node]);
+      store.setAnnotations([shape]);
+
+      (
+        component as unknown as {
+          dragSvc: { onDocumentMouseMove: (ctx: DragSvcTestContext) => unknown };
+        }
+      ).dragSvc = {
+        onDocumentMouseMove: (ctx: DragSvcTestContext) => {
+          ctx.updateAnnotation('shape-1', { x: 30, y: 50 });
+          return {
+            handled: true,
+            toolbarPos: ctx.toolbarPos,
+            toolbarDragState: ctx.toolbarDragState,
+            nodeDragState: ctx.nodeDragState,
+            subscriptionDragState: ctx.subscriptionDragState,
+            vmDragState: ctx.vmDragState,
+            rgDragState: ctx.rgDragState,
+            k8sNamespaceDragState: ctx.k8sNamespaceDragState,
+            k8sScopeDragState: ctx.k8sScopeDragState,
+            k8sClusterDragState: ctx.k8sClusterDragState,
+          };
+        },
+      };
+
+      (component as unknown as { annDragId: string | null }).annDragId = 'shape-1';
+      component.onDocMouseMove(new MouseEvent('mousemove', { clientX: 0, clientY: 0 }));
+
+      const moved = store.nodes().find(n => n.id === 'n-shape');
+      expect(moved?.position).toEqual({ x: 120, y: 150 });
+    });
+
+    it('expands bound shape when resizing a node inside it', () => {
+      const node = makeDiagramNode({
+        id: 'n-shape',
+        group: 'standalone',
+        position: { x: 100, y: 100 },
+        size: { width: 160, height: 80 },
+        custom: { boundShapeAnnotationId: 'shape-1' },
+      });
+      const shape = makeAnnotation({
+        id: 'shape-1',
+        type: 'rect',
+        x: 110,
+        y: 110,
+        width: 120,
+        height: 100,
+      });
+      store.setNodes([node]);
+      store.setAnnotations([shape]);
+
+      component.onNodeResized({ nodeId: 'n-shape', width: 220, height: 120 });
+
+      const resizedShape = store.annotations().find(a => a.id === 'shape-1');
+      expect(resizedShape?.x).toBe(80);
+      expect(resizedShape?.y).toBe(80);
+      expect(resizedShape?.width).toBe(260);
+      expect(resizedShape?.height).toBe(160);
+    });
+
+    it('clears node shape bindings when deleting selected shape annotations', () => {
+      const node = makeDiagramNode({
+        id: 'n-shape',
+        group: 'standalone',
+        custom: { boundShapeAnnotationId: 'shape-1' },
+      });
+      const shape = makeAnnotation({ id: 'shape-1', type: 'rect', x: 0, y: 0, width: 100, height: 100 });
+      store.setNodes([node]);
+      store.setAnnotations([shape]);
+      component.selectedAnnotationId = 'shape-1';
+      component.selectedAnnotationIds = ['shape-1'];
+
+      component.deleteSelectedAnnotation();
+
+      const updated = store.nodes().find(n => n.id === 'n-shape');
+      expect(updated?.custom?.boundShapeAnnotationId).toBeUndefined();
+      expect(store.annotations().find(a => a.id === 'shape-1')).toBeUndefined();
+    });
+  });
 });

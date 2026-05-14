@@ -1,4 +1,4 @@
-import { Component, inject, effect, ViewChild, ElementRef, HostListener, computed, AfterViewInit, OnDestroy } from '@angular/core';
+import { Component, inject, effect, ViewChild, ElementRef, computed, AfterViewInit, OnDestroy, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { DiagramStore } from '../../core/store/diagram.store';
 import { ELKLayoutService } from '../../core/services/elk-layout.service';
@@ -102,6 +102,10 @@ import {
 } from './canvas-geometry.util';
 import { DrawingRuntimeState, DrawingStyleState, onDrawEnd, onDrawMove, onDrawStart, resetDrawingRuntime } from './canvas-drawing.util';
 import { normalizePastedImage, pasteTargetPosition as pasteTargetPositionUtil } from './canvas-image-paste.util';
+import { CanvasFacade } from './canvas-facade.service';
+import { CanvasViewportController } from './controllers/canvas-viewport.controller';
+import { CanvasSelectionController } from './controllers/canvas-selection.controller';
+import { CanvasControllerContextService } from './controllers/canvas-controller-context.service';
 
 const ZERO_OFFSET: SizeOffset = { top: 0, right: 0, bottom: 0, left: 0 };
 const AZURE_RESOURCE_DND_TYPE = 'application/x-zuremap-azure-resource';
@@ -151,6 +155,19 @@ interface ShapeBindCandidate {
   ],
   templateUrl: "./canvas.component.html",
   styleUrl: "./canvas.component.scss",
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  host: {
+    '(document:keydown)': 'onKeyDown($event)',
+    '(document:paste)': 'onPaste($event)',
+    '(document:mousemove)': 'onDocMouseMove($event)',
+    '(document:mouseup)': 'onDocMouseUp($event)',
+  },
+  providers: [
+    CanvasControllerContextService,
+    CanvasViewportController,
+    CanvasSelectionController,
+    CanvasFacade,
+  ],
 })
 export class CanvasComponent implements AfterViewInit, OnDestroy {
   @ViewChild('canvasHost', { read: ElementRef }) canvasHostRef!: ElementRef;
@@ -171,6 +188,7 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
   private tagVisualization = inject(CanvasTagVisualizationService);
   private autosave = inject(AutosaveService);
   readonly ctxMenuSvc = inject(CanvasContextMenuService);
+  readonly facade = inject(CanvasFacade);
   readonly childToParentMap = computed(() => {
     const map = new Map<string, string>();
     for (const node of this.store.nodes()) {
@@ -184,11 +202,6 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
   readonly parentLabelById = computed(() =>
     new Map(this.store.nodes().map(n => [n.id, n.label]))
   );
-
-  // ── Layout ─────────────────────────────────────────────────────────────────
-  private readonly ZOOM_MIN = 0.4;
-  private readonly ZOOM_MAX = 2.5;
-  private readonly ZOOM_STEP = 0.1;
 
   visibleNodes: DiagramNode[] = [];
   visibleEdges = this.store.edges();
@@ -248,11 +261,7 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
   }
 
   ngAfterViewInit(): void {
-    const host = this.canvasHostRef?.nativeElement as HTMLElement | undefined;
-    if (host) {
-      this.minimapViewportWidth = host.clientWidth;
-      this.minimapViewportHeight = host.clientHeight;
-    }
+    this.facade.viewport.setInitialViewportSize(this.canvasHostRef?.nativeElement as HTMLElement | undefined);
   }
 
   ngOnDestroy(): void {
@@ -276,28 +285,23 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
   activeFillOpacity = 0.2;
 
   // ── Minimap state ──────────────────────────────────────────────────────────
-  minimapOpen = false;
-  minimapScrollLeft = 0;
-  minimapScrollTop = 0;
-  minimapViewportWidth = 0;
-  minimapViewportHeight = 0;
+  get minimapOpen(): boolean { return this.facade.viewport.minimapOpen(); }
+  set minimapOpen(value: boolean) { this.facade.viewport.minimapOpen.set(value); }
+  get minimapScrollLeft(): number { return this.facade.viewport.minimapScrollLeft(); }
+  set minimapScrollLeft(value: number) { this.facade.viewport.minimapScrollLeft.set(value); }
+  get minimapScrollTop(): number { return this.facade.viewport.minimapScrollTop(); }
+  set minimapScrollTop(value: number) { this.facade.viewport.minimapScrollTop.set(value); }
+  get minimapViewportWidth(): number { return this.facade.viewport.minimapViewportWidth(); }
+  set minimapViewportWidth(value: number) { this.facade.viewport.minimapViewportWidth.set(value); }
+  get minimapViewportHeight(): number { return this.facade.viewport.minimapViewportHeight(); }
+  set minimapViewportHeight(value: number) { this.facade.viewport.minimapViewportHeight.set(value); }
 
   onCanvasScroll(): void {
-    const host = this.canvasHostRef?.nativeElement as HTMLElement | undefined;
-    if (!host) return;
-    this.minimapScrollLeft = host.scrollLeft;
-    this.minimapScrollTop = host.scrollTop;
-    this.minimapViewportWidth = host.clientWidth;
-    this.minimapViewportHeight = host.clientHeight;
+    this.facade.viewport.onCanvasScroll(this.canvasHostRef?.nativeElement as HTMLElement | undefined);
   }
 
   onMinimapPan(e: { scrollLeft: number; scrollTop: number }): void {
-    const host = this.canvasHostRef?.nativeElement as HTMLElement | undefined;
-    if (!host) return;
-    host.scrollLeft = e.scrollLeft;
-    host.scrollTop = e.scrollTop;
-    this.minimapScrollLeft = host.scrollLeft;
-    this.minimapScrollTop = host.scrollTop;
+    this.facade.viewport.onMinimapPan(e, this.canvasHostRef?.nativeElement as HTMLElement | undefined);
   }
 
   // ── Resource placement state ───────────────────────────────────────────────
@@ -305,8 +309,10 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
   showCreateResourceModal = false;
   resourcePlacementPosition: { x: number; y: number } | null = null;
 
-  selectedAnnotationId: string | null = null;
-  selectedAnnotationIds: string[] = [];
+  get selectedAnnotationId(): string | null { return this.facade.selection.selectedAnnotationId(); }
+  set selectedAnnotationId(value: string | null) { this.facade.selection.selectedAnnotationId.set(value); }
+  get selectedAnnotationIds(): string[] { return this.facade.selection.selectedAnnotationIds(); }
+  set selectedAnnotationIds(value: string[]) { this.facade.selection.selectedAnnotationIds.set(value); }
   editingAnnotation: Annotation | null = null;
   editingTextValue = '';
   private canvasClipboard: CanvasClipboardPayload | null = null;
@@ -376,7 +382,8 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
   // Node HTML5 drag
   private dragOffset = { x: 0, y: 0 };
   private collapsedHeights = new Map<string, number>();
-  selectedEdgeId: string | null = null;
+  get selectedEdgeId(): string | null { return this.facade.selection.selectedEdgeId(); }
+  set selectedEdgeId(value: string | null) { this.facade.selection.selectedEdgeId.set(value); }
   edgeWaypointDragState: EdgeWaypointDragState | null = null;
   annWaypointDragState: AnnWaypointDragState | null = null;
   edgeLinkDragState: EdgeLinkDragState | null = null;
@@ -398,7 +405,6 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
   }
 
   // ── Keyboard shortcuts ─────────────────────────────────────────────────────
-  @HostListener('document:keydown', ['$event'])
   onKeyDown(e: KeyboardEvent): void {
     if ((e.target as HTMLElement).matches('input,textarea,[contenteditable]')) return;
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c') {
@@ -471,7 +477,6 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
     }
   }
 
-  @HostListener('document:paste', ['$event'])
   async onPaste(event: ClipboardEvent): Promise<void> {
     if (this.activeTool !== 'pointer') return;
     if ((event.target as HTMLElement | null)?.matches('input,textarea,[contenteditable=true]')) return;
@@ -518,7 +523,6 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
   }
 
   // ── Document-level mouse events (for drag completion outside SVG) ──────────
-  @HostListener('document:mousemove', ['$event'])
   onDocMouseMove(e: MouseEvent): void {
     if (this.activeTool !== 'pointer' && this.isDrawing) {
       this.onDrawMouseMove(e);
@@ -706,11 +710,10 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
   onCanvasWheel(event: WheelEvent): void {
     if (!event.ctrlKey && !event.metaKey) return;
     event.preventDefault();
-    const delta = event.deltaY < 0 ? this.ZOOM_STEP : -this.ZOOM_STEP;
+    const delta = event.deltaY < 0 ? 0.1 : -0.1;
     this.setZoom(this.zoomLevel + delta, { x: event.clientX, y: event.clientY });
   }
 
-  @HostListener('document:mouseup', ['$event'])
   onDocMouseUp(e: MouseEvent): void {
     if (this.activeTool !== 'pointer' && this.isDrawing) {
       this.onDrawMouseUp(e);
@@ -2454,19 +2457,19 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
   }
 
   get zoomLevel(): number {
-    return this.store.zoomLevel();
+    return this.facade.viewport.zoomLevel;
   }
 
   get zoomPercent(): number {
-    return Math.round(this.zoomLevel * 100);
+    return this.facade.viewport.zoomPercent;
   }
 
   zoomIn(): void {
-    this.setZoom(this.zoomLevel + this.ZOOM_STEP);
+    this.facade.viewport.zoomIn(this.canvasHostRef?.nativeElement as HTMLElement | undefined);
   }
 
   zoomOut(): void {
-    this.setZoom(this.zoomLevel - this.ZOOM_STEP);
+    this.facade.viewport.zoomOut(this.canvasHostRef?.nativeElement as HTMLElement | undefined);
   }
 
   resetZoom(): void {
@@ -3353,26 +3356,11 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
   }
 
   private setZoom(nextZoom: number, anchor?: { x: number; y: number }): void {
-    const host = this.canvasHostRef?.nativeElement as HTMLElement;
-    const prevZoom = this.zoomLevel;
-    const zoom = Math.max(this.ZOOM_MIN, Math.min(this.ZOOM_MAX, Number(nextZoom.toFixed(2))));
-    if (zoom === prevZoom) return;
-
-    if (!host || !anchor) {
-      this.store.zoomLevel.set(zoom);
-      return;
-    }
-
-    const rect = host.getBoundingClientRect();
-    const localX = anchor.x - rect.left;
-    const localY = anchor.y - rect.top;
-    const worldX = (host.scrollLeft + localX) / prevZoom;
-    const worldY = (host.scrollTop + localY) / prevZoom;
-
-    this.store.zoomLevel.set(zoom);
-
-    host.scrollLeft = Math.max(0, worldX * zoom - localX);
-    host.scrollTop = Math.max(0, worldY * zoom - localY);
+    this.facade.viewport.setZoom(
+      nextZoom,
+      this.canvasHostRef?.nativeElement as HTMLElement | undefined,
+      anchor,
+    );
   }
 
   private updateSelectedAnnotation(

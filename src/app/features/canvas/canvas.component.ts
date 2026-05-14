@@ -78,7 +78,6 @@ import {
   TagRule,
   NodeContainerAction,
 } from './canvas.types';
-import { CanvasEdgeEditorService } from './canvas-edge-editor.service';
 import { CanvasResourceEditorService } from './canvas-resource-editor.service';
 import { CanvasVisibilityService } from './canvas-visibility.service';
 import { CanvasCollapseService } from './canvas-collapse.service';
@@ -108,6 +107,7 @@ import { CanvasAnnotationController } from './controllers/canvas-annotation.cont
 import { CanvasViewportController } from './controllers/canvas-viewport.controller';
 import { CanvasSelectionController } from './controllers/canvas-selection.controller';
 import { CanvasControllerContextService } from './controllers/canvas-controller-context.service';
+import { CanvasEdgeController } from './controllers/canvas-edge.controller';
 
 const ZERO_OFFSET: SizeOffset = { top: 0, right: 0, bottom: 0, left: 0 };
 const AZURE_RESOURCE_DND_TYPE = 'application/x-zuremap-azure-resource';
@@ -156,6 +156,7 @@ interface ShapeBindCandidate {
     CanvasSelectionController,
     CanvasClipboardController,
     CanvasAnnotationController,
+    CanvasEdgeController,
     CanvasFacade,
   ],
 })
@@ -167,7 +168,6 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
   private elkLayout = inject(ELKLayoutService);
   protected iconRegistryService = inject(IconRegistryService);
   private actions = inject(CanvasActionsService);
-  private edgeEditor = inject(CanvasEdgeEditorService);
   private resourceEditor = inject(CanvasResourceEditorService);
   private visibilitySvc = inject(CanvasVisibilityService);
   private collapseSvc = inject(CanvasCollapseService);
@@ -2345,16 +2345,16 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
   }
 
   get selectedEdge(): DiagramEdge | null {
-    return this.edgeEditor.getSelectedEdge(this.store.edges(), this.selectedEdgeId);
+    return this.facade.edge.getSelectedEdge(this.selectedEdgeId);
   }
 
   onEdgeClick(event: MouseEvent, edge: DiagramEdge): void {
-    if (this.activeTool !== 'pointer') return;
-    event.stopPropagation();
+    const edgeId = this.facade.edge.onEdgeClick(event, edge, this.activeTool);
+    if (!edgeId) return;
     this.selectedAnnotationId = null;
     this.selectedAnnotationIds = [];
     this.store.selectNode(null);
-    this.selectedEdgeId = edge.id;
+    this.selectedEdgeId = edgeId;
   }
 
   // ── Edge markers (used only in <defs> in canvas.component.html) ──────────
@@ -2387,29 +2387,15 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
   }
 
   onEdgeWaypointMouseDown(e: MouseEvent, edge: DiagramEdge, waypointIndex: number): void {
-    e.stopPropagation();
-    e.preventDefault();
-    this.store.pushUndo();
-    const pt = this.svgPoint(e);
-    this.edgeWaypointDragState = { edgeId: edge.id, waypointIndex, lastX: pt.x, lastY: pt.y };
+    this.edgeWaypointDragState = this.facade.edge.onEdgeWaypointMouseDown(e, edge, waypointIndex, event => this.svgPoint(event));
   }
 
   onEdgeMidpointMouseDown(e: MouseEvent, edge: DiagramEdge, segmentIndex: number): void {
-    e.stopPropagation();
-    e.preventDefault();
-    this.store.pushUndo();
-    const pt = this.svgPoint(e);
-    const waypoints = [...(edge.waypoints ?? [])];
-    waypoints.splice(segmentIndex, 0, { x: pt.x, y: pt.y });
-    this.store.setEdges(this.store.edges().map(ed => ed.id === edge.id ? { ...ed, waypoints } : ed));
-    this.edgeWaypointDragState = { edgeId: edge.id, waypointIndex: segmentIndex, lastX: pt.x, lastY: pt.y };
+    this.edgeWaypointDragState = this.facade.edge.onEdgeMidpointMouseDown(e, edge, segmentIndex, event => this.svgPoint(event));
   }
 
   onEdgeWaypointDblClick(e: MouseEvent, edge: DiagramEdge, waypointIndex: number): void {
-    e.stopPropagation();
-    this.store.pushUndo();
-    const waypoints = (edge.waypoints ?? []).filter((_, i) => i !== waypointIndex);
-    this.store.setEdges(this.store.edges().map(ed => ed.id === edge.id ? { ...ed, waypoints: waypoints.length ? waypoints : undefined } : ed));
+    this.facade.edge.onEdgeWaypointDblClick(e, edge, waypointIndex);
   }
 
   onAnnWaypointMouseDown(e: MouseEvent, ann: Annotation, waypointIndex: number): void {
@@ -2447,37 +2433,31 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
   }
 
   updateSelectedEdgeStyle(changes: Partial<EdgeStyle>): void {
-    this.store.pushUndo();
-    this.store.setEdges(this.edgeEditor.updateEdgeStyle(this.store.edges(), this.selectedEdgeId, changes));
+    this.facade.edge.updateSelectedEdgeStyle(this.selectedEdgeId, changes);
   }
 
   setSelectedEdgeDashStyle(style: string): void {
-    this.store.pushUndo();
-    this.store.setEdges(this.edgeEditor.setDashStyle(this.store.edges(), this.selectedEdgeId, style));
+    this.facade.edge.setSelectedEdgeDashStyle(this.selectedEdgeId, style);
   }
 
   setSelectedEdgeMarker(value: string): void {
-    this.store.pushUndo();
-    this.store.setEdges(this.edgeEditor.setMarker(this.store.edges(), this.selectedEdgeId, value));
+    this.facade.edge.setSelectedEdgeMarker(this.selectedEdgeId, value);
   }
 
   setSelectedEdgeAnimated(animated: boolean): void {
-    this.store.pushUndo();
-    this.store.setEdges(this.edgeEditor.setAnimated(this.store.edges(), this.selectedEdgeId, animated));
+    this.facade.edge.setSelectedEdgeAnimated(this.selectedEdgeId, animated);
   }
 
   resetSelectedEdgeStyle(): void {
-    this.store.pushUndo();
-    this.store.setEdges(this.edgeEditor.resetStyle(this.store.edges(), this.selectedEdgeId));
+    this.facade.edge.resetSelectedEdgeStyle(this.selectedEdgeId);
   }
 
   setSelectedEdgeLabel(label: string): void {
-    this.store.pushUndo();
-    this.store.setEdges(this.edgeEditor.setLabel(this.store.edges(), this.selectedEdgeId, label));
+    this.facade.edge.setSelectedEdgeLabel(this.selectedEdgeId, label);
   }
 
   dashStyleValue(style: EdgeStyle): string {
-    return this.edgeEditor.dashStyleValue(style);
+    return this.facade.edge.dashStyleValue(style);
   }
 
   // ── Context menu ──────────────────────────────────────────────────────────

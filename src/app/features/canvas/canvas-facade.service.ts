@@ -1,6 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { CanvasAnnotationController } from './controllers/canvas-annotation.controller';
 import { CanvasClipboardController } from './controllers/canvas-clipboard.controller';
+import { CanvasEdgeController } from './controllers/canvas-edge.controller';
 import { CanvasSelectionController } from './controllers/canvas-selection.controller';
 import { CanvasViewportController } from './controllers/canvas-viewport.controller';
 
@@ -10,4 +11,5 @@ export class CanvasFacade {
   readonly selection = inject(CanvasSelectionController);
   readonly clipboard = inject(CanvasClipboardController);
   readonly annotation = inject(CanvasAnnotationController);
+  readonly edge = inject(CanvasEdgeController);
 }

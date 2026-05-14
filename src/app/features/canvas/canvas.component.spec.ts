@@ -1011,6 +1011,18 @@ describe('CanvasComponent', () => {
     });
 
     it('moves bound nodes when their bound shape is dragged', () => {
+      interface DragSvcTestContext {
+        updateAnnotation: (id: string, changes: { x: number; y: number }) => void;
+        toolbarPos: { x: number; y: number };
+        toolbarDragState: unknown;
+        nodeDragState: unknown;
+        subscriptionDragState: unknown;
+        vmDragState: unknown;
+        rgDragState: unknown;
+        k8sNamespaceDragState: unknown;
+        k8sScopeDragState: unknown;
+        k8sClusterDragState: unknown;
+      }
       const node = makeDiagramNode({
         id: 'n-shape',
         group: 'standalone',
@@ -1028,8 +1040,12 @@ describe('CanvasComponent', () => {
       store.setNodes([node]);
       store.setAnnotations([shape]);
 
-      (component as any).dragSvc = {
-        onDocumentMouseMove: (ctx: any) => {
+      (
+        component as unknown as {
+          dragSvc: { onDocumentMouseMove: (ctx: DragSvcTestContext) => unknown };
+        }
+      ).dragSvc = {
+        onDocumentMouseMove: (ctx: DragSvcTestContext) => {
           ctx.updateAnnotation('shape-1', { x: 30, y: 50 });
           return {
             handled: true,

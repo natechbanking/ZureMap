@@ -1613,7 +1613,7 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
   private bindActionForUnboundNode(node: DiagramNode, byId: Map<string, DiagramNode>): NodeContainerAction {
     const cx = node.position.x + node.size.width / 2;
     const cy = node.position.y + node.size.height / 2;
-    const allCandidates: Array<{ area: number; action: NodeContainerAction }> = [];
+    const allCandidates: { area: number; action: NodeContainerAction }[] = [];
     const pushCandidate = (bounds: { x: number; y: number; width: number; height: number }, action: NodeContainerAction): void => {
       if (cx < bounds.x || cx > bounds.x + bounds.width || cy < bounds.y || cy > bounds.y + bounds.height) return;
       allCandidates.push({ area: bounds.width * bounds.height, action });

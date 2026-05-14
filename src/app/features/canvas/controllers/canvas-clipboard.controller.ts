@@ -62,16 +62,21 @@ export class CanvasClipboardController {
       return true;
     }
 
+    let selectedAnnotationId = copyContext.selectedAnnotationId;
+    let selectedAnnotationIds = [...copyContext.selectedAnnotationIds];
+
     if (copyContext.contextMenuNodeId) {
       copyContext.selectContextNode(copyContext.contextMenuNodeId);
       copyContext.clearAnnotationSelection();
+      selectedAnnotationId = null;
+      selectedAnnotationIds = [];
     }
 
-    const selectedAnnotationIds = copyContext.selectedAnnotationIds.length
-      ? copyContext.selectedAnnotationIds
-      : (copyContext.selectedAnnotationId ? [copyContext.selectedAnnotationId] : []);
-    if (selectedAnnotationIds.length > 0) {
-      const selectedIdSet = new Set(selectedAnnotationIds);
+    const annotationSelectionIds = selectedAnnotationIds.length
+      ? selectedAnnotationIds
+      : (selectedAnnotationId ? [selectedAnnotationId] : []);
+    if (annotationSelectionIds.length > 0) {
+      const selectedIdSet = new Set(annotationSelectionIds);
       const annotations = this.context.store.annotations()
         .filter(a => selectedIdSet.has(a.id))
         .map(a => this.cloneAnnotation(a));

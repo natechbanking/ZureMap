@@ -104,6 +104,7 @@ import { DrawingRuntimeState, DrawingStyleState, onDrawEnd, onDrawMove, onDrawSt
 import { normalizePastedImage, pasteTargetPosition as pasteTargetPositionUtil } from './canvas-image-paste.util';
 import { CanvasFacade } from './canvas-facade.service';
 import { CanvasClipboardController } from './controllers/canvas-clipboard.controller';
+import { CanvasAnnotationController } from './controllers/canvas-annotation.controller';
 import { CanvasViewportController } from './controllers/canvas-viewport.controller';
 import { CanvasSelectionController } from './controllers/canvas-selection.controller';
 import { CanvasControllerContextService } from './controllers/canvas-controller-context.service';
@@ -154,6 +155,7 @@ interface ShapeBindCandidate {
     CanvasViewportController,
     CanvasSelectionController,
     CanvasClipboardController,
+    CanvasAnnotationController,
     CanvasFacade,
   ],
 })
@@ -1145,32 +1147,30 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
   }
 
   startEditAnnotation(ann: Annotation): void {
-    this.editingAnnotation = ann;
-    this.editingTextValue = ann.text ?? '';
+    const result = this.facade.annotation.startEditAnnotation(ann);
+    this.editingAnnotation = result.editingAnnotation;
+    this.editingTextValue = result.editingTextValue;
   }
 
   finishEdit(nextText?: string): void {
-    if (!this.editingAnnotation) return;
-    if (typeof nextText === 'string') this.editingTextValue = nextText;
-    const text = this.editingTextValue.trim();
-    this.store.pushUndo();
-    if (text) {
-      this.store.updateAnnotation(this.editingAnnotation.id, { text });
-    } else {
-      this.clearShapeBinding(this.editingAnnotation.id);
-      this.store.deleteAnnotation(this.editingAnnotation.id);
-    }
-    this.editingAnnotation = null;
-    this.editingTextValue = '';
+    const result = this.facade.annotation.finishEdit(
+      this.editingAnnotation,
+      this.editingTextValue,
+      annotationId => this.clearShapeBinding(annotationId),
+      nextText,
+    );
+    if (!result) return;
+    this.editingAnnotation = result.editingAnnotation;
+    this.editingTextValue = result.editingTextValue;
   }
 
   cancelEdit(): void {
-    if (this.editingAnnotation && !this.editingAnnotation.text) {
-      this.clearShapeBinding(this.editingAnnotation.id);
-      this.store.deleteAnnotation(this.editingAnnotation.id);
-    }
-    this.editingAnnotation = null;
-    this.editingTextValue = '';
+    const result = this.facade.annotation.cancelEdit(
+      this.editingAnnotation,
+      annotationId => this.clearShapeBinding(annotationId),
+    );
+    this.editingAnnotation = result.editingAnnotation;
+    this.editingTextValue = result.editingTextValue;
   }
 
   onEditKeyDown(e: KeyboardEvent): void {
@@ -1180,24 +1180,33 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
     }
   }
 
+  private annotationSelectionContext(): {
+    selectedAnnotationId: string | null;
+    selectedAnnotationIds: string[];
+    activeTool: string;
+    clearShapeBinding: (annotationId: string) => void;
+    syncToolbarFromAnnotation: (annotation: Annotation) => void;
+    setSelectedAnnotation: (id: string | null, ids: string[]) => void;
+  } {
+    return {
+      selectedAnnotationId: this.selectedAnnotationId,
+      selectedAnnotationIds: this.selectedAnnotationIds,
+      activeTool: this.activeTool,
+      clearShapeBinding: annotationId => this.clearShapeBinding(annotationId),
+      syncToolbarFromAnnotation: annotation => this.syncToolbarFromAnnotation(annotation),
+      setSelectedAnnotation: (id, ids) => {
+        this.selectedAnnotationId = id;
+        this.selectedAnnotationIds = ids;
+      },
+    };
+  }
+
   private nextEdgeId(): string {
     return `copy-edge-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
   }
 
   deleteSelectedAnnotation(): void {
-    const ids = this.selectedAnnotationIds.length
-      ? this.selectedAnnotationIds
-      : (this.selectedAnnotationId ? [this.selectedAnnotationId] : []);
-    if (!ids.length) return;
-    this.store.pushUndo();
-    const idSet = new Set(ids);
-    this.store.setNodes(this.store.nodes().map(n => {
-      if (!n.custom?.boundShapeAnnotationId || !idSet.has(n.custom.boundShapeAnnotationId)) return n;
-      return { ...n, custom: { ...(n.custom ?? {}), boundShapeAnnotationId: undefined } };
-    }));
-    this.store.setAnnotations(this.store.annotations().filter(a => !idSet.has(a.id)));
-    this.selectedAnnotationId = null;
-    this.selectedAnnotationIds = [];
+    this.facade.annotation.deleteSelectedAnnotation(this.annotationSelectionContext());
   }
 
   deleteSelectedEdge(): void {
@@ -1209,37 +1218,20 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
   }
 
   duplicateSelectedAnnotation(): void {
-    if (!this.selectedAnnotationId) return;
-    const source = this.annotationById(this.selectedAnnotationId);
-    if (!source) return;
-    const duplicated = this.annotationSvc.duplicate(source);
-    this.store.pushUndo();
-    this.store.addAnnotation(duplicated);
-    this.selectedAnnotationId = duplicated.id;
-    this.selectedAnnotationIds = [duplicated.id];
-    this.syncToolbarFromAnnotation(duplicated);
+    this.facade.annotation.duplicateSelectedAnnotation(this.annotationSelectionContext());
   }
 
   bringSelectedAnnotationToFront(): void {
-    if (!this.selectedAnnotationId) return;
-    const selectedId = this.selectedAnnotationId;
-    this.store.pushUndo();
-    this.store.setAnnotations(this.annotationSvc.bringToFront(this.store.annotations(), selectedId));
+    this.facade.annotation.bringSelectedAnnotationToFront(this.annotationSelectionContext());
   }
 
   sendSelectedAnnotationToBack(): void {
-    if (!this.selectedAnnotationId) return;
-    const selectedId = this.selectedAnnotationId;
-    this.store.pushUndo();
-    this.store.setAnnotations(this.annotationSvc.sendToBack(this.store.annotations(), selectedId));
+    this.facade.annotation.sendSelectedAnnotationToBack(this.annotationSelectionContext());
   }
 
   clearAllAnnotations(): void {
-    if (this.store.annotations().length === 0) return;
-    const shouldClear = confirm('Clear all annotations from this diagram?');
-    if (!shouldClear) return;
-    this.store.pushUndo();
-    this.store.clearAnnotations();
+    const cleared = this.facade.annotation.clearAllAnnotations();
+    if (!cleared) return;
     this.selectedAnnotationId = null;
     this.selectedAnnotationIds = [];
     this.editingAnnotation = null;
@@ -1296,20 +1288,15 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
   }
 
   get selectedAnnotationForDelete(): Annotation | null {
-    if (!this.selectedAnnotationId || this.activeTool !== 'pointer') return null;
-    return this.annotationById(this.selectedAnnotationId) ?? null;
+    return this.facade.annotation.selectedAnnotationForDelete(this.selectedAnnotationId, this.activeTool);
   }
 
   get canEditSelectedTextStyle(): boolean {
-    if (!this.selectedAnnotationId) return false;
-    const ann = this.annotationById(this.selectedAnnotationId);
-    return ann?.type === 'text' || ann?.type === 'sticky';
+    return this.facade.annotation.canEditSelectedTextStyle(this.selectedAnnotationId);
   }
 
   get canEditSelectedFillStyle(): boolean {
-    if (!this.selectedAnnotationId) return false;
-    const ann = this.annotationById(this.selectedAnnotationId);
-    return ann?.type === 'rect' || ann?.type === 'ellipse' || ann?.type === 'diamond';
+    return this.facade.annotation.canEditSelectedFillStyle(this.selectedAnnotationId);
   }
 
   // ── Canvas size ────────────────────────────────────────────────────────────

@@ -93,4 +93,24 @@ describe('DrawingToolbarComponent', () => {
     expect(component.ruleDetail(internalRule)).toContain('#111111');
     expect(component.ruleSwatchColor(internalRule)).toBe('#eeeeee');
   });
+
+  it('includes RG/subscription container tools and emits toolChange', () => {
+    const emitSpy = spyOn(component.toolChange, 'emit');
+    const rgTool = component.tools.find(t => t.id === 'rgContainer');
+    const subTool = component.tools.find(t => t.id === 'subscriptionContainer');
+
+    expect(rgTool).toBeDefined();
+    expect(subTool).toBeDefined();
+
+    component.toolChange.emit('rgContainer');
+    expect(emitSpy).toHaveBeenCalledWith('rgContainer');
+  });
+
+  it('returns active hint for new container tools', () => {
+    component.activeTool = 'rgContainer';
+    expect(component.getActiveToolHint()).toContain('resource group container');
+
+    component.activeTool = 'subscriptionContainer';
+    expect(component.getActiveToolHint()).toContain('subscription container');
+  });
 });

@@ -1,4 +1,16 @@
-export type DrawingTool = 'pointer' | 'draw' | 'line' | 'arrow' | 'text' | 'rect' | 'ellipse' | 'diamond' | 'sticky' | 'resource';
+export type DrawingTool =
+  | 'pointer'
+  | 'draw'
+  | 'line'
+  | 'arrow'
+  | 'text'
+  | 'rect'
+  | 'ellipse'
+  | 'diamond'
+  | 'sticky'
+  | 'resource'
+  | 'rgContainer'
+  | 'subscriptionContainer';
 export type StrokeStyle = 'solid' | 'dashed' | 'dotted';
 export type EdgeRouting = 'straight' | 'elbow';
 export type EdgeMode = 'none' | 'start' | 'end' | 'both';
@@ -36,4 +48,9 @@ export interface Annotation {
   fontFamily?: string;
   rotation?: number;  // degrees, clockwise
   imageDataUrl?: string;
+  container?: {
+    kind: 'rg' | 'sub';
+    name: string;
+    collapsed: boolean;
+  };
 }

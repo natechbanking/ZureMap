@@ -173,6 +173,73 @@
   </div>
 }
 
+<!-- Drawn RG/Subscription containers -->
+@for (bound of drawnContainerBounds; track bound.id) {
+  <div
+    class="absolute pointer-events-none"
+    [style.left.px]="bound.x"
+    [style.top.px]="bound.y"
+    [style.width.px]="bound.width"
+    [style.height.px]="bound.height"
+  >
+    <div
+      class="absolute inset-0 rounded-xl border"
+      [style.border-color]="bound.kind === 'sub' ? '#fcd34d' : '#93c5fd'"
+      [style.background-color]="bound.kind === 'sub' ? 'rgba(255,251,235,0.3)' : 'rgba(239,246,255,0.25)'"
+    ></div>
+    <div
+      class="absolute top-0 left-0 right-0 flex items-center gap-2 px-3 py-1.5 rounded-t-xl select-none pointer-events-auto transition-colors"
+      [ngClass]="bound.kind === 'sub' ? 'hover:bg-amber-100/60' : 'hover:bg-blue-100/50'"
+      [class.cursor-grab]="activeTool === 'pointer'"
+      [class.cursor-crosshair]="activeTool !== 'pointer'"
+      style="z-index: 30; height: 32px"
+      role="presentation"
+      (mousedown)="drawnContainerMouseDown.emit({ event: $event, annotationId: bound.id })"
+      (click)="$event.stopPropagation()"
+      (keydown)="$event.stopPropagation()"
+    >
+      @if (renamingContainer?.type === 'drawn' && renamingContainer?.id === bound.id) {
+        <input
+          #renameInput
+          class="text-xs font-semibold bg-transparent border-b outline-none min-w-0 flex-1"
+          [class.text-amber-700]="bound.kind === 'sub'"
+          [class.border-amber-400]="bound.kind === 'sub'"
+          [class.text-blue-500]="bound.kind === 'rg'"
+          [class.border-blue-400]="bound.kind === 'rg'"
+          [value]="renamingValue"
+          (input)="renameValueChange.emit($any($event.target).value)"
+          (blur)="commitRename.emit()"
+          (keydown.enter)="commitRename.emit()"
+          (keydown.escape)="$event.stopPropagation(); cancelRename.emit()"
+          (mousedown)="$event.stopPropagation()"
+          (click)="$event.stopPropagation()"
+        />
+      } @else {
+        <span
+          class="text-xs font-semibold tracking-wide truncate flex-1"
+          [class.text-amber-700]="bound.kind === 'sub'"
+          [class.text-blue-500]="bound.kind === 'rg'"
+          title="Double-click to rename"
+          (dblclick)="$event.stopPropagation(); startRename.emit({ type: 'drawn', id: bound.id, name: bound.name })"
+        >{{ bound.name }}</span>
+      }
+      <button
+        type="button"
+        data-export-hide
+        class="ml-auto w-5 h-5 rounded transition-colors"
+        [class.text-amber-700]="bound.kind === 'sub'"
+        [ngClass]="bound.kind === 'sub' ? 'hover:bg-amber-200/70' : 'hover:bg-blue-200/70'"
+        [class.text-blue-600]="bound.kind === 'rg'"
+        [title]="bound.collapsed ? 'Expand container' : 'Collapse container'"
+        (mousedown)="$event.stopPropagation()"
+        (click)="toggleDrawnContainerCollapsed.emit(bound.id); $event.stopPropagation()"
+      >
+        {{ bound.collapsed ? '+' : '-' }}
+      </button>
+    </div>
+  </div>
+}
+
 <!-- VM sub-containers -->
 @for (bound of vmBounds; track bound.id) {
   <div

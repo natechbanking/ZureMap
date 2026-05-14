@@ -55,6 +55,25 @@ describe('canvas-drawing.util', () => {
     expect(ended.createdAnnotation).toBeUndefined();
   });
 
+  it('creates RG container annotation with container metadata', () => {
+    const containerStyle = { ...style, activeTool: 'rgContainer' as const };
+    const started = onDrawStart(runtime, containerStyle, { x: 10, y: 10 }).next;
+    const ended = onDrawEnd(started, containerStyle, { x: 260, y: 190 });
+
+    expect(ended.createdAnnotation?.type).toBe('rect');
+    expect(ended.createdAnnotation?.container?.kind).toBe('rg');
+    expect(ended.createdAnnotation?.container?.name).toBe('Resource Group');
+    expect(ended.createdAnnotation?.container?.collapsed).toBeFalse();
+  });
+
+  it('does not create tiny subscription container annotation', () => {
+    const containerStyle = { ...style, activeTool: 'subscriptionContainer' as const };
+    const started = onDrawStart(runtime, containerStyle, { x: 10, y: 10 }).next;
+    const ended = onDrawEnd(started, containerStyle, { x: 12, y: 13 });
+
+    expect(ended.createdAnnotation).toBeUndefined();
+  });
+
   it('resetDrawingRuntime clears runtime previews', () => {
     const next = resetDrawingRuntime({
       ...runtime,

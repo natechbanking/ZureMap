@@ -72,6 +72,17 @@ export interface K8sClusterBound {
   height: number;
 }
 
+export interface DrawnContainerBound {
+  id: string;
+  kind: 'rg' | 'sub';
+  name: string;
+  collapsed: boolean;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 export type NodeContainerActionKind = 'none' | 'breakout' | 'bind' | 'bind-disabled';
 export type NodeContainerTargetType = 'parent' | 'rg' | 'shape' | 'unsupported';
 

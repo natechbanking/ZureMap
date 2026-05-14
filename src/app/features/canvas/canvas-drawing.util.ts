@@ -12,6 +12,11 @@ export interface DrawingRuntimeState {
   previewEllipse: { cx: number; cy: number; rx: number; ry: number } | null;
 }
 
+const DEFAULT_DRAWN_CONTAINER_WIDTH = 280;
+const DEFAULT_DRAWN_CONTAINER_HEIGHT = 180;
+const MIN_DRAWN_CONTAINER_WIDTH = 180;
+const MIN_DRAWN_CONTAINER_HEIGHT = 120;
+
 export interface DrawingStyleState {
   activeTool: DrawingTool;
   activeColor: string;
@@ -94,6 +99,8 @@ export function onDrawMove(runtime: DrawingRuntimeState, style: DrawingStyleStat
   } else if (style.activeTool === 'ellipse') {
     const r = normalizeRect(s.x, s.y, pt.x, pt.y);
     next.previewEllipse = { cx: r.x + r.w / 2, cy: r.y + r.h / 2, rx: r.w / 2, ry: r.h / 2 };
+  } else if (style.activeTool === 'rgContainer' || style.activeTool === 'subscriptionContainer') {
+    next.previewRect = normalizeRect(s.x, s.y, pt.x, pt.y);
   }
   return next;
 }
@@ -121,6 +128,22 @@ export function onDrawEnd(runtime: DrawingRuntimeState, style: DrawingStyleState
     } else if (style.activeTool === 'ellipse') {
       const r = normalizeRect(s.x, s.y, pt.x, pt.y);
       if (r.w > 4 && r.h > 4) createdAnnotation = { ...createAnnotation(style, 'ellipse', r.x, r.y), width: r.w, height: r.h, fill: style.activeFill };
+    } else if (style.activeTool === 'rgContainer' || style.activeTool === 'subscriptionContainer') {
+      const r = normalizeRect(s.x, s.y, pt.x, pt.y);
+      if (r.w > 4 && r.h > 4) {
+        const kind = style.activeTool === 'rgContainer' ? 'rg' : 'sub';
+        createdAnnotation = {
+          ...createAnnotation(style, 'rect', r.x, r.y),
+          width: Math.max(MIN_DRAWN_CONTAINER_WIDTH, r.w || DEFAULT_DRAWN_CONTAINER_WIDTH),
+          height: Math.max(MIN_DRAWN_CONTAINER_HEIGHT, r.h || DEFAULT_DRAWN_CONTAINER_HEIGHT),
+          fill: 'none',
+          container: {
+            kind,
+            name: kind === 'rg' ? 'Resource Group' : 'Subscription',
+            collapsed: false,
+          },
+        };
+      }
     }
   }
 

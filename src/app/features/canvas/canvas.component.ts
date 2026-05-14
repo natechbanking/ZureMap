@@ -1056,94 +1056,63 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
 
   // ── Annotation interaction ─────────────────────────────────────────────────
   onAnnotationMouseDown(e: MouseEvent, ann: Annotation): void {
-    if (this.activeTool !== 'pointer') return;
-    if (e.button !== 0) return;
-    // Opaque block annotations (image, text, sticky) always take selection
-    // priority — they live in the HTML overlay layer that renders above nodes.
-    // All other annotation types defer to a node under the pointer so nodes
-    // stay reachable through shapes, arrows, and freehand paths.
-    const isOpaqueAnnotation = ann.type === 'image' || ann.type === 'text' || ann.type === 'sticky' || !!ann.container;
-    if (!isOpaqueAnnotation) {
-      const canvasPt = this.canvasPointFromClient(e.clientX, e.clientY);
-      const nodeUnder = this.nodeAtCanvasPoint(canvasPt.x, canvasPt.y);
-      if (nodeUnder) {
-        this.onNodeMouseDown(e, nodeUnder);
-        return;
-      }
-    }
-    e.stopPropagation();
-    this.ctxMenuSvc.annotationContextMenu = null;
-    this.ctxMenuSvc.contextMenu = null;
-    this.selectedEdgeId = null;
-    if (e.ctrlKey || e.metaKey) {
-      if (this.selectedAnnotationIds.includes(ann.id)) {
-        this.selectedAnnotationIds = this.selectedAnnotationIds.filter(id => id !== ann.id);
-      } else {
-        this.selectedAnnotationIds = [...this.selectedAnnotationIds, ann.id];
-      }
-      this.selectedAnnotationId = this.selectedAnnotationIds[0] ?? null;
-      if (this.selectedAnnotationId) {
-        const selected = this.annotationById(this.selectedAnnotationId);
-        if (selected) this.syncToolbarFromAnnotation(selected);
-      }
-      return;
-    }
-    this.selectedAnnotationId = ann.id;
-    this.selectedAnnotationIds = [ann.id];
-    this.syncToolbarFromAnnotation(ann);
-    const pt = this.svgPoint(e);
-    this.store.pushUndo();
-    this.annDragId = ann.id;
-    this.annDragMouse = { x: pt.x, y: pt.y };
-    this.annDragOrigin = { x: ann.x, y: ann.y, x2: ann.x2, y2: ann.y2 };
+    const dragStart = this.facade.annotation.onAnnotationMouseDown(e, ann, {
+      activeTool: this.activeTool,
+      selectedAnnotationId: this.selectedAnnotationId,
+      selectedAnnotationIds: this.selectedAnnotationIds,
+      canvasPointFromClient: (x, y) => this.canvasPointFromClient(x, y),
+      nodeAtCanvasPoint: (x, y) => this.nodeAtCanvasPoint(x, y),
+      onNodeMouseDown: (event, node) => this.onNodeMouseDown(event, node),
+      closeAnnotationAndResourceMenus: () => {
+        this.ctxMenuSvc.annotationContextMenu = null;
+        this.ctxMenuSvc.contextMenu = null;
+      },
+      clearEdgeSelection: () => {
+        this.selectedEdgeId = null;
+      },
+      annotationById: id => this.annotationById(id),
+      syncToolbarFromAnnotation: annotation => this.syncToolbarFromAnnotation(annotation),
+      svgPoint: event => this.svgPoint(event),
+      setSelection: (id, ids) => {
+        this.selectedAnnotationId = id;
+        this.selectedAnnotationIds = ids;
+      },
+    });
+    if (!dragStart) return;
+    this.annDragId = dragStart.annDragId;
+    this.annDragMouse = dragStart.annDragMouse;
+    this.annDragOrigin = dragStart.annDragOrigin;
   }
 
   onImageResizeMouseDown(e: MouseEvent, ann: Annotation): void {
-    if (this.activeTool !== 'pointer') return;
-    e.preventDefault();
-    e.stopPropagation();
-    const width = Math.max(1, ann.width ?? 240);
-    const height = Math.max(1, ann.height ?? 180);
-    this.store.pushUndo();
-    this.imageResizeDrag = {
-      annId: ann.id,
-      startX: e.clientX,
-      startY: e.clientY,
-      startWidth: width,
-      startHeight: height,
-      aspect: width / height,
-    };
+    const drag = this.facade.annotation.onImageResizeMouseDown(e, ann, this.activeTool);
+    if (!drag) return;
+    this.imageResizeDrag = drag;
   }
 
   onAnnotationShapeResizeMouseDown(e: MouseEvent, ann: Annotation, handle: 'nw'|'n'|'ne'|'e'|'se'|'s'|'sw'|'w'): void {
-    if (this.activeTool !== 'pointer') return;
-    e.preventDefault();
-    e.stopPropagation();
-    this.store.pushUndo();
-    this.annShapeResizeDrag = {
-      annId: ann.id,
+    const drag = this.facade.annotation.onAnnotationShapeResizeMouseDown(
+      e,
+      ann,
       handle,
-      startClientX: e.clientX,
-      startClientY: e.clientY,
-      startX: ann.x,
-      startY: ann.y,
-      startWidth: ann.width ?? annotationTextWidthUtil(ann),
-      startHeight: ann.height ?? annotationTextHeightUtil(ann),
-    };
+      this.activeTool,
+      annotationTextWidthUtil(ann),
+      annotationTextHeightUtil(ann),
+    );
+    if (!drag) return;
+    this.annShapeResizeDrag = drag;
   }
 
   onAnnotationRotateMouseDown(e: MouseEvent, ann: Annotation): void {
-    if (this.activeTool !== 'pointer') return;
-    e.preventDefault();
-    e.stopPropagation();
-    this.store.pushUndo();
-    const width = annotationTextWidthUtil(ann);
-    const height = annotationTextHeightUtil(ann);
-    this.annRotateDrag = {
-      annId: ann.id,
-      cx: ann.x + width / 2,
-      cy: ann.y + height / 2,
-    };
+    const drag = this.facade.annotation.onAnnotationRotateMouseDown(
+      e,
+      ann,
+      this.activeTool,
+      annotationTextWidthUtil(ann),
+      annotationTextHeightUtil(ann),
+    );
+    if (!drag) return;
+    this.annRotateDrag = drag;
   }
 
   startEditAnnotation(ann: Annotation): void {

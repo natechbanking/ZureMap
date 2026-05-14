@@ -108,9 +108,9 @@ import { CanvasViewportController } from './controllers/canvas-viewport.controll
 import { CanvasSelectionController } from './controllers/canvas-selection.controller';
 import { CanvasControllerContextService } from './controllers/canvas-controller-context.service';
 import { CanvasEdgeController } from './controllers/canvas-edge.controller';
+import { CanvasResourcePlacementController } from './controllers/canvas-resource-placement.controller';
 
 const ZERO_OFFSET: SizeOffset = { top: 0, right: 0, bottom: 0, left: 0 };
-const AZURE_RESOURCE_DND_TYPE = 'application/x-zuremap-azure-resource';
 interface ShapeBindCandidate {
   annotation: Annotation;
   bounds: { x: number; y: number; width: number; height: number };
@@ -157,6 +157,7 @@ interface ShapeBindCandidate {
     CanvasClipboardController,
     CanvasAnnotationController,
     CanvasEdgeController,
+    CanvasResourcePlacementController,
     CanvasFacade,
   ],
 })
@@ -295,9 +296,12 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
   }
 
   // ── Resource placement state ───────────────────────────────────────────────
-  activeResourceType = '';
-  showCreateResourceModal = false;
-  resourcePlacementPosition: { x: number; y: number } | null = null;
+  get activeResourceType(): string { return this.facade.resourcePlacement.activeResourceType(); }
+  set activeResourceType(value: string) { this.facade.resourcePlacement.activeResourceType.set(value); }
+  get showCreateResourceModal(): boolean { return this.facade.resourcePlacement.showCreateResourceModal(); }
+  set showCreateResourceModal(value: boolean) { this.facade.resourcePlacement.showCreateResourceModal.set(value); }
+  get resourcePlacementPosition(): { x: number; y: number } | null { return this.facade.resourcePlacement.resourcePlacementPosition(); }
+  set resourcePlacementPosition(value: { x: number; y: number } | null) { this.facade.resourcePlacement.resourcePlacementPosition.set(value); }
 
   get selectedAnnotationId(): string | null { return this.facade.selection.selectedAnnotationId(); }
   set selectedAnnotationId(value: string | null) { this.facade.selection.selectedAnnotationId.set(value); }
@@ -845,91 +849,32 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
   }
 
   onResourceTypeChange(type: string): void {
-    this.activeResourceType = type;
+    this.facade.resourcePlacement.onResourceTypeChange(type);
   }
 
   onCanvasDragOver(event: DragEvent): void {
-    if (!event.dataTransfer) return;
-    if (!event.dataTransfer.types.includes(AZURE_RESOURCE_DND_TYPE)) return;
-    event.preventDefault();
-    event.dataTransfer.dropEffect = 'copy';
+    this.facade.resourcePlacement.onCanvasDragOver(event);
   }
 
   onCanvasDrop(event: DragEvent): void {
-    if (!event.dataTransfer) return;
-    const raw = event.dataTransfer.getData(AZURE_RESOURCE_DND_TYPE);
-    if (!raw) return;
-    let payload: { type?: string; label?: string } | null = null;
-    try {
-      payload = JSON.parse(raw) as { type?: string; label?: string };
-    } catch {
-      return;
-    }
-    if (!payload?.type) return;
-    event.preventDefault();
-    const pos = this.canvasPointFromClient(event.clientX, event.clientY);
-    this.startResourcePlacement(payload.type, pos);
+    this.facade.resourcePlacement.onCanvasDrop(event, (x, y) => this.canvasPointFromClient(x, y));
   }
 
   onCreateResourceConfirm(data: ResourceCreationData): void {
-    if (!this.resourcePlacementPosition || !this.activeResourceType) return;
-    const iconUrl = this.iconRegistryService.getIconUrl(this.activeResourceType);
-    const id = `custom-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-    const pos = this.resourcePlacementPosition;
-    const tags: Record<string, string> = {};
-    for (const t of data.tags) {
-      if (t.key.trim()) tags[t.key.trim()] = t.value;
-    }
-    const isK8sWorkload = this.activeResourceType.startsWith('kubernetes/');
-    const node: DiagramNode = {
-      id,
-      label: data.name,
-      resourceType: this.activeResourceType,
-      iconUrl,
-      group: isK8sWorkload ? 'k8sNamespace' : 'standalone',
-      groupId: data.resourceGroup || 'custom',
-      position: pos,
-      size: { width: 160, height: 80 },
-      status: data.status,
-      selected: false,
-      highlighted: false,
-      metadata: {
-        id: `/custom/${data.resourceGroup || 'custom'}/${this.activeResourceType}/${data.name}`,
-        name: data.name,
-        type: this.activeResourceType,
-        location: data.location,
-        resourceGroup: data.resourceGroup,
-        subscriptionId: 'custom',
-        tags,
-        properties: {},
-      },
-      custom: {
-        description: data.description,
-        internalItems: data.internalItems
-          .filter(i => i.text.trim())
-          .map((item, i) => ({
-            id: `ii-${i}`,
-            text: item.text,
-            x: 4,
-            y: 20 + i * 16,
-            baseColor: '#1d4ed8',
-            color: '#1d4ed8',
-            baseBackgroundColor: '#eff6ff',
-            backgroundColor: '#eff6ff',
-          })),
-      },
-    };
+    const nextNodes = this.facade.resourcePlacement.onCreateResourceConfirm(
+      data,
+      type => this.iconRegistryService.getIconUrl(type),
+      nodes => this.applyInternalItemStyleRulesToNodes(nodes),
+      this.store.nodes(),
+    );
+    if (!nextNodes) return;
     this.store.pushUndo();
-    // Apply any existing internal-item style rules to the newly created node.
-    this.store.setNodes(this.applyInternalItemStyleRulesToNodes([...this.store.nodes(), node]));
-    this.showCreateResourceModal = false;
-    this.resourcePlacementPosition = null;
+    this.store.setNodes(nextNodes);
     this.setTool('pointer');
   }
 
   onCreateResourceCancel(): void {
-    this.showCreateResourceModal = false;
-    this.resourcePlacementPosition = null;
+    this.facade.resourcePlacement.onCreateResourceCancel();
     this.setTool('pointer');
   }
 
@@ -2151,10 +2096,7 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
   }
 
   private startResourcePlacement(type: string, position: { x: number; y: number }): void {
-    if (!type) return;
-    this.activeResourceType = type;
-    this.resourcePlacementPosition = position;
-    this.showCreateResourceModal = true;
+    this.facade.resourcePlacement.startResourcePlacement(type, position);
   }
 
   private updateDrawBindPreviewPorts(pt: { x: number; y: number }): void {

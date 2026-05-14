@@ -1,4 +1,4 @@
-import { Component, inject, effect, ViewChild, ElementRef, HostListener, computed, AfterViewInit, OnDestroy } from '@angular/core';
+import { Component, inject, effect, ViewChild, ElementRef, computed, AfterViewInit, OnDestroy, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { DiagramStore } from '../../core/store/diagram.store';
 import { ELKLayoutService } from '../../core/services/elk-layout.service';
@@ -78,7 +78,6 @@ import {
   TagRule,
   NodeContainerAction,
 } from './canvas.types';
-import { CanvasEdgeEditorService } from './canvas-edge-editor.service';
 import { CanvasResourceEditorService } from './canvas-resource-editor.service';
 import { CanvasVisibilityService } from './canvas-visibility.service';
 import { CanvasCollapseService } from './canvas-collapse.service';
@@ -102,23 +101,16 @@ import {
 } from './canvas-geometry.util';
 import { DrawingRuntimeState, DrawingStyleState, onDrawEnd, onDrawMove, onDrawStart, resetDrawingRuntime } from './canvas-drawing.util';
 import { normalizePastedImage, pasteTargetPosition as pasteTargetPositionUtil } from './canvas-image-paste.util';
+import { CanvasFacade } from './canvas-facade.service';
+import { CanvasClipboardController } from './controllers/canvas-clipboard.controller';
+import { CanvasAnnotationController } from './controllers/canvas-annotation.controller';
+import { CanvasViewportController } from './controllers/canvas-viewport.controller';
+import { CanvasSelectionController } from './controllers/canvas-selection.controller';
+import { CanvasControllerContextService } from './controllers/canvas-controller-context.service';
+import { CanvasEdgeController } from './controllers/canvas-edge.controller';
+import { CanvasResourcePlacementController } from './controllers/canvas-resource-placement.controller';
 
 const ZERO_OFFSET: SizeOffset = { top: 0, right: 0, bottom: 0, left: 0 };
-const AZURE_RESOURCE_DND_TYPE = 'application/x-zuremap-azure-resource';
-const CANVAS_COPY_OFFSET = 24;
-
-interface NodeClipboardPayload {
-  kind: 'node-set';
-  nodes: DiagramNode[];
-  edges: DiagramEdge[];
-}
-
-interface AnnotationClipboardPayload {
-  kind: 'annotation-set';
-  annotations: Annotation[];
-}
-
-type CanvasClipboardPayload = NodeClipboardPayload | AnnotationClipboardPayload;
 interface ShapeBindCandidate {
   annotation: Annotation;
   bounds: { x: number; y: number; width: number; height: number };
@@ -151,6 +143,23 @@ interface ShapeBindCandidate {
   ],
   templateUrl: "./canvas.component.html",
   styleUrl: "./canvas.component.scss",
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  host: {
+    '(document:keydown)': 'onKeyDown($event)',
+    '(document:paste)': 'onPaste($event)',
+    '(document:mousemove)': 'onDocMouseMove($event)',
+    '(document:mouseup)': 'onDocMouseUp($event)',
+  },
+  providers: [
+    CanvasControllerContextService,
+    CanvasViewportController,
+    CanvasSelectionController,
+    CanvasClipboardController,
+    CanvasAnnotationController,
+    CanvasEdgeController,
+    CanvasResourcePlacementController,
+    CanvasFacade,
+  ],
 })
 export class CanvasComponent implements AfterViewInit, OnDestroy {
   @ViewChild('canvasHost', { read: ElementRef }) canvasHostRef!: ElementRef;
@@ -160,7 +169,6 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
   private elkLayout = inject(ELKLayoutService);
   protected iconRegistryService = inject(IconRegistryService);
   private actions = inject(CanvasActionsService);
-  private edgeEditor = inject(CanvasEdgeEditorService);
   private resourceEditor = inject(CanvasResourceEditorService);
   private visibilitySvc = inject(CanvasVisibilityService);
   private collapseSvc = inject(CanvasCollapseService);
@@ -171,6 +179,7 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
   private tagVisualization = inject(CanvasTagVisualizationService);
   private autosave = inject(AutosaveService);
   readonly ctxMenuSvc = inject(CanvasContextMenuService);
+  readonly facade = inject(CanvasFacade);
   readonly childToParentMap = computed(() => {
     const map = new Map<string, string>();
     for (const node of this.store.nodes()) {
@@ -184,11 +193,6 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
   readonly parentLabelById = computed(() =>
     new Map(this.store.nodes().map(n => [n.id, n.label]))
   );
-
-  // ── Layout ─────────────────────────────────────────────────────────────────
-  private readonly ZOOM_MIN = 0.4;
-  private readonly ZOOM_MAX = 2.5;
-  private readonly ZOOM_STEP = 0.1;
 
   visibleNodes: DiagramNode[] = [];
   visibleEdges = this.store.edges();
@@ -248,11 +252,7 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
   }
 
   ngAfterViewInit(): void {
-    const host = this.canvasHostRef?.nativeElement as HTMLElement | undefined;
-    if (host) {
-      this.minimapViewportWidth = host.clientWidth;
-      this.minimapViewportHeight = host.clientHeight;
-    }
+    this.facade.viewport.setInitialViewportSize(this.canvasHostRef?.nativeElement as HTMLElement | undefined);
   }
 
   ngOnDestroy(): void {
@@ -276,41 +276,39 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
   activeFillOpacity = 0.2;
 
   // ── Minimap state ──────────────────────────────────────────────────────────
-  minimapOpen = false;
-  minimapScrollLeft = 0;
-  minimapScrollTop = 0;
-  minimapViewportWidth = 0;
-  minimapViewportHeight = 0;
+  get minimapOpen(): boolean { return this.facade.viewport.minimapOpen(); }
+  set minimapOpen(value: boolean) { this.facade.viewport.minimapOpen.set(value); }
+  get minimapScrollLeft(): number { return this.facade.viewport.minimapScrollLeft(); }
+  set minimapScrollLeft(value: number) { this.facade.viewport.minimapScrollLeft.set(value); }
+  get minimapScrollTop(): number { return this.facade.viewport.minimapScrollTop(); }
+  set minimapScrollTop(value: number) { this.facade.viewport.minimapScrollTop.set(value); }
+  get minimapViewportWidth(): number { return this.facade.viewport.minimapViewportWidth(); }
+  set minimapViewportWidth(value: number) { this.facade.viewport.minimapViewportWidth.set(value); }
+  get minimapViewportHeight(): number { return this.facade.viewport.minimapViewportHeight(); }
+  set minimapViewportHeight(value: number) { this.facade.viewport.minimapViewportHeight.set(value); }
 
   onCanvasScroll(): void {
-    const host = this.canvasHostRef?.nativeElement as HTMLElement | undefined;
-    if (!host) return;
-    this.minimapScrollLeft = host.scrollLeft;
-    this.minimapScrollTop = host.scrollTop;
-    this.minimapViewportWidth = host.clientWidth;
-    this.minimapViewportHeight = host.clientHeight;
+    this.facade.viewport.onCanvasScroll(this.canvasHostRef?.nativeElement as HTMLElement | undefined);
   }
 
   onMinimapPan(e: { scrollLeft: number; scrollTop: number }): void {
-    const host = this.canvasHostRef?.nativeElement as HTMLElement | undefined;
-    if (!host) return;
-    host.scrollLeft = e.scrollLeft;
-    host.scrollTop = e.scrollTop;
-    this.minimapScrollLeft = host.scrollLeft;
-    this.minimapScrollTop = host.scrollTop;
+    this.facade.viewport.onMinimapPan(e, this.canvasHostRef?.nativeElement as HTMLElement | undefined);
   }
 
   // ── Resource placement state ───────────────────────────────────────────────
-  activeResourceType = '';
-  showCreateResourceModal = false;
-  resourcePlacementPosition: { x: number; y: number } | null = null;
+  get activeResourceType(): string { return this.facade.resourcePlacement.activeResourceType(); }
+  set activeResourceType(value: string) { this.facade.resourcePlacement.activeResourceType.set(value); }
+  get showCreateResourceModal(): boolean { return this.facade.resourcePlacement.showCreateResourceModal(); }
+  set showCreateResourceModal(value: boolean) { this.facade.resourcePlacement.showCreateResourceModal.set(value); }
+  get resourcePlacementPosition(): { x: number; y: number } | null { return this.facade.resourcePlacement.resourcePlacementPosition(); }
+  set resourcePlacementPosition(value: { x: number; y: number } | null) { this.facade.resourcePlacement.resourcePlacementPosition.set(value); }
 
-  selectedAnnotationId: string | null = null;
-  selectedAnnotationIds: string[] = [];
+  get selectedAnnotationId(): string | null { return this.facade.selection.selectedAnnotationId(); }
+  set selectedAnnotationId(value: string | null) { this.facade.selection.selectedAnnotationId.set(value); }
+  get selectedAnnotationIds(): string[] { return this.facade.selection.selectedAnnotationIds(); }
+  set selectedAnnotationIds(value: string[]) { this.facade.selection.selectedAnnotationIds.set(value); }
   editingAnnotation: Annotation | null = null;
   editingTextValue = '';
-  private canvasClipboard: CanvasClipboardPayload | null = null;
-  private pasteSequence = 0;
 
   // In-progress drawing previews
   previewPath = '';
@@ -376,7 +374,8 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
   // Node HTML5 drag
   private dragOffset = { x: 0, y: 0 };
   private collapsedHeights = new Map<string, number>();
-  selectedEdgeId: string | null = null;
+  get selectedEdgeId(): string | null { return this.facade.selection.selectedEdgeId(); }
+  set selectedEdgeId(value: string | null) { this.facade.selection.selectedEdgeId.set(value); }
   edgeWaypointDragState: EdgeWaypointDragState | null = null;
   annWaypointDragState: AnnWaypointDragState | null = null;
   edgeLinkDragState: EdgeLinkDragState | null = null;
@@ -398,7 +397,6 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
   }
 
   // ── Keyboard shortcuts ─────────────────────────────────────────────────────
-  @HostListener('document:keydown', ['$event'])
   onKeyDown(e: KeyboardEvent): void {
     if ((e.target as HTMLElement).matches('input,textarea,[contenteditable]')) return;
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c') {
@@ -471,7 +469,6 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
     }
   }
 
-  @HostListener('document:paste', ['$event'])
   async onPaste(event: ClipboardEvent): Promise<void> {
     if (this.activeTool !== 'pointer') return;
     if ((event.target as HTMLElement | null)?.matches('input,textarea,[contenteditable=true]')) return;
@@ -518,7 +515,6 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
   }
 
   // ── Document-level mouse events (for drag completion outside SVG) ──────────
-  @HostListener('document:mousemove', ['$event'])
   onDocMouseMove(e: MouseEvent): void {
     if (this.activeTool !== 'pointer' && this.isDrawing) {
       this.onDrawMouseMove(e);
@@ -706,11 +702,10 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
   onCanvasWheel(event: WheelEvent): void {
     if (!event.ctrlKey && !event.metaKey) return;
     event.preventDefault();
-    const delta = event.deltaY < 0 ? this.ZOOM_STEP : -this.ZOOM_STEP;
+    const delta = event.deltaY < 0 ? 0.1 : -0.1;
     this.setZoom(this.zoomLevel + delta, { x: event.clientX, y: event.clientY });
   }
 
-  @HostListener('document:mouseup', ['$event'])
   onDocMouseUp(e: MouseEvent): void {
     if (this.activeTool !== 'pointer' && this.isDrawing) {
       this.onDrawMouseUp(e);
@@ -854,91 +849,32 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
   }
 
   onResourceTypeChange(type: string): void {
-    this.activeResourceType = type;
+    this.facade.resourcePlacement.onResourceTypeChange(type);
   }
 
   onCanvasDragOver(event: DragEvent): void {
-    if (!event.dataTransfer) return;
-    if (!event.dataTransfer.types.includes(AZURE_RESOURCE_DND_TYPE)) return;
-    event.preventDefault();
-    event.dataTransfer.dropEffect = 'copy';
+    this.facade.resourcePlacement.onCanvasDragOver(event);
   }
 
   onCanvasDrop(event: DragEvent): void {
-    if (!event.dataTransfer) return;
-    const raw = event.dataTransfer.getData(AZURE_RESOURCE_DND_TYPE);
-    if (!raw) return;
-    let payload: { type?: string; label?: string } | null = null;
-    try {
-      payload = JSON.parse(raw) as { type?: string; label?: string };
-    } catch {
-      return;
-    }
-    if (!payload?.type) return;
-    event.preventDefault();
-    const pos = this.canvasPointFromClient(event.clientX, event.clientY);
-    this.startResourcePlacement(payload.type, pos);
+    this.facade.resourcePlacement.onCanvasDrop(event, (x, y) => this.canvasPointFromClient(x, y));
   }
 
   onCreateResourceConfirm(data: ResourceCreationData): void {
-    if (!this.resourcePlacementPosition || !this.activeResourceType) return;
-    const iconUrl = this.iconRegistryService.getIconUrl(this.activeResourceType);
-    const id = `custom-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-    const pos = this.resourcePlacementPosition;
-    const tags: Record<string, string> = {};
-    for (const t of data.tags) {
-      if (t.key.trim()) tags[t.key.trim()] = t.value;
-    }
-    const isK8sWorkload = this.activeResourceType.startsWith('kubernetes/');
-    const node: DiagramNode = {
-      id,
-      label: data.name,
-      resourceType: this.activeResourceType,
-      iconUrl,
-      group: isK8sWorkload ? 'k8sNamespace' : 'standalone',
-      groupId: data.resourceGroup || 'custom',
-      position: pos,
-      size: { width: 160, height: 80 },
-      status: data.status,
-      selected: false,
-      highlighted: false,
-      metadata: {
-        id: `/custom/${data.resourceGroup || 'custom'}/${this.activeResourceType}/${data.name}`,
-        name: data.name,
-        type: this.activeResourceType,
-        location: data.location,
-        resourceGroup: data.resourceGroup,
-        subscriptionId: 'custom',
-        tags,
-        properties: {},
-      },
-      custom: {
-        description: data.description,
-        internalItems: data.internalItems
-          .filter(i => i.text.trim())
-          .map((item, i) => ({
-            id: `ii-${i}`,
-            text: item.text,
-            x: 4,
-            y: 20 + i * 16,
-            baseColor: '#1d4ed8',
-            color: '#1d4ed8',
-            baseBackgroundColor: '#eff6ff',
-            backgroundColor: '#eff6ff',
-          })),
-      },
-    };
+    const nextNodes = this.facade.resourcePlacement.onCreateResourceConfirm(
+      data,
+      type => this.iconRegistryService.getIconUrl(type),
+      nodes => this.applyInternalItemStyleRulesToNodes(nodes),
+      this.store.nodes(),
+    );
+    if (!nextNodes) return;
     this.store.pushUndo();
-    // Apply any existing internal-item style rules to the newly created node.
-    this.store.setNodes(this.applyInternalItemStyleRulesToNodes([...this.store.nodes(), node]));
-    this.showCreateResourceModal = false;
-    this.resourcePlacementPosition = null;
+    this.store.setNodes(nextNodes);
     this.setTool('pointer');
   }
 
   onCreateResourceCancel(): void {
-    this.showCreateResourceModal = false;
-    this.resourcePlacementPosition = null;
+    this.facade.resourcePlacement.onCreateResourceCancel();
     this.setTool('pointer');
   }
 
@@ -1065,123 +1001,90 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
 
   // ── Annotation interaction ─────────────────────────────────────────────────
   onAnnotationMouseDown(e: MouseEvent, ann: Annotation): void {
-    if (this.activeTool !== 'pointer') return;
-    if (e.button !== 0) return;
-    // Opaque block annotations (image, text, sticky) always take selection
-    // priority — they live in the HTML overlay layer that renders above nodes.
-    // All other annotation types defer to a node under the pointer so nodes
-    // stay reachable through shapes, arrows, and freehand paths.
-    const isOpaqueAnnotation = ann.type === 'image' || ann.type === 'text' || ann.type === 'sticky' || !!ann.container;
-    if (!isOpaqueAnnotation) {
-      const canvasPt = this.canvasPointFromClient(e.clientX, e.clientY);
-      const nodeUnder = this.nodeAtCanvasPoint(canvasPt.x, canvasPt.y);
-      if (nodeUnder) {
-        this.onNodeMouseDown(e, nodeUnder);
-        return;
-      }
-    }
-    e.stopPropagation();
-    this.ctxMenuSvc.annotationContextMenu = null;
-    this.ctxMenuSvc.contextMenu = null;
-    this.selectedEdgeId = null;
-    if (e.ctrlKey || e.metaKey) {
-      if (this.selectedAnnotationIds.includes(ann.id)) {
-        this.selectedAnnotationIds = this.selectedAnnotationIds.filter(id => id !== ann.id);
-      } else {
-        this.selectedAnnotationIds = [...this.selectedAnnotationIds, ann.id];
-      }
-      this.selectedAnnotationId = this.selectedAnnotationIds[0] ?? null;
-      if (this.selectedAnnotationId) {
-        const selected = this.annotationById(this.selectedAnnotationId);
-        if (selected) this.syncToolbarFromAnnotation(selected);
-      }
-      return;
-    }
-    this.selectedAnnotationId = ann.id;
-    this.selectedAnnotationIds = [ann.id];
-    this.syncToolbarFromAnnotation(ann);
-    const pt = this.svgPoint(e);
-    this.store.pushUndo();
-    this.annDragId = ann.id;
-    this.annDragMouse = { x: pt.x, y: pt.y };
-    this.annDragOrigin = { x: ann.x, y: ann.y, x2: ann.x2, y2: ann.y2 };
+    const dragStart = this.facade.annotation.onAnnotationMouseDown(e, ann, {
+      activeTool: this.activeTool,
+      selectedAnnotationId: this.selectedAnnotationId,
+      selectedAnnotationIds: this.selectedAnnotationIds,
+      canvasPointFromClient: (x, y) => this.canvasPointFromClient(x, y),
+      nodeAtCanvasPoint: (x, y) => this.nodeAtCanvasPoint(x, y),
+      onNodeMouseDown: (event, node) => this.onNodeMouseDown(event, node),
+      closeAnnotationAndResourceMenus: () => {
+        this.ctxMenuSvc.annotationContextMenu = null;
+        this.ctxMenuSvc.contextMenu = null;
+      },
+      clearEdgeSelection: () => {
+        this.selectedEdgeId = null;
+      },
+      annotationById: id => this.annotationById(id),
+      syncToolbarFromAnnotation: annotation => this.syncToolbarFromAnnotation(annotation),
+      svgPoint: event => this.svgPoint(event),
+      setSelection: (id, ids) => {
+        this.selectedAnnotationId = id;
+        this.selectedAnnotationIds = ids;
+      },
+    });
+    if (!dragStart) return;
+    this.annDragId = dragStart.annDragId;
+    this.annDragMouse = dragStart.annDragMouse;
+    this.annDragOrigin = dragStart.annDragOrigin;
   }
 
   onImageResizeMouseDown(e: MouseEvent, ann: Annotation): void {
-    if (this.activeTool !== 'pointer') return;
-    e.preventDefault();
-    e.stopPropagation();
-    const width = Math.max(1, ann.width ?? 240);
-    const height = Math.max(1, ann.height ?? 180);
-    this.store.pushUndo();
-    this.imageResizeDrag = {
-      annId: ann.id,
-      startX: e.clientX,
-      startY: e.clientY,
-      startWidth: width,
-      startHeight: height,
-      aspect: width / height,
-    };
+    const drag = this.facade.annotation.onImageResizeMouseDown(e, ann, this.activeTool);
+    if (!drag) return;
+    this.imageResizeDrag = drag;
   }
 
   onAnnotationShapeResizeMouseDown(e: MouseEvent, ann: Annotation, handle: 'nw'|'n'|'ne'|'e'|'se'|'s'|'sw'|'w'): void {
-    if (this.activeTool !== 'pointer') return;
-    e.preventDefault();
-    e.stopPropagation();
-    this.store.pushUndo();
-    this.annShapeResizeDrag = {
-      annId: ann.id,
+    const drag = this.facade.annotation.onAnnotationShapeResizeMouseDown(
+      e,
+      ann,
       handle,
-      startClientX: e.clientX,
-      startClientY: e.clientY,
-      startX: ann.x,
-      startY: ann.y,
-      startWidth: ann.width ?? annotationTextWidthUtil(ann),
-      startHeight: ann.height ?? annotationTextHeightUtil(ann),
-    };
+      this.activeTool,
+      annotationTextWidthUtil(ann),
+      annotationTextHeightUtil(ann),
+    );
+    if (!drag) return;
+    this.annShapeResizeDrag = drag;
   }
 
   onAnnotationRotateMouseDown(e: MouseEvent, ann: Annotation): void {
-    if (this.activeTool !== 'pointer') return;
-    e.preventDefault();
-    e.stopPropagation();
-    this.store.pushUndo();
-    const width = annotationTextWidthUtil(ann);
-    const height = annotationTextHeightUtil(ann);
-    this.annRotateDrag = {
-      annId: ann.id,
-      cx: ann.x + width / 2,
-      cy: ann.y + height / 2,
-    };
+    const drag = this.facade.annotation.onAnnotationRotateMouseDown(
+      e,
+      ann,
+      this.activeTool,
+      annotationTextWidthUtil(ann),
+      annotationTextHeightUtil(ann),
+    );
+    if (!drag) return;
+    this.annRotateDrag = drag;
   }
 
   startEditAnnotation(ann: Annotation): void {
-    this.editingAnnotation = ann;
-    this.editingTextValue = ann.text ?? '';
+    const result = this.facade.annotation.startEditAnnotation(ann);
+    this.editingAnnotation = result.editingAnnotation;
+    this.editingTextValue = result.editingTextValue;
   }
 
   finishEdit(nextText?: string): void {
-    if (!this.editingAnnotation) return;
-    if (typeof nextText === 'string') this.editingTextValue = nextText;
-    const text = this.editingTextValue.trim();
-    this.store.pushUndo();
-    if (text) {
-      this.store.updateAnnotation(this.editingAnnotation.id, { text });
-    } else {
-      this.clearShapeBinding(this.editingAnnotation.id);
-      this.store.deleteAnnotation(this.editingAnnotation.id);
-    }
-    this.editingAnnotation = null;
-    this.editingTextValue = '';
+    const result = this.facade.annotation.finishEdit(
+      this.editingAnnotation,
+      this.editingTextValue,
+      annotationId => this.clearShapeBinding(annotationId),
+      nextText,
+    );
+    if (!result) return;
+    this.editingAnnotation = result.editingAnnotation;
+    this.editingTextValue = result.editingTextValue;
   }
 
   cancelEdit(): void {
-    if (this.editingAnnotation && !this.editingAnnotation.text) {
-      this.clearShapeBinding(this.editingAnnotation.id);
-      this.store.deleteAnnotation(this.editingAnnotation.id);
-    }
-    this.editingAnnotation = null;
-    this.editingTextValue = '';
+    const result = this.facade.annotation.cancelEdit(
+      this.editingAnnotation,
+      annotationId => this.clearShapeBinding(annotationId),
+    );
+    this.editingAnnotation = result.editingAnnotation;
+    this.editingTextValue = result.editingTextValue;
   }
 
   onEditKeyDown(e: KeyboardEvent): void {
@@ -1191,119 +1094,33 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
     }
   }
 
-  private pasteOffset(): { x: number; y: number } {
-    this.pasteSequence += 1;
-    const delta = this.pasteSequence * CANVAS_COPY_OFFSET;
-    return { x: delta, y: delta };
-  }
-
-  private nextNodeId(): string {
-    return `copy-node-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  private annotationSelectionContext(): {
+    selectedAnnotationId: string | null;
+    selectedAnnotationIds: string[];
+    activeTool: string;
+    clearShapeBinding: (annotationId: string) => void;
+    syncToolbarFromAnnotation: (annotation: Annotation) => void;
+    setSelectedAnnotation: (id: string | null, ids: string[]) => void;
+  } {
+    return {
+      selectedAnnotationId: this.selectedAnnotationId,
+      selectedAnnotationIds: this.selectedAnnotationIds,
+      activeTool: this.activeTool,
+      clearShapeBinding: annotationId => this.clearShapeBinding(annotationId),
+      syncToolbarFromAnnotation: annotation => this.syncToolbarFromAnnotation(annotation),
+      setSelectedAnnotation: (id, ids) => {
+        this.selectedAnnotationId = id;
+        this.selectedAnnotationIds = ids;
+      },
+    };
   }
 
   private nextEdgeId(): string {
     return `copy-edge-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
   }
 
-  private nextAnnotationId(): string {
-    return `ann-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-  }
-
-  private pasteAnnotationsFromClipboard(sourceAnnotations: Annotation[]): void {
-    const offset = this.pasteOffset();
-    const pasted = sourceAnnotations.map(source => ({
-      ...source,
-      id: this.nextAnnotationId(),
-      x: source.x + offset.x,
-      y: source.y + offset.y,
-      x2: typeof source.x2 === 'number' ? source.x2 + offset.x : source.x2,
-      y2: typeof source.y2 === 'number' ? source.y2 + offset.y : source.y2,
-      waypoints: source.waypoints?.map(w => ({ x: w.x + offset.x, y: w.y + offset.y })),
-    }));
-    if (pasted.length === 0) return;
-    this.store.pushUndo();
-    this.store.setAnnotations([...this.store.annotations(), ...pasted]);
-    this.store.selectNodes([]);
-    this.selectedAnnotationIds = pasted.map(a => a.id);
-    this.selectedAnnotationId = pasted[0]?.id ?? null;
-    this.selectedEdgeId = null;
-    this.syncToolbarFromAnnotation(pasted[0]);
-  }
-
-  private pasteNodesFromClipboard(sourceNodes: DiagramNode[], sourceEdges: DiagramEdge[]): void {
-    const offset = this.pasteOffset();
-    const nodeIdMap = new Map<string, string>();
-    for (const node of sourceNodes) nodeIdMap.set(node.id, this.nextNodeId());
-
-    const pastedNodes = sourceNodes.map(source => {
-      const newId = nodeIdMap.get(source.id)!;
-      // Keep pasted node relationships self-contained inside the pasted set.
-      const remappedParentId = source.parentId ? nodeIdMap.get(source.parentId) : undefined;
-      const remappedChildren = source.children
-        ?.map(childId => nodeIdMap.get(childId))
-        .filter((childId): childId is string => !!childId);
-      const groupId = nodeIdMap.get(source.groupId) ?? source.groupId;
-      return {
-        ...source,
-        id: newId,
-        parentId: remappedParentId,
-        children: remappedChildren,
-        groupId,
-        selected: false,
-        highlighted: false,
-        position: { x: source.position.x + offset.x, y: source.position.y + offset.y },
-        metadata: {
-          ...source.metadata,
-          tags: source.metadata?.tags ? { ...source.metadata.tags } : {},
-          properties: source.metadata?.properties ? { ...source.metadata.properties } : {},
-        },
-        custom: source.custom ? {
-          ...source.custom,
-          internalItems: source.custom.internalItems?.map(i => ({ ...i })),
-        } : undefined,
-      } as DiagramNode;
-    });
-
-    const pastedEdges = sourceEdges
-      .map(source => {
-        const mappedSourceId = nodeIdMap.get(source.sourceId);
-        const mappedTargetId = nodeIdMap.get(source.targetId);
-        if (!mappedSourceId || !mappedTargetId) return null;
-        return {
-          ...source,
-          id: this.nextEdgeId(),
-          sourceId: mappedSourceId,
-          targetId: mappedTargetId,
-          style: { ...source.style },
-          waypoints: source.waypoints?.map(w => ({ x: w.x + offset.x, y: w.y + offset.y })),
-        } as DiagramEdge;
-      })
-      .filter((edge): edge is DiagramEdge => edge !== null);
-
-    if (pastedNodes.length === 0) return;
-    this.store.pushUndo();
-    this.store.setNodes([...this.store.nodes(), ...pastedNodes]);
-    this.store.setEdges([...this.store.edges(), ...pastedEdges]);
-    this.store.selectNodes(pastedNodes.map(n => n.id));
-    this.selectedAnnotationId = null;
-    this.selectedAnnotationIds = [];
-    this.selectedEdgeId = null;
-  }
-
   deleteSelectedAnnotation(): void {
-    const ids = this.selectedAnnotationIds.length
-      ? this.selectedAnnotationIds
-      : (this.selectedAnnotationId ? [this.selectedAnnotationId] : []);
-    if (!ids.length) return;
-    this.store.pushUndo();
-    const idSet = new Set(ids);
-    this.store.setNodes(this.store.nodes().map(n => {
-      if (!n.custom?.boundShapeAnnotationId || !idSet.has(n.custom.boundShapeAnnotationId)) return n;
-      return { ...n, custom: { ...(n.custom ?? {}), boundShapeAnnotationId: undefined } };
-    }));
-    this.store.setAnnotations(this.store.annotations().filter(a => !idSet.has(a.id)));
-    this.selectedAnnotationId = null;
-    this.selectedAnnotationIds = [];
+    this.facade.annotation.deleteSelectedAnnotation(this.annotationSelectionContext());
   }
 
   deleteSelectedEdge(): void {
@@ -1315,37 +1132,20 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
   }
 
   duplicateSelectedAnnotation(): void {
-    if (!this.selectedAnnotationId) return;
-    const source = this.annotationById(this.selectedAnnotationId);
-    if (!source) return;
-    const duplicated = this.annotationSvc.duplicate(source);
-    this.store.pushUndo();
-    this.store.addAnnotation(duplicated);
-    this.selectedAnnotationId = duplicated.id;
-    this.selectedAnnotationIds = [duplicated.id];
-    this.syncToolbarFromAnnotation(duplicated);
+    this.facade.annotation.duplicateSelectedAnnotation(this.annotationSelectionContext());
   }
 
   bringSelectedAnnotationToFront(): void {
-    if (!this.selectedAnnotationId) return;
-    const selectedId = this.selectedAnnotationId;
-    this.store.pushUndo();
-    this.store.setAnnotations(this.annotationSvc.bringToFront(this.store.annotations(), selectedId));
+    this.facade.annotation.bringSelectedAnnotationToFront(this.annotationSelectionContext());
   }
 
   sendSelectedAnnotationToBack(): void {
-    if (!this.selectedAnnotationId) return;
-    const selectedId = this.selectedAnnotationId;
-    this.store.pushUndo();
-    this.store.setAnnotations(this.annotationSvc.sendToBack(this.store.annotations(), selectedId));
+    this.facade.annotation.sendSelectedAnnotationToBack(this.annotationSelectionContext());
   }
 
   clearAllAnnotations(): void {
-    if (this.store.annotations().length === 0) return;
-    const shouldClear = confirm('Clear all annotations from this diagram?');
-    if (!shouldClear) return;
-    this.store.pushUndo();
-    this.store.clearAnnotations();
+    const cleared = this.facade.annotation.clearAllAnnotations();
+    if (!cleared) return;
     this.selectedAnnotationId = null;
     this.selectedAnnotationIds = [];
     this.editingAnnotation = null;
@@ -1402,20 +1202,15 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
   }
 
   get selectedAnnotationForDelete(): Annotation | null {
-    if (!this.selectedAnnotationId || this.activeTool !== 'pointer') return null;
-    return this.annotationById(this.selectedAnnotationId) ?? null;
+    return this.facade.annotation.selectedAnnotationForDelete(this.selectedAnnotationId, this.activeTool);
   }
 
   get canEditSelectedTextStyle(): boolean {
-    if (!this.selectedAnnotationId) return false;
-    const ann = this.annotationById(this.selectedAnnotationId);
-    return ann?.type === 'text' || ann?.type === 'sticky';
+    return this.facade.annotation.canEditSelectedTextStyle(this.selectedAnnotationId);
   }
 
   get canEditSelectedFillStyle(): boolean {
-    if (!this.selectedAnnotationId) return false;
-    const ann = this.annotationById(this.selectedAnnotationId);
-    return ann?.type === 'rect' || ann?.type === 'ellipse' || ann?.type === 'diamond';
+    return this.facade.annotation.canEditSelectedFillStyle(this.selectedAnnotationId);
   }
 
   // ── Canvas size ────────────────────────────────────────────────────────────
@@ -2301,10 +2096,7 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
   }
 
   private startResourcePlacement(type: string, position: { x: number; y: number }): void {
-    if (!type) return;
-    this.activeResourceType = type;
-    this.resourcePlacementPosition = position;
-    this.showCreateResourceModal = true;
+    this.facade.resourcePlacement.startResourcePlacement(type, position);
   }
 
   private updateDrawBindPreviewPorts(pt: { x: number; y: number }): void {
@@ -2454,19 +2246,19 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
   }
 
   get zoomLevel(): number {
-    return this.store.zoomLevel();
+    return this.facade.viewport.zoomLevel;
   }
 
   get zoomPercent(): number {
-    return Math.round(this.zoomLevel * 100);
+    return this.facade.viewport.zoomPercent;
   }
 
   zoomIn(): void {
-    this.setZoom(this.zoomLevel + this.ZOOM_STEP);
+    this.facade.viewport.zoomIn(this.canvasHostRef?.nativeElement as HTMLElement | undefined);
   }
 
   zoomOut(): void {
-    this.setZoom(this.zoomLevel - this.ZOOM_STEP);
+    this.facade.viewport.zoomOut(this.canvasHostRef?.nativeElement as HTMLElement | undefined);
   }
 
   resetZoom(): void {
@@ -2495,16 +2287,16 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
   }
 
   get selectedEdge(): DiagramEdge | null {
-    return this.edgeEditor.getSelectedEdge(this.store.edges(), this.selectedEdgeId);
+    return this.facade.edge.getSelectedEdge(this.selectedEdgeId);
   }
 
   onEdgeClick(event: MouseEvent, edge: DiagramEdge): void {
-    if (this.activeTool !== 'pointer') return;
-    event.stopPropagation();
+    const edgeId = this.facade.edge.onEdgeClick(event, edge, this.activeTool);
+    if (!edgeId) return;
     this.selectedAnnotationId = null;
     this.selectedAnnotationIds = [];
     this.store.selectNode(null);
-    this.selectedEdgeId = edge.id;
+    this.selectedEdgeId = edgeId;
   }
 
   // ── Edge markers (used only in <defs> in canvas.component.html) ──────────
@@ -2537,29 +2329,15 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
   }
 
   onEdgeWaypointMouseDown(e: MouseEvent, edge: DiagramEdge, waypointIndex: number): void {
-    e.stopPropagation();
-    e.preventDefault();
-    this.store.pushUndo();
-    const pt = this.svgPoint(e);
-    this.edgeWaypointDragState = { edgeId: edge.id, waypointIndex, lastX: pt.x, lastY: pt.y };
+    this.edgeWaypointDragState = this.facade.edge.onEdgeWaypointMouseDown(e, edge, waypointIndex, event => this.svgPoint(event));
   }
 
   onEdgeMidpointMouseDown(e: MouseEvent, edge: DiagramEdge, segmentIndex: number): void {
-    e.stopPropagation();
-    e.preventDefault();
-    this.store.pushUndo();
-    const pt = this.svgPoint(e);
-    const waypoints = [...(edge.waypoints ?? [])];
-    waypoints.splice(segmentIndex, 0, { x: pt.x, y: pt.y });
-    this.store.setEdges(this.store.edges().map(ed => ed.id === edge.id ? { ...ed, waypoints } : ed));
-    this.edgeWaypointDragState = { edgeId: edge.id, waypointIndex: segmentIndex, lastX: pt.x, lastY: pt.y };
+    this.edgeWaypointDragState = this.facade.edge.onEdgeMidpointMouseDown(e, edge, segmentIndex, event => this.svgPoint(event));
   }
 
   onEdgeWaypointDblClick(e: MouseEvent, edge: DiagramEdge, waypointIndex: number): void {
-    e.stopPropagation();
-    this.store.pushUndo();
-    const waypoints = (edge.waypoints ?? []).filter((_, i) => i !== waypointIndex);
-    this.store.setEdges(this.store.edges().map(ed => ed.id === edge.id ? { ...ed, waypoints: waypoints.length ? waypoints : undefined } : ed));
+    this.facade.edge.onEdgeWaypointDblClick(e, edge, waypointIndex);
   }
 
   onAnnWaypointMouseDown(e: MouseEvent, ann: Annotation, waypointIndex: number): void {
@@ -2597,37 +2375,31 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
   }
 
   updateSelectedEdgeStyle(changes: Partial<EdgeStyle>): void {
-    this.store.pushUndo();
-    this.store.setEdges(this.edgeEditor.updateEdgeStyle(this.store.edges(), this.selectedEdgeId, changes));
+    this.facade.edge.updateSelectedEdgeStyle(this.selectedEdgeId, changes);
   }
 
   setSelectedEdgeDashStyle(style: string): void {
-    this.store.pushUndo();
-    this.store.setEdges(this.edgeEditor.setDashStyle(this.store.edges(), this.selectedEdgeId, style));
+    this.facade.edge.setSelectedEdgeDashStyle(this.selectedEdgeId, style);
   }
 
   setSelectedEdgeMarker(value: string): void {
-    this.store.pushUndo();
-    this.store.setEdges(this.edgeEditor.setMarker(this.store.edges(), this.selectedEdgeId, value));
+    this.facade.edge.setSelectedEdgeMarker(this.selectedEdgeId, value);
   }
 
   setSelectedEdgeAnimated(animated: boolean): void {
-    this.store.pushUndo();
-    this.store.setEdges(this.edgeEditor.setAnimated(this.store.edges(), this.selectedEdgeId, animated));
+    this.facade.edge.setSelectedEdgeAnimated(this.selectedEdgeId, animated);
   }
 
   resetSelectedEdgeStyle(): void {
-    this.store.pushUndo();
-    this.store.setEdges(this.edgeEditor.resetStyle(this.store.edges(), this.selectedEdgeId));
+    this.facade.edge.resetSelectedEdgeStyle(this.selectedEdgeId);
   }
 
   setSelectedEdgeLabel(label: string): void {
-    this.store.pushUndo();
-    this.store.setEdges(this.edgeEditor.setLabel(this.store.edges(), this.selectedEdgeId, label));
+    this.facade.edge.setSelectedEdgeLabel(this.selectedEdgeId, label);
   }
 
   dashStyleValue(style: EdgeStyle): string {
-    return this.edgeEditor.dashStyleValue(style);
+    return this.facade.edge.dashStyleValue(style);
   }
 
   // ── Context menu ──────────────────────────────────────────────────────────
@@ -2673,86 +2445,45 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
   }
 
   get canPasteAnyObject(): boolean {
-    return this.canvasClipboard !== null;
+    return this.facade.clipboard.canPasteAnyObject;
   }
 
   get canPasteNodeObjects(): boolean {
-    return this.canvasClipboard?.kind === 'node-set';
+    return this.facade.clipboard.canPasteNodeObjects;
   }
 
   copySelectedCanvasObject(): boolean {
-    if (this.ctxMenuSvc.annotationContextMenu) {
-      const ann = this.annotationById(this.ctxMenuSvc.annotationContextMenu.annotationId);
-      if (!ann) return false;
-      this.canvasClipboard = { kind: 'annotation-set', annotations: [{ ...ann, waypoints: ann.waypoints?.map(w => ({ ...w })) }] };
-      this.pasteSequence = 0;
-      this.closeContextMenu();
-      return true;
-    }
-    if (this.ctxMenuSvc.contextMenu) {
-      this.store.selectNodes([this.ctxMenuSvc.contextMenu.nodeId]);
-      this.selectedAnnotationId = null;
-      this.selectedAnnotationIds = [];
-    }
-
-    const selectedAnnotationIds = this.selectedAnnotationIds.length
-      ? this.selectedAnnotationIds
-      : (this.selectedAnnotationId ? [this.selectedAnnotationId] : []);
-    if (selectedAnnotationIds.length > 0) {
-      const selectedIdSet = new Set(selectedAnnotationIds);
-      const annotations = this.store.annotations()
-        .filter(a => selectedIdSet.has(a.id))
-        .map(a => ({ ...a, waypoints: a.waypoints ? a.waypoints.map(w => ({ ...w })) : undefined }));
-      if (annotations.length === 0) return false;
-      this.canvasClipboard = { kind: 'annotation-set', annotations };
-      this.pasteSequence = 0;
-      this.closeContextMenu();
-      return true;
-    }
-
-    const selectedNodeIds = this.store.selectedNodeIds();
-    if (selectedNodeIds.length === 0) return false;
-    const nodeIdSet = new Set(selectedNodeIds);
-    const nodes = this.store.nodes()
-      .filter(n => nodeIdSet.has(n.id))
-      .map(n => ({
-        ...n,
-        position: { ...n.position },
-        size: { ...n.size },
-        children: n.children ? [...n.children] : undefined,
-        metadata: {
-          ...n.metadata,
-          tags: n.metadata?.tags ? { ...n.metadata.tags } : {},
-          properties: n.metadata?.properties ? { ...n.metadata.properties } : {},
-        },
-        custom: n.custom ? {
-          ...n.custom,
-          internalItems: n.custom.internalItems?.map(i => ({ ...i })),
-        } : undefined,
-      }));
-    const edges = this.store.edges()
-      .filter(e => nodeIdSet.has(e.sourceId) && nodeIdSet.has(e.targetId))
-      .map(e => ({
-        ...e,
-        style: { ...e.style },
-        waypoints: e.waypoints ? e.waypoints.map(w => ({ ...w })) : undefined,
-      }));
-    this.canvasClipboard = { kind: 'node-set', nodes, edges };
-    this.pasteSequence = 0;
-    this.closeContextMenu();
-    return true;
+    return this.facade.clipboard.copySelectedCanvasObject({
+      annotationContextMenuId: this.ctxMenuSvc.annotationContextMenu?.annotationId ?? null,
+      contextMenuNodeId: this.ctxMenuSvc.contextMenu?.nodeId ?? null,
+      selectedAnnotationId: this.selectedAnnotationId,
+      selectedAnnotationIds: this.selectedAnnotationIds,
+      closeContextMenu: () => this.closeContextMenu(),
+      selectContextNode: nodeId => this.store.selectNodes([nodeId]),
+      clearAnnotationSelection: () => {
+        this.selectedAnnotationId = null;
+        this.selectedAnnotationIds = [];
+      },
+      annotationById: id => this.annotationById(id),
+    });
   }
 
   pasteCanvasClipboard(): boolean {
-    if (!this.canvasClipboard) return false;
-    if (this.canvasClipboard.kind === 'annotation-set') {
-      this.pasteAnnotationsFromClipboard(this.canvasClipboard.annotations);
-      this.closeContextMenu();
-      return true;
-    }
-    this.pasteNodesFromClipboard(this.canvasClipboard.nodes, this.canvasClipboard.edges);
-    this.closeContextMenu();
-    return true;
+    return this.facade.clipboard.pasteCanvasClipboard({
+      selectAnnotations: ids => {
+        this.selectedAnnotationIds = ids;
+        this.selectedAnnotationId = ids[0] ?? null;
+      },
+      clearEdgeSelection: () => {
+        this.selectedEdgeId = null;
+      },
+      clearAnnotationsSelection: () => {
+        this.selectedAnnotationId = null;
+        this.selectedAnnotationIds = [];
+      },
+      syncToolbarFromAnnotation: annotation => this.syncToolbarFromAnnotation(annotation),
+      closeContextMenu: () => this.closeContextMenu(),
+    });
   }
 
   async ctxRgAutoLayout(): Promise<void> {
@@ -3353,26 +3084,11 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
   }
 
   private setZoom(nextZoom: number, anchor?: { x: number; y: number }): void {
-    const host = this.canvasHostRef?.nativeElement as HTMLElement;
-    const prevZoom = this.zoomLevel;
-    const zoom = Math.max(this.ZOOM_MIN, Math.min(this.ZOOM_MAX, Number(nextZoom.toFixed(2))));
-    if (zoom === prevZoom) return;
-
-    if (!host || !anchor) {
-      this.store.zoomLevel.set(zoom);
-      return;
-    }
-
-    const rect = host.getBoundingClientRect();
-    const localX = anchor.x - rect.left;
-    const localY = anchor.y - rect.top;
-    const worldX = (host.scrollLeft + localX) / prevZoom;
-    const worldY = (host.scrollTop + localY) / prevZoom;
-
-    this.store.zoomLevel.set(zoom);
-
-    host.scrollLeft = Math.max(0, worldX * zoom - localX);
-    host.scrollTop = Math.max(0, worldY * zoom - localY);
+    this.facade.viewport.setZoom(
+      nextZoom,
+      this.canvasHostRef?.nativeElement as HTMLElement | undefined,
+      anchor,
+    );
   }
 
   private updateSelectedAnnotation(

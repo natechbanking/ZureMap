@@ -133,6 +133,25 @@ describe('CanvasComponent', () => {
     expect(ctxMenuSvcMock.closeContextMenu).toHaveBeenCalled();
   });
 
+  it('copies context-menu node instead of stale annotation selection', () => {
+    const node = makeDiagramNode({ id: 'node-1', position: { x: 10, y: 20 } });
+    const annotation = makeAnnotation({ id: 'ann-1', type: 'text', text: 'hello', x: 5, y: 6 });
+    store.setNodes([node]);
+    store.setAnnotations([annotation]);
+    component.selectedAnnotationId = 'ann-1';
+    component.selectedAnnotationIds = ['ann-1'];
+    ctxMenuSvcMock.contextMenu = { x: 10, y: 20, nodeId: 'node-1' };
+
+    const copied = component.copySelectedCanvasObject();
+    const pasted = component.pasteCanvasClipboard();
+
+    expect(copied).toBeTrue();
+    expect(pasted).toBeTrue();
+    expect(component.canPasteNodeObjects).toBeTrue();
+    expect(store.nodes().length).toBe(2);
+    expect(store.annotations().length).toBe(1);
+  });
+
   it('resets paste offset sequence when clipboard content is refreshed by copy', () => {
     store.setAnnotations([
       makeAnnotation({ id: 'ann-1', type: 'text', text: 'first', x: 10, y: 20 }),

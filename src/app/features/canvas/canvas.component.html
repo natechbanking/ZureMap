@@ -100,6 +100,7 @@
           style="background-image: radial-gradient(circle, #d2d0ce 1px, transparent 1px); background-size: 24px 24px;"
           (wheel)="onCanvasWheel($event)"
           (mousedown)="onCanvasBackgroundMouseDown($event)"
+          (contextmenu)="onCanvasBackgroundContextMenu($event)"
           (dragover)="onCanvasDragOver($event)"
           (drop)="onCanvasDrop($event)"
           (scroll)="onCanvasScroll()"
@@ -137,6 +138,7 @@
               [rgDragState]="rgDragState"
               [vmDragState]="vmDragState"
               (subscriptionMouseDown)="onSubscriptionMouseDown($event.event, $event.subscriptionId)"
+              (subscriptionContextMenu)="onSubscriptionContextMenu($event.event, $event.bound)"
               (rgMouseDown)="onRgMouseDown($event.event, $event.rgId)"
               (rgContextMenu)="onRgContextMenu($event.event, $event.bound)"
               (vmMouseDown)="onVmMouseDown($event.event, $event.vmId)"
@@ -494,7 +496,7 @@
       </div>
 
       <!-- Context menu (fixed, outside canvas zoom transform) -->
-      @if (ctxMenuSvc.contextMenu || ctxMenuSvc.rgContextMenu || ctxMenuSvc.annotationContextMenu || ctxMenuSvc.multiSelectContextMenu) {
+      @if (ctxMenuSvc.contextMenu || ctxMenuSvc.rgContextMenu || ctxMenuSvc.subscriptionContextMenu || ctxMenuSvc.annotationContextMenu || ctxMenuSvc.multiSelectContextMenu) {
         <div class="fixed inset-0 z-[190]" role="presentation" (click)="closeContextMenu()" (contextmenu)="$event.preventDefault(); closeContextMenu()" (keydown.escape)="closeContextMenu()"></div>
         @if (ctxMenuSvc.contextMenu) {
           <app-resource-context-menu
@@ -527,6 +529,15 @@
             [name]="ctxMenuSvc.rgContextMenu.name"
             [busy]="ctxMenuSvc.relayoutBusy"
             (autoLayout)="ctxRgAutoLayout()"
+          />
+        }
+        @if (ctxMenuSvc.subscriptionContextMenu) {
+          <app-subscription-context-menu
+            [x]="ctxMenuSvc.subscriptionContextMenu.x"
+            [y]="ctxMenuSvc.subscriptionContextMenu.y"
+            [name]="ctxMenuSvc.subscriptionContextMenu.name"
+            [busy]="ctxMenuSvc.relayoutBusy"
+            (autoLayout)="ctxSubscriptionAutoLayout()"
           />
         }
         @if (ctxMenuSvc.annotationContextMenu) {

@@ -33,6 +33,7 @@ import { DrawingToolbarComponent } from './drawing-toolbar/drawing-toolbar.compo
 import { ResourceContextMenuComponent } from './context-menus/resource-context-menu.component';
 import { AnnotationContextMenuComponent } from './context-menus/annotation-context-menu.component';
 import { RgContextMenuComponent } from './context-menus/rg-context-menu.component';
+import { SubscriptionContextMenuComponent } from './context-menus/subscription-context-menu.component';
 import { MultiSelectContextMenuComponent } from './context-menus/multi-select-context-menu.component';
 import { ResourceEditorModalComponent } from './resource-editor-modal.component';
 import { CreateResourceModalComponent, ResourceCreationData } from './create-resource-modal.component';
@@ -127,6 +128,7 @@ interface ShapeBindCandidate {
     ResourceContextMenuComponent,
     AnnotationContextMenuComponent,
     RgContextMenuComponent,
+    SubscriptionContextMenuComponent,
     MultiSelectContextMenuComponent,
     ResourceEditorModalComponent,
     CreateResourceModalComponent,
@@ -1008,6 +1010,7 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
       canvasPointFromClient: (x, y) => this.canvasPointFromClient(x, y),
       nodeAtCanvasPoint: (x, y) => this.nodeAtCanvasPoint(x, y),
       onNodeMouseDown: (event, node) => this.onNodeMouseDown(event, node),
+      onNodeDoubleClick: node => this.openResourceEditor(node.id),
       closeAnnotationAndResourceMenus: () => {
         this.ctxMenuSvc.annotationContextMenu = null;
         this.ctxMenuSvc.contextMenu = null;
@@ -2079,6 +2082,20 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
     this.marqueeState = { startX: canvasX, startY: canvasY, currentX: canvasX, currentY: canvasY, ctrlHeld: event.ctrlKey || event.metaKey };
   }
 
+  onCanvasBackgroundContextMenu(event: MouseEvent): void {
+    if (this.activeTool !== 'pointer') return;
+    const canvasPt = this.canvasPointFromClient(event.clientX, event.clientY);
+    if (this.nodeAtCanvasPoint(canvasPt.x, canvasPt.y)) return;
+    const rg = this.rgAtCanvasPoint(canvasPt.x, canvasPt.y);
+    if (rg) {
+      this.onRgContextMenu(event, rg);
+      return;
+    }
+    const sub = this.subscriptionAtCanvasPoint(canvasPt.x, canvasPt.y);
+    if (!sub) return;
+    this.onSubscriptionContextMenu(event, sub);
+  }
+
   onDragStart(event: DragEvent, node: DiagramNode): void {
     const rect = (event.target as HTMLElement).getBoundingClientRect();
     this.dragOffset = { x: event.clientX - rect.left, y: event.clientY - rect.top };
@@ -2185,6 +2202,36 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
         canvasY <= node.position.y + node.size.height
       ) {
         return node;
+      }
+    }
+    return undefined;
+  }
+
+  private rgAtCanvasPoint(canvasX: number, canvasY: number): RgBound | undefined {
+    for (let i = this.rgBounds.length - 1; i >= 0; i--) {
+      const rg = this.rgBounds[i];
+      if (
+        canvasX >= rg.x &&
+        canvasX <= rg.x + rg.width &&
+        canvasY >= rg.y &&
+        canvasY <= rg.y + rg.height
+      ) {
+        return rg;
+      }
+    }
+    return undefined;
+  }
+
+  private subscriptionAtCanvasPoint(canvasX: number, canvasY: number): SubscriptionBound | undefined {
+    for (let i = this.subscriptionBounds.length - 1; i >= 0; i--) {
+      const sub = this.subscriptionBounds[i];
+      if (
+        canvasX >= sub.x &&
+        canvasX <= sub.x + sub.width &&
+        canvasY >= sub.y &&
+        canvasY <= sub.y + sub.height
+      ) {
+        return sub;
       }
     }
     return undefined;
@@ -2411,6 +2458,10 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
     this.ctxMenuSvc.onRgContextMenu(event, rg, this.activeTool);
   }
 
+  onSubscriptionContextMenu(event: MouseEvent, sub: SubscriptionBound): void {
+    this.ctxMenuSvc.onSubscriptionContextMenu(event, sub, this.activeTool);
+  }
+
   onAnnotationContextMenu(event: MouseEvent, ann: Annotation): void {
     if (this.activeTool !== 'pointer') return;
     // Opaque block annotations (image, text, sticky) always show their own
@@ -2431,6 +2482,7 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
     event.stopPropagation();
     this.ctxMenuSvc.contextMenu = null;
     this.ctxMenuSvc.rgContextMenu = null;
+    this.ctxMenuSvc.subscriptionContextMenu = null;
     this.ctxMenuSvc.multiSelectContextMenu = null;
     this.selectedEdgeId = null;
     this.store.selectNode(null);
@@ -2488,6 +2540,10 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
 
   async ctxRgAutoLayout(): Promise<void> {
     await this.ctxMenuSvc.ctxRgAutoLayout();
+  }
+
+  async ctxSubscriptionAutoLayout(): Promise<void> {
+    await this.ctxMenuSvc.ctxSubscriptionAutoLayout();
   }
 
   ctxDelete(): void {

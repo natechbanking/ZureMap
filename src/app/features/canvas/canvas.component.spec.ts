@@ -27,6 +27,13 @@ describe('CanvasComponent', () => {
     closeContextMenu: jasmine.Spy;
     annotationContextMenu: { x: number; y: number; annotationId: string } | null;
     contextMenu: { x: number; y: number; nodeId: string } | null;
+    rgContextMenu: { x: number; y: number; id: string; name: string } | null;
+    subscriptionContextMenu: { x: number; y: number; id: string; name: string } | null;
+    multiSelectContextMenu: { x: number; y: number } | null;
+    onContextMenuRequested: jasmine.Spy;
+    onRgContextMenu: jasmine.Spy;
+    onSubscriptionContextMenu: jasmine.Spy;
+    ctxSubscriptionAutoLayout: jasmine.Spy;
   };
 
   beforeEach(() => {
@@ -38,6 +45,13 @@ describe('CanvasComponent', () => {
       closeContextMenu: jasmine.createSpy('closeContextMenu'),
       annotationContextMenu: null,
       contextMenu: null,
+      rgContextMenu: null,
+      subscriptionContextMenu: null,
+      multiSelectContextMenu: null,
+      onContextMenuRequested: jasmine.createSpy('onContextMenuRequested'),
+      onRgContextMenu: jasmine.createSpy('onRgContextMenu'),
+      onSubscriptionContextMenu: jasmine.createSpy('onSubscriptionContextMenu'),
+      ctxSubscriptionAutoLayout: jasmine.createSpy('ctxSubscriptionAutoLayout').and.resolveTo(),
     };
 
     TestBed.configureTestingModule({
@@ -882,6 +896,26 @@ describe('CanvasComponent', () => {
 
       expect(component.selectedAnnotationId).toBe('img-2');
     });
+
+    it('double-clicking a non-opaque annotation over a node opens the resource editor', () => {
+      const openEditorSpy = spyOn(component, 'openResourceEditor');
+      const ann = makeAnnotation({ id: 'rect-2', type: 'rect', x: 0, y: 0, width: 50, height: 50 });
+      store.setAnnotations([ann]);
+
+      const dblClickEvent = {
+        button: 0,
+        detail: 2,
+        clientX: 0,
+        clientY: 0,
+        preventDefault: jasmine.createSpy('preventDefault'),
+        stopPropagation: jasmine.createSpy('stopPropagation'),
+      } as unknown as MouseEvent;
+
+      component.onAnnotationMouseDown(dblClickEvent, ann);
+
+      expect(openEditorSpy).toHaveBeenCalledWith('node-under');
+      expect(component.selectedAnnotationId).toBeNull();
+    });
   });
 
   describe('onAnnotationContextMenu – opaque annotations show annotation context menu', () => {
@@ -953,6 +987,54 @@ describe('CanvasComponent', () => {
       expect(ctxMenuSvcMock.annotationContextMenu?.annotationId).toBe('img-2');
       expect(onContextMenuRequestedSpy).not.toHaveBeenCalled();
     });
+  });
+
+  describe('onCanvasBackgroundContextMenu', () => {
+    it('does nothing when active tool is not pointer', () => {
+      component.activeTool = 'rect';
+      component.onCanvasBackgroundContextMenu({ clientX: 10, clientY: 10 } as MouseEvent);
+      expect(ctxMenuSvcMock.onRgContextMenu).not.toHaveBeenCalled();
+      expect(ctxMenuSvcMock.onSubscriptionContextMenu).not.toHaveBeenCalled();
+    });
+
+    it('does nothing when pointer is over a node', () => {
+      const node = makeDiagramNode({ id: 'node-over', position: { x: 0, y: 0 }, size: { width: 200, height: 200 } });
+      component.visibleNodes = [node];
+      component.subscriptionBounds = [{ id: 'sub1', subscriptionId: 'sub1', name: 'Sub 1', collapsed: false, x: 0, y: 0, width: 400, height: 300 }];
+      component.rgBounds = [{ id: 'sub1::rg1', subscriptionId: 'sub1', name: 'rg1', collapsed: false, x: 0, y: 0, width: 300, height: 200 }];
+
+      component.onCanvasBackgroundContextMenu({ clientX: 20, clientY: 20 } as MouseEvent);
+
+      expect(ctxMenuSvcMock.onRgContextMenu).not.toHaveBeenCalled();
+      expect(ctxMenuSvcMock.onSubscriptionContextMenu).not.toHaveBeenCalled();
+    });
+
+    it('prefers RG context menu when both RG and subscription bounds match', () => {
+      component.visibleNodes = [];
+      component.subscriptionBounds = [{ id: 'sub1', subscriptionId: 'sub1', name: 'Sub 1', collapsed: false, x: 0, y: 0, width: 400, height: 300 }];
+      component.rgBounds = [{ id: 'sub1::rg1', subscriptionId: 'sub1', name: 'rg1', collapsed: false, x: 0, y: 0, width: 300, height: 200 }];
+
+      component.onCanvasBackgroundContextMenu({ clientX: 40, clientY: 40 } as MouseEvent);
+
+      expect(ctxMenuSvcMock.onRgContextMenu).toHaveBeenCalled();
+      expect(ctxMenuSvcMock.onSubscriptionContextMenu).not.toHaveBeenCalled();
+    });
+
+    it('opens subscription context menu when no RG bound matches', () => {
+      component.visibleNodes = [];
+      component.subscriptionBounds = [{ id: 'sub1', subscriptionId: 'sub1', name: 'Sub 1', collapsed: false, x: 0, y: 0, width: 400, height: 300 }];
+      component.rgBounds = [{ id: 'sub1::rg1', subscriptionId: 'sub1', name: 'rg1', collapsed: false, x: 500, y: 500, width: 300, height: 200 }];
+
+      component.onCanvasBackgroundContextMenu({ clientX: 40, clientY: 40 } as MouseEvent);
+
+      expect(ctxMenuSvcMock.onRgContextMenu).not.toHaveBeenCalled();
+      expect(ctxMenuSvcMock.onSubscriptionContextMenu).toHaveBeenCalled();
+    });
+  });
+
+  it('ctxSubscriptionAutoLayout delegates to context menu service', async () => {
+    await component.ctxSubscriptionAutoLayout();
+    expect(ctxMenuSvcMock.ctxSubscriptionAutoLayout).toHaveBeenCalled();
   });
 
   describe('panel state persistence', () => {

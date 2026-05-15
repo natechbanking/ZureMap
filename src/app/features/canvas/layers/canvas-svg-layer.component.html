@@ -262,7 +262,7 @@
   }
   <!-- Selection highlight + resize handles for shapes -->
   @if (selectedAnnotationId === ann.id && activeTool === 'pointer') {
-    @if ((ann.type === 'rect' && !ann.container) || ann.type === 'ellipse' || ann.type === 'diamond') {
+    @if (ann.type === 'rect' || ann.type === 'ellipse' || ann.type === 'diamond') {
       <svg:rect
         [attr.x]="ann.x - 4" [attr.y]="ann.y - 4"
         [attr.width]="(ann.width ?? 0) + 8" [attr.height]="(ann.height ?? 0) + 8"

@@ -3,7 +3,7 @@ import { DiagramStore } from '../../core/store/diagram.store';
 import { ELKLayoutService } from '../../core/services/elk-layout.service';
 import { CanvasTagVisualizationService } from './canvas-tag-visualization.service';
 import { DiagramNode } from '../../core/models/diagram-node.model';
-import { RgBound } from './canvas.types';
+import { RgBound, SubscriptionBound } from './canvas.types';
 import { ContextMenuRequest } from './diagram-node/diagram-node.contracts';
 
 @Injectable({ providedIn: 'root' })
@@ -14,6 +14,7 @@ export class CanvasContextMenuService {
 
   contextMenu: (ContextMenuRequest & { node: DiagramNode }) | null = null;
   rgContextMenu: { x: number; y: number; id: string; name: string } | null = null;
+  subscriptionContextMenu: { x: number; y: number; id: string; name: string } | null = null;
   annotationContextMenu: { x: number; y: number; annotationId: string } | null = null;
   multiSelectContextMenu: { x: number; y: number } | null = null;
   relayoutBusy = false;
@@ -21,6 +22,7 @@ export class CanvasContextMenuService {
   closeContextMenu(): void {
     this.contextMenu = null;
     this.rgContextMenu = null;
+    this.subscriptionContextMenu = null;
     this.annotationContextMenu = null;
     this.multiSelectContextMenu = null;
   }
@@ -29,6 +31,7 @@ export class CanvasContextMenuService {
     const node = this.store.nodes().find(n => n.id === req.nodeId);
     if (!node) return;
     this.rgContextMenu = null;
+    this.subscriptionContextMenu = null;
     this.annotationContextMenu = null;
     if (this.store.selectedNodeIds().length > 1 && this.store.selectedNodeIds().includes(req.nodeId)) {
       this.contextMenu = null;
@@ -45,7 +48,18 @@ export class CanvasContextMenuService {
     event.stopPropagation();
     this.contextMenu = null;
     this.annotationContextMenu = null;
+    this.subscriptionContextMenu = null;
     this.rgContextMenu = { x: event.clientX, y: event.clientY, id: rg.id, name: rg.name };
+  }
+
+  onSubscriptionContextMenu(event: MouseEvent, sub: SubscriptionBound, activeTool: string): void {
+    if (activeTool !== 'pointer') return;
+    event.preventDefault();
+    event.stopPropagation();
+    this.contextMenu = null;
+    this.annotationContextMenu = null;
+    this.rgContextMenu = null;
+    this.subscriptionContextMenu = { x: event.clientX, y: event.clientY, id: sub.subscriptionId, name: sub.name };
   }
 
   private childToParentMap(): Map<string, string> {
@@ -165,6 +179,42 @@ export class CanvasContextMenuService {
   async ctxRgAutoLayout(): Promise<void> {
     if (!this.rgContextMenu) return;
     await this.autoLayoutRgContainer(this.rgContextMenu.id);
+    this.closeContextMenu();
+  }
+
+  async autoLayoutSubscriptionContainer(subscriptionId: string): Promise<void> {
+    if (this.relayoutBusy) return;
+    const allNodes = this.store.nodes();
+    const targetNodes = allNodes.filter(n => (n.metadata?.subscriptionId || '') === subscriptionId);
+    if (targetNodes.length < 2) return;
+
+    const targetIds = new Set(targetNodes.map(n => n.id));
+    const targetEdges = this.store.edges().filter(e => targetIds.has(e.sourceId) && targetIds.has(e.targetId));
+
+    const oldMinX = Math.min(...targetNodes.map(n => n.position.x));
+    const oldMinY = Math.min(...targetNodes.map(n => n.position.y));
+
+    this.relayoutBusy = true;
+    try {
+      const laidOut = await this.elkLayout.layout(targetNodes, targetEdges);
+      const newMinX = Math.min(...laidOut.map(n => n.position.x));
+      const newMinY = Math.min(...laidOut.map(n => n.position.y));
+      const dx = oldMinX - newMinX;
+      const dy = oldMinY - newMinY;
+
+      const nextPos = new Map(laidOut.map(n => [n.id, { x: n.position.x + dx, y: n.position.y + dy }]));
+      this.store.pushUndo();
+      this.store.setNodes(
+        allNodes.map(n => nextPos.has(n.id) ? { ...n, position: nextPos.get(n.id)! } : n)
+      );
+    } finally {
+      this.relayoutBusy = false;
+    }
+  }
+
+  async ctxSubscriptionAutoLayout(): Promise<void> {
+    if (!this.subscriptionContextMenu) return;
+    await this.autoLayoutSubscriptionContainer(this.subscriptionContextMenu.id);
     this.closeContextMenu();
   }
 

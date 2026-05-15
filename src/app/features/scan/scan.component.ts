@@ -51,7 +51,7 @@ interface ConnectionType {
                   <button
                     type="button"
                     (click)="loadDemo()"
-                    class="text-left rounded-xl border border-green-200 bg-green-50/50 hover:bg-green-50 transition-colors p-4 cursor-pointer"
+                    class="text-left rounded-xl border border-green-200 bg-green-50/50 hover:bg-green-50 transition-colors p-4"
                   >
                     <p class="text-sm font-semibold text-green-800 mb-1">▶ Try the Demo</p>
                     <p class="text-xs text-gray-600">Load a sample Contoso production environment to explore ZureMap's features.</p>
@@ -61,7 +61,7 @@ interface ConnectionType {
                   <button
                     type="button"
                     (click)="beginAzureScanFlow()"
-                    class="text-left rounded-xl border border-blue-200 bg-blue-50/50 hover:bg-blue-50 transition-colors p-4 cursor-pointer"
+                    class="text-left rounded-xl border border-blue-200 bg-blue-50/50 hover:bg-blue-50 transition-colors p-4"
                   >
                     <p class="text-sm font-semibold text-blue-800 mb-1">Scan Azure</p>
                     <p class="text-xs text-gray-600">Select subscriptions, configure options, and generate a diagram from live resources.</p>
@@ -70,7 +70,7 @@ interface ConnectionType {
                   <button
                     type="button"
                     (click)="startEmptyCanvas()"
-                    class="text-left rounded-xl border border-gray-200 bg-gray-50 hover:bg-gray-100 transition-colors p-4 cursor-pointer"
+                    class="text-left rounded-xl border border-gray-200 bg-gray-50 hover:bg-gray-100 transition-colors p-4"
                   >
                     <p class="text-sm font-semibold text-gray-800 mb-1">Start Empty</p>
                     <p class="text-xs text-gray-600">Open an empty canvas and build your architecture manually.</p>
@@ -502,14 +502,14 @@ interface ConnectionType {
                   <button
                     type="button"
                     (click)="checkDeviceCodeLogin()"
-                    class="flex-1 py-2.5 px-4 bg-azure-blue text-white rounded-lg font-medium hover:bg-blue-700 transition-colors text-sm cursor-pointer"
+                    class="flex-1 py-2.5 px-4 bg-azure-blue text-white rounded-lg font-medium hover:bg-blue-700 transition-colors text-sm"
                   >
                     I Completed Sign-In
                   </button>
                   <button
                     type="button"
                     (click)="loginWithDeviceCode(true)"
-                    class="py-2.5 px-4 border border-blue-200 text-blue-800 rounded-lg font-medium hover:bg-blue-100 transition-colors text-sm cursor-pointer"
+                    class="py-2.5 px-4 border border-blue-200 text-blue-800 rounded-lg font-medium hover:bg-blue-100 transition-colors text-sm"
                   >
                     New Code
                   </button>
@@ -543,6 +543,11 @@ interface ConnectionType {
       </div>
     </div>
   `,
+  styles: [`
+    button:not(:disabled) {
+      cursor: pointer;
+    }
+  `],
 })
 export class ScanComponent implements OnInit, OnDestroy {
   store = inject(DiagramStore);

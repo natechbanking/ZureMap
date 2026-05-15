@@ -96,6 +96,12 @@ import { AzureSubscription } from '../../../core/models/azure-resource.model';
       </div>
     </div>
   `
+  ,
+  styles: [`
+    button:not(:disabled) {
+      cursor: pointer;
+    }
+  `]
 })
 export class SubscriptionSelectorComponent {
   @Input({ required: true }) subscriptions: AzureSubscription[] = [];

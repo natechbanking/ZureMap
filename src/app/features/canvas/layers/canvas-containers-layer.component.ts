@@ -46,6 +46,7 @@ export class CanvasContainersLayerComponent implements AfterViewChecked {
   @Input() vmDragState: VmDragState | null = null;
 
   @Output() subscriptionMouseDown = new EventEmitter<{ event: MouseEvent; subscriptionId: string }>();
+  @Output() subscriptionContextMenu = new EventEmitter<{ event: MouseEvent; bound: SubscriptionBound }>();
   @Output() rgMouseDown = new EventEmitter<{ event: MouseEvent; rgId: string }>();
   @Output() rgContextMenu = new EventEmitter<{ event: MouseEvent; bound: RgBound }>();
   @Output() vmMouseDown = new EventEmitter<{ event: MouseEvent; vmId: string }>();

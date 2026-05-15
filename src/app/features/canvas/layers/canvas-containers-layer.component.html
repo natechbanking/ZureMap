@@ -32,6 +32,7 @@
       style="z-index: 10; height: 36px"
       role="presentation"
       (mousedown)="subscriptionMouseDown.emit({ event: $event, subscriptionId: bound.subscriptionId })"
+      (contextmenu)="subscriptionContextMenu.emit({ event: $event, bound: bound })"
       (click)="$event.stopPropagation()"
       (keydown)="$event.stopPropagation()"
     >

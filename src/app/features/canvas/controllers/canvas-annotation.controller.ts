@@ -20,6 +20,7 @@ interface AnnotationMouseDownContext {
   canvasPointFromClient: (x: number, y: number) => { x: number; y: number };
   nodeAtCanvasPoint: (x: number, y: number) => DiagramNode | null | undefined;
   onNodeMouseDown: (event: MouseEvent, node: DiagramNode) => void;
+  onNodeDoubleClick: (node: DiagramNode) => void;
   closeAnnotationAndResourceMenus: () => void;
   clearEdgeSelection: () => void;
   annotationById: (id: string) => Annotation | undefined;
@@ -161,6 +162,12 @@ export class CanvasAnnotationController {
       const canvasPt = context.canvasPointFromClient(event.clientX, event.clientY);
       const nodeUnder = context.nodeAtCanvasPoint(canvasPt.x, canvasPt.y);
       if (nodeUnder) {
+        if (event.detail >= 2) {
+          event.preventDefault();
+          event.stopPropagation();
+          context.onNodeDoubleClick(nodeUnder);
+          return null;
+        }
         context.onNodeMouseDown(event, nodeUnder);
         return null;
       }

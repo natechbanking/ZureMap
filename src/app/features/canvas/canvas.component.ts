@@ -1010,6 +1010,7 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
       canvasPointFromClient: (x, y) => this.canvasPointFromClient(x, y),
       nodeAtCanvasPoint: (x, y) => this.nodeAtCanvasPoint(x, y),
       onNodeMouseDown: (event, node) => this.onNodeMouseDown(event, node),
+      onNodeDoubleClick: node => this.openResourceEditor(node.id),
       closeAnnotationAndResourceMenus: () => {
         this.ctxMenuSvc.annotationContextMenu = null;
         this.ctxMenuSvc.contextMenu = null;

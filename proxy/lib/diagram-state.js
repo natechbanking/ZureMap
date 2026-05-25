@@ -15,10 +15,10 @@ function sanitizeForMarkdown(value) {
 
 function buildMarkdownSummary(state) {
   const { nodes = [], edges = [], subscriptions = [], exportedAt } = state;
-  const typeCounts = {};
+  const typeCounts = new Map();
   for (const n of nodes) {
     const resourceType = sanitizeForMarkdown(n.resourceType || 'Unknown');
-    typeCounts[resourceType] = (typeCounts[resourceType] ?? 0) + 1;
+    typeCounts.set(resourceType, (typeCounts.get(resourceType) ?? 0) + 1);
   }
   const subNames = subscriptions
     .map((s) => sanitizeForMarkdown(s?.name))
@@ -49,7 +49,7 @@ function buildMarkdownSummary(state) {
 ## Resources by Type
 | Type | Count |
 |---|---|
-${Object.entries(typeCounts).map(([t, c]) => `| ${t} | ${c} |`).join('\n')}
+${Array.from(typeCounts.entries()).map(([t, c]) => `| ${t} | ${c} |`).join('\n')}
 
 ## Connections (first 20)
 ${edgeSummary || 'None'}${costSection}

@@ -28,6 +28,14 @@ function createIpRateLimiter({ windowMs, maxRequests }) {
   };
 }
 
+function parsePositiveIntEnv(name, fallback) {
+  const raw = process.env[name];
+  if (raw === undefined) return fallback;
+  const value = Number(raw);
+  if (!Number.isFinite(value) || value <= 0) return fallback;
+  return Math.floor(value);
+}
+
 app.use((req, res, next) => {
   const start = Date.now();
   res.on('finish', () => {
@@ -55,8 +63,8 @@ if (process.env.NODE_ENV === 'production') {
   const path = require('path');
   const distPath = path.join(__dirname, '../dist/zuremap/browser');
   const staticRateLimiter = createIpRateLimiter({
-    windowMs: Number(process.env.STATIC_RATE_WINDOW_MS || 60_000),
-    maxRequests: Number(process.env.STATIC_RATE_MAX_REQUESTS || 120),
+    windowMs: parsePositiveIntEnv('STATIC_RATE_WINDOW_MS', 60_000),
+    maxRequests: parsePositiveIntEnv('STATIC_RATE_MAX_REQUESTS', 120),
   });
   app.use(staticRateLimiter);
   app.use(express.static(distPath));

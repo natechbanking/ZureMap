@@ -24,7 +24,13 @@ class StructuredCostError extends Error {
 
 function normalizeResourceId(value) {
   if (!value) return '';
-  return String(value).trim().toLowerCase().replace(/\/+$/, '');
+  return trimTrailingSlashes(String(value).trim().toLowerCase());
+}
+
+function trimTrailingSlashes(value) {
+  let end = value.length;
+  while (end > 0 && value[end - 1] === '/') end -= 1;
+  return end === value.length ? value : value.slice(0, end);
 }
 
 function toArray(value) {
@@ -74,7 +80,7 @@ function parseAggregateRows(result, subscriptionId) {
         originalCost: safeNumber(row[costIdx]),
         originalCurrency: String(row[curIdx] ?? 'USD'),
         resourceGroup: parsedRg || String(parts[4] ?? 'unknown'),
-        resourceType: parsedType || `${parts[6] ?? 'unknown'}/${parts[7] ?? ''}`.replace(/\/+$/, ''),
+        resourceType: parsedType || trimTrailingSlashes(`${parts[6] ?? 'unknown'}/${parts[7] ?? ''}`),
       };
     })
     .filter(row => row.resourceId);

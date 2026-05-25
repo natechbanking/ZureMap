@@ -1,11 +1,11 @@
-import { CommonModule } from '@angular/common';
+
 import { AfterViewInit, Component, ElementRef, EventEmitter, Input, OnChanges, Output, SimpleChanges, ViewChild } from '@angular/core';
 import { Annotation } from '../../core/models/annotation.model';
 
 @Component({
   selector: 'app-annotation-edit-overlay',
   standalone: true,
-  imports: [CommonModule],
+  imports: [],
   template: `
     @if (showDeleteButton) {
       <button

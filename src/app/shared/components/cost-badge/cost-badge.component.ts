@@ -1,5 +1,5 @@
 import { Component, Input } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { NodeCostData } from '../../../core/models/cost-data.model';
 import { getCostBorderStyle } from '../../../core/utils/cost-thresholds';
 import { FormatCostPipe } from '../../pipes/format-cost.pipe';
@@ -7,7 +7,7 @@ import { FormatCostPipe } from '../../pipes/format-cost.pipe';
 @Component({
   selector: 'app-cost-badge',
   standalone: true,
-  imports: [CommonModule, FormatCostPipe],
+  imports: [FormatCostPipe],
   template: `
     @if (costData) {
       <span

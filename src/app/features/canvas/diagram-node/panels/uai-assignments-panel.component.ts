@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, Input } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 
 export interface UaiRoleAssignmentView {
   id: string;
@@ -12,7 +12,7 @@ export interface UaiRoleAssignmentView {
 @Component({
   selector: 'app-uai-assignments-panel',
   standalone: true,
-  imports: [CommonModule],
+  imports: [],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="w-full mt-1 rounded border border-sky-200 bg-white shadow-sm overflow-hidden" role="presentation" (mousedown)="stop($event)" (click)="stop($event)" (keydown)="stop($event)">

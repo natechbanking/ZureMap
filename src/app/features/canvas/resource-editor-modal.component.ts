@@ -1,11 +1,11 @@
-import { CommonModule } from '@angular/common';
+
 import { Component, EventEmitter, Input, Output } from '@angular/core';
 import { ResourceEditorDraft } from './canvas.types';
 
 @Component({
   selector: 'app-resource-editor-modal',
   standalone: true,
-  imports: [CommonModule],
+  imports: [],
   template: `
     <div class="absolute inset-0 z-[170] bg-black/30 flex items-center justify-center p-4" role="presentation" (click)="closed.emit()" (keydown.escape)="closed.emit()">
       <div class="w-full max-w-2xl rounded-xl border border-gray-200 bg-white shadow-2xl" role="presentation" (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">

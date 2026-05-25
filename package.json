@@ -20,15 +20,15 @@
     "npm": ">=10"
   },
   "dependencies": {
-    "@angular/common": "^19.2.0",
-    "@angular/compiler": "^19.2.0",
-    "@angular/core": "^19.2.0",
-    "@angular/forms": "^19.2.0",
-    "@angular/platform-browser": "^19.2.0",
-    "@angular/platform-browser-dynamic": "^19.2.0",
-    "@angular/router": "^19.2.0",
+    "@angular/common": "^20.3.21",
+    "@angular/compiler": "^20.3.21",
+    "@angular/core": "^20.3.21",
+    "@angular/forms": "^20.3.21",
+    "@angular/platform-browser": "^20.3.21",
+    "@angular/platform-browser-dynamic": "^20.3.21",
+    "@angular/router": "^20.3.21",
     "@azure/msal-browser": "^5.7.0",
-    "@fortawesome/angular-fontawesome": "^1.0.0",
+    "@fortawesome/angular-fontawesome": "^3.0.0",
     "@fortawesome/fontawesome-svg-core": "^6.7.2",
     "@fortawesome/free-solid-svg-icons": "^6.7.2",
     "cors": "^2.8.6",
@@ -42,9 +42,9 @@
     "zone.js": "~0.15.0"
   },
   "devDependencies": {
-    "@angular-devkit/build-angular": "^19.2.13",
-    "@angular/cli": "^19.2.13",
-    "@angular/compiler-cli": "^19.2.0",
+    "@angular/build": "^20.3.26",
+    "@angular/cli": "^20.3.26",
+    "@angular/compiler-cli": "^20.3.21",
     "@tailwindcss/postcss": "^4.2.2",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
@@ -60,9 +60,9 @@
     "karma-coverage": "~2.2.0",
     "karma-jasmine": "~5.1.0",
     "karma-jasmine-html-reporter": "~2.1.0",
-    "postcss": "^8.5.10",
+    "postcss": "^8.5.3",
     "tailwindcss": "^4.2.2",
-    "typescript": "~5.7.2",
+    "typescript": "~5.9.3",
     "typescript-eslint": "8.46.4"
   }
 }

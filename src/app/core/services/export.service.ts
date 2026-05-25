@@ -64,9 +64,9 @@ export class ExportService {
       const json = JSON.stringify(diagramState);
       const b64 = btoa(unescape(encodeURIComponent(json)));
       const modified = this.injectTextChunk(png, 'zuremap', b64);
-      saveAs(new Blob([modified], { type: 'image/png' }), `zuremap-${this.timestamp()}.png`);
+      saveAs(new Blob([this.toArrayBuffer(modified)], { type: 'image/png' }), `zuremap-${this.timestamp()}.png`);
     } else {
-      saveAs(new Blob([png], { type: 'image/png' }), `zuremap-${this.timestamp()}.png`);
+      saveAs(new Blob([this.toArrayBuffer(png)], { type: 'image/png' }), `zuremap-${this.timestamp()}.png`);
     }
   }
 
@@ -166,6 +166,12 @@ export class ExportService {
     const arr = new Uint8Array(bstr.length);
     for (let i = 0; i < bstr.length; i++) arr[i] = bstr.charCodeAt(i);
     return arr;
+  }
+
+  private toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+    const copy = new Uint8Array(bytes.byteLength);
+    copy.set(bytes);
+    return copy.buffer as ArrayBuffer;
   }
 
   private injectTextChunk(png: Uint8Array, keyword: string, text: string): Uint8Array {

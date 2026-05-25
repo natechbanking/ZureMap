@@ -1,5 +1,5 @@
 import { Component, inject } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { DiagramStore } from '../../core/store/diagram.store';
 import { AzureIconComponent } from '../../shared/components/azure-icon/azure-icon.component';
 import { IconRegistryService } from '../../core/services/icon-registry.service';
@@ -7,7 +7,7 @@ import { IconRegistryService } from '../../core/services/icon-registry.service';
 @Component({
   selector: 'app-sidebar',
   standalone: true,
-  imports: [CommonModule, AzureIconComponent],
+  imports: [AzureIconComponent],
   template: `
     @if (store.selectedNode(); as node) {
       <aside class="w-80 bg-white border-l border-gray-200 flex flex-col overflow-y-auto">

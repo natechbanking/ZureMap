@@ -10,6 +10,11 @@ function createIpRateLimiter({ windowMs, maxRequests }) {
   const hits = new Map();
   return (req, res, next) => {
     const now = Date.now();
+    for (const [ip, entry] of hits) {
+      if (now - entry.windowStart >= windowMs) {
+        hits.delete(ip);
+      }
+    }
     const key = req.ip || req.socket?.remoteAddress || 'unknown';
     const entry = hits.get(key);
 

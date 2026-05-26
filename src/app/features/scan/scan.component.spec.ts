@@ -11,12 +11,12 @@ import { ExportService } from '../../core/services/export.service';
 import { AutosaveService } from '../../core/services/autosave.service';
 import { DiagramStore } from '../../core/store/diagram.store';
 import { makeSubscription } from '../../testing/test-helpers';
-import { environment } from '../../../environments/environment';
 
 describe('ScanComponent', () => {
   let component: ScanComponent;
   let autosave: jasmine.SpyObj<AutosaveService>;
   let router: jasmine.SpyObj<Router>;
+  let exportSvc: jasmine.SpyObj<ExportService>;
   let store: DiagramStore;
 
   beforeEach(async () => {
@@ -33,6 +33,7 @@ describe('ScanComponent', () => {
     autosave.supportsLocalFileAutosave.and.returnValue(true);
 
     router = jasmine.createSpyObj<Router>('Router', ['navigate']);
+    exportSvc = jasmine.createSpyObj<ExportService>('ExportService', ['importFile']);
 
     await TestBed.configureTestingModule({
       imports: [ScanComponent],
@@ -48,7 +49,7 @@ describe('ScanComponent', () => {
         { provide: ResourceMapperService, useValue: {} },
         { provide: ConnectionResolverService, useValue: {} },
         { provide: ELKLayoutService, useValue: { layout: jasmine.createSpy('layout').and.resolveTo([]) } },
-        { provide: ExportService, useValue: {} },
+        { provide: ExportService, useValue: exportSvc },
         { provide: AutosaveService, useValue: autosave },
         { provide: Router, useValue: router },
       ],
@@ -79,6 +80,17 @@ describe('ScanComponent', () => {
     expect(runSpy).toHaveBeenCalledWith(['sub-a']);
   });
 
+  it('confirmOptions routes to startEmptyCanvas in empty start mode', async () => {
+    component.startMode = 'empty';
+    const emptySpy = spyOn(component, 'startEmptyCanvas').and.resolveTo();
+    const runSpy = spyOn(component as unknown as { runScan: (ids: string[]) => Promise<void> }, 'runScan').and.resolveTo();
+
+    await component.confirmOptions();
+
+    expect(emptySpy).toHaveBeenCalled();
+    expect(runSpy).not.toHaveBeenCalled();
+  });
+
   it('confirmOptions aborts when picker is unsupported but autosave enabled', async () => {
     const runSpy = spyOn(component as unknown as { runScan: (ids: string[]) => Promise<void> }, 'runScan').and.resolveTo();
     const alertSpy = spyOn(window, 'alert');
@@ -91,15 +103,30 @@ describe('ScanComponent', () => {
     expect(runSpy).not.toHaveBeenCalled();
   });
 
-  it('startEmptyCanvas aborts when user declines picker after enabling prompt', async () => {
-    const confirmSpy = spyOn(window, 'confirm').and.returnValues(true);
+  it('startEmptyCanvas aborts when autosave picker is canceled', async () => {
+    component.optionsEnableAutosave = true;
     autosave.enableForEmptyDiagram.and.resolveTo(false);
-    autosave.supportsLocalFileAutosave.and.returnValue(true);
 
     await component.startEmptyCanvas();
 
-    expect(confirmSpy).toHaveBeenCalled();
+    expect(autosave.enableForEmptyDiagram).toHaveBeenCalled();
     expect(router.navigate).not.toHaveBeenCalledWith(['/canvas']);
+  });
+
+  it('startEmptyFlow enters selecting-options in empty mode', () => {
+    component.startEmptyFlow();
+
+    expect(component.startMode).toBe('empty');
+    expect(component.optionsEnableAutosave).toBeFalse();
+    expect(store.scanPhase()).toBe('selecting-options');
+  });
+
+  it('beginAzureScanFlow forces startMode back to scan', () => {
+    component.startMode = 'empty';
+
+    component.beginAzureScanFlow();
+
+    expect(component.startMode).toBe('scan');
   });
 
   it('beginAzureScanFlow sets needsLogin when not authenticated', () => {
@@ -127,12 +154,8 @@ describe('ScanComponent', () => {
     expect(store.scanPhase()).toBe('idle');
   });
 
-  it('startEmptyCanvas clears and navigates when autosave is declined', async () => {
-    if (environment.isDemo) {
-      pending('Demo mode bypasses autosave prompt flow');
-      return;
-    }
-    spyOn(window, 'confirm').and.returnValue(false);
+  it('startEmptyCanvas clears and navigates when autosave is disabled', async () => {
+    component.optionsEnableAutosave = false;
     store.setNodes([]);
 
     await component.startEmptyCanvas();
@@ -140,6 +163,28 @@ describe('ScanComponent', () => {
     expect(autosave.disable).toHaveBeenCalled();
     expect(store.canvasSessionMode()).toBe('empty');
     expect(router.navigate).toHaveBeenCalledWith(['/canvas']);
+  });
+
+  it('startEmptyCanvas enables autosave when toggle is enabled', async () => {
+    component.optionsEnableAutosave = true;
+    store.setNodes([]);
+
+    await component.startEmptyCanvas();
+
+    expect(autosave.enableForEmptyDiagram).toHaveBeenCalled();
+    expect(store.canvasSessionMode()).toBe('empty');
+    expect(router.navigate).toHaveBeenCalledWith(['/canvas']);
+  });
+
+  it('startEmptyCanvas shows alert and aborts when autosave is enabled but unsupported', async () => {
+    const alertSpy = spyOn(window, 'alert');
+    component.optionsEnableAutosave = true;
+    autosave.supportsLocalFileAutosave.and.returnValue(false);
+
+    await component.startEmptyCanvas();
+
+    expect(alertSpy).toHaveBeenCalled();
+    expect(router.navigate).not.toHaveBeenCalledWith(['/canvas']);
   });
 
   it('loginWithDeviceCode shows the prompt and starts polling', () => {
@@ -163,5 +208,96 @@ describe('ScanComponent', () => {
 
     expect(auth.listSubscriptions).toHaveBeenCalled();
     expect(store.scanPhase()).toBe('selecting-subscription');
+  });
+
+  it('onImportDrop imports dropped file and navigates to canvas', async () => {
+    const file = new File(['{}'], 'diagram.json', { type: 'application/json' });
+    exportSvc.importFile.and.resolveTo({
+      version: '1.0',
+      exportedAt: new Date().toISOString(),
+      subscriptions: [],
+      nodes: [],
+      edges: [],
+      annotations: [],
+    });
+
+    await component.onImportDrop({
+      preventDefault: jasmine.createSpy('preventDefault'),
+      dataTransfer: { files: [file] },
+    } as unknown as DragEvent);
+
+    expect(exportSvc.importFile).toHaveBeenCalledWith(file);
+    expect(router.navigate).toHaveBeenCalledWith(['/canvas']);
+    expect(component.isImportDragActive).toBeFalse();
+  });
+
+  it('onImportDragOver activates drop-zone highlight', () => {
+    component.isImportDragActive = false;
+
+    component.onImportDragOver({
+      preventDefault: jasmine.createSpy('preventDefault'),
+    } as unknown as DragEvent);
+
+    expect(component.isImportDragActive).toBeTrue();
+  });
+
+  it('onImportDragLeave clears drop-zone highlight', () => {
+    component.isImportDragActive = true;
+
+    component.onImportDragLeave({
+      preventDefault: jasmine.createSpy('preventDefault'),
+    } as unknown as DragEvent);
+
+    expect(component.isImportDragActive).toBeFalse();
+  });
+
+  it('onImportFileChange imports selected file, resets picker, and navigates', async () => {
+    const file = new File(['{}'], 'diagram.json', { type: 'application/json' });
+    exportSvc.importFile.and.resolveTo({
+      version: '1.0',
+      exportedAt: new Date().toISOString(),
+      subscriptions: [],
+      nodes: [],
+      edges: [],
+      annotations: [],
+    });
+    const input = {
+      files: [file],
+      value: 'C:\\fakepath\\diagram.json',
+    } as unknown as HTMLInputElement;
+
+    await component.onImportFileChange({ target: input } as unknown as Event);
+
+    expect(exportSvc.importFile).toHaveBeenCalledWith(file);
+    expect(input.value).toBe('');
+    expect(router.navigate).toHaveBeenCalledWith(['/canvas']);
+  });
+
+  it('onImportFileChange sets error and resets picker when import fails', async () => {
+    const file = new File(['bad'], 'broken.json', { type: 'application/json' });
+    exportSvc.importFile.and.rejectWith(new Error('invalid file'));
+    const input = {
+      files: [file],
+      value: 'C:\\fakepath\\broken.json',
+    } as unknown as HTMLInputElement;
+
+    await component.onImportFileChange({ target: input } as unknown as Event);
+
+    expect(input.value).toBe('');
+    expect(store.scanPhase()).toBe('error');
+    expect(store.errorMessage()).toContain('Failed to import file');
+  });
+
+  it('onImportDrop shows error when import fails', async () => {
+    const file = new File(['bad'], 'broken.json', { type: 'application/json' });
+    exportSvc.importFile.and.rejectWith(new Error('bad import'));
+
+    await component.onImportDrop({
+      preventDefault: jasmine.createSpy('preventDefault'),
+      dataTransfer: { files: [file] },
+    } as unknown as DragEvent);
+
+    expect(store.scanPhase()).toBe('error');
+    expect(store.errorMessage()).toContain('Failed to import file');
   });
 });

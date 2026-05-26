@@ -45,7 +45,6 @@ interface ConnectionType {
                 <h2 class="text-base font-semibold text-gray-900 mb-1">Choose How to Start</h2>
                 <p class="text-sm text-gray-500">Scan Azure subscriptions or start with a blank canvas.</p>
               </div>
-
               <div class="grid grid-cols-1 gap-3">
                 @if (isDemo) {
                   <button
@@ -69,7 +68,7 @@ interface ConnectionType {
 
                   <button
                     type="button"
-                    (click)="startEmptyCanvas()"
+                    (click)="startEmptyFlow()"
                     class="text-left rounded-xl border border-gray-200 bg-gray-50 hover:bg-gray-100 transition-colors p-4"
                   >
                     <p class="text-sm font-semibold text-gray-800 mb-1">Start Empty</p>
@@ -79,13 +78,27 @@ interface ConnectionType {
               </div>
 
               <div class="pt-2">
-                <label
-                  class="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-medium text-gray-600 hover:bg-gray-100 border border-gray-200 cursor-pointer transition-colors"
-                  title="Import ZureMap JSON or embedded PNG"
+                <div
+                  class="rounded-xl border-2 border-dashed p-4 transition-colors"
+                  [class.border-blue-400]="isImportDragActive"
+                  [class.bg-blue-50]="isImportDragActive"
+                  [class.border-gray-300]="!isImportDragActive"
+                  [class.bg-gray-50]="!isImportDragActive"
+                  (dragover)="onImportDragOver($event)"
+                  (dragleave)="onImportDragLeave($event)"
+                  (drop)="onImportDrop($event)"
                 >
-                  ↑ Import Existing Diagram
-                  <input type="file" accept=".json,application/json,.png,image/png" class="sr-only" (change)="onImportFileChange($event)" />
-                </label>
+                  <p class="text-xs text-gray-600 mb-3">
+                    Drag and drop an existing diagram file here (.json or .png), or import manually:
+                  </p>
+                  <label
+                    class="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-medium text-gray-600 hover:bg-gray-100 border border-gray-200 cursor-pointer transition-colors bg-white"
+                    title="Import ZureMap JSON or embedded PNG"
+                  >
+                    ↑ Import Existing Diagram
+                    <input type="file" accept=".json,application/json,.png,image/png" class="sr-only" (change)="onImportFileChange($event)" />
+                  </label>
+                </div>
               </div>
             </div>
           }
@@ -115,36 +128,45 @@ interface ConnectionType {
           @case ('selecting-options') {
             <div class="space-y-6">
               <div>
-                <h2 class="text-base font-semibold text-gray-900 mb-1">Step 2: Configure Diagram</h2>
-                <p class="text-sm text-gray-500">
-                  Ready to scan
-                  <span class="font-medium text-gray-700">{{ store.activeSubscriptions().length }} subscription{{ store.activeSubscriptions().length !== 1 ? 's' : '' }}</span>.
-                </p>
+                @if (startMode === 'scan') {
+                  <h2 class="text-base font-semibold text-gray-900 mb-1">Step 2: Configure Diagram</h2>
+                  <p class="text-sm text-gray-500">
+                    Ready to scan
+                    <span class="font-medium text-gray-700">{{ store.activeSubscriptions().length }} subscription{{ store.activeSubscriptions().length !== 1 ? 's' : '' }}</span>.
+                  </p>
+                } @else {
+                  <h2 class="text-base font-semibold text-gray-900 mb-1">Configure Empty Canvas</h2>
+                  <p class="text-sm text-gray-500">
+                    Start with a blank diagram and choose whether to enable crash-recovery autosave.
+                  </p>
+                }
               </div>
 
-              <div class="bg-gray-50/50 border border-gray-200 rounded-xl p-4">
-                <div class="flex items-start justify-between gap-4 mb-2">
-                  <div>
-                    <h3 class="text-sm font-semibold text-gray-800">Generate Connections</h3>
-                    <p class="text-xs text-gray-500 mt-1 max-w-sm">
-                      Detect relationships like Private Endpoints and VNet Peering to draw arrows on your diagram.
-                    </p>
+              @if (startMode === 'scan') {
+                <div class="bg-gray-50/50 border border-gray-200 rounded-xl p-4">
+                  <div class="flex items-start justify-between gap-4 mb-2">
+                    <div>
+                      <h3 class="text-sm font-semibold text-gray-800">Generate Connections</h3>
+                      <p class="text-xs text-gray-500 mt-1 max-w-sm">
+                        Detect relationships like Private Endpoints and VNet Peering to draw arrows on your diagram.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      (click)="optionsGenerateConnections = !optionsGenerateConnections"
+                      class="relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-azure-blue"
+                      [class.bg-azure-blue]="optionsGenerateConnections"
+                      [class.bg-gray-300]="!optionsGenerateConnections"
+                    >
+                      <span
+                        class="inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform duration-200"
+                        [class.translate-x-6]="optionsGenerateConnections"
+                        [class.translate-x-1]="!optionsGenerateConnections"
+                      ></span>
+                    </button>
                   </div>
-                  <button
-                    type="button"
-                    (click)="optionsGenerateConnections = !optionsGenerateConnections"
-                    class="relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-azure-blue"
-                    [class.bg-azure-blue]="optionsGenerateConnections"
-                    [class.bg-gray-300]="!optionsGenerateConnections"
-                  >
-                    <span
-                      class="inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform duration-200"
-                      [class.translate-x-6]="optionsGenerateConnections"
-                      [class.translate-x-1]="!optionsGenerateConnections"
-                    ></span>
-                  </button>
                 </div>
-              </div>
+              }
 
               @if (!isDemo) {
                 <div class="bg-blue-50/40 border border-blue-200 rounded-xl p-4">
@@ -280,11 +302,10 @@ interface ConnectionType {
                   </div>
                 }
               </div>
-
               <div class="flex items-center gap-3 pt-4 border-t border-gray-100">
                 <button
                   type="button"
-                  (click)="store.scanPhase.set('selecting-subscription')"
+                  (click)="startMode === 'scan' ? store.scanPhase.set('selecting-subscription') : enterStartChoice()"
                   class="px-4 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-50 rounded-lg transition-colors border border-gray-200"
                 >
                   Back
@@ -294,7 +315,7 @@ interface ConnectionType {
                   (click)="confirmOptions()"
                   class="flex-1 py-2.5 px-4 bg-azure-blue text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors shadow-sm flex items-center justify-center gap-2"
                 >
-                  <span>Start Scan</span>
+                  <span>{{ startMode === 'scan' ? 'Start Scan' : 'Open Empty Canvas' }}</span>
                   <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
                   </svg>
@@ -568,6 +589,8 @@ export class ScanComponent implements OnInit, OnDestroy {
   readonly deviceCodePolling = signal(false);
   private deviceCodePollTimer: number | null = null;
   showAdvancedOptions = false;
+  isImportDragActive = false;
+  startMode: 'scan' | 'empty' = 'scan';
   optionsGenerateConnections = true;
   optionsIncludeAppSlots = false;
   optionsIncludeNetworkInterfaces = false;
@@ -632,6 +655,7 @@ export class ScanComponent implements OnInit, OnDestroy {
   }
 
   enterStartChoice(): void {
+    this.startMode = 'scan';
     this.clearDeviceCodeLoginState();
     this.needsLogin = false;
     this.optionsGenerateConnections = true;
@@ -650,6 +674,7 @@ export class ScanComponent implements OnInit, OnDestroy {
   }
 
   beginAzureScanFlow(): void {
+    this.startMode = 'scan';
     void this.autosave.disable();
     this.clearDeviceCodeLoginState();
     this.needsLogin = false;
@@ -780,6 +805,10 @@ export class ScanComponent implements OnInit, OnDestroy {
   }
 
   async confirmOptions(): Promise<void> {
+    if (this.startMode === 'empty') {
+      await this.startEmptyCanvas();
+      return;
+    }
     if (!this.isDemo) {
       if (!this.optionsEnableAutosave) {
         await this.autosave.disable();
@@ -800,13 +829,34 @@ export class ScanComponent implements OnInit, OnDestroy {
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0];
     if (!file) return;
+    await this.importDiagramFile(file);
+    input.value = '';
+  }
+
+  onImportDragOver(event: DragEvent): void {
+    event.preventDefault();
+    this.isImportDragActive = true;
+  }
+
+  onImportDragLeave(event: DragEvent): void {
+    event.preventDefault();
+    this.isImportDragActive = false;
+  }
+
+  async onImportDrop(event: DragEvent): Promise<void> {
+    event.preventDefault();
+    this.isImportDragActive = false;
+    const file = event.dataTransfer?.files?.[0];
+    if (!file) return;
+    await this.importDiagramFile(file);
+  }
+
+  private async importDiagramFile(file: File): Promise<void> {
     try {
       await this.autosave.disable();
       const state = await this.exportSvc.importFile(file);
       this.applyImportedState(state);
-      input.value = '';
     } catch {
-      input.value = '';
       this.store.scanPhase.set('error');
       this.store.errorMessage.set('Failed to import file. Please use a valid ZureMap JSON or embedded PNG.');
       this.scanError.set({ code: 'SERVER_ERROR', detail: 'Invalid or unsupported import file.' });
@@ -970,33 +1020,30 @@ export class ScanComponent implements OnInit, OnDestroy {
     return Array.from(seen.values());
   }
 
+  startEmptyFlow(): void {
+    this.startMode = 'empty';
+    this.optionsEnableAutosave = false;
+    this.store.scanPhase.set('selecting-options');
+  }
+
   async startEmptyCanvas(): Promise<void> {
-    const proceed = await this.promptAutosaveForNewDiagram({ allowAbortOnPickerCancel: true });
-    if (!proceed) return;
+    if (!this.isDemo) {
+      if (!this.optionsEnableAutosave) {
+        await this.autosave.disable();
+      } else {
+        if (!this.supportsAutosavePicker) {
+          alert('Local-file autosave is not supported in this browser.');
+          return;
+        }
+        const enabled = await this.autosave.enableForEmptyDiagram();
+        if (!enabled) return;
+      }
+    }
     this.store.clearDiagram();
     this.store.activeSubscriptions.set([]);
     this.store.setAnnotations([]);
     this.store.canvasSessionMode.set('empty');
     this.router.navigate(['/canvas']);
-  }
-
-  private async promptAutosaveForNewDiagram(opts: { allowAbortOnPickerCancel: boolean }): Promise<boolean> {
-    if (this.isDemo) return true;
-    if (!this.autosave.supportsLocalFileAutosave()) {
-      await this.autosave.disable();
-      alert('Local-file autosave is not supported in this browser. You can still export JSON manually.');
-      return true;
-    }
-
-    const enable = confirm('Enable autosave to a local JSON file for crash recovery?');
-    if (!enable) {
-      await this.autosave.disable();
-      return true;
-    }
-
-    const enabled = await this.autosave.enableForEmptyDiagram();
-    if (enabled) return true;
-    return !opts.allowAbortOnPickerCancel;
   }
 
   toggleAutosaveOption(): void {

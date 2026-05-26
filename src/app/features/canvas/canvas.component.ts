@@ -239,7 +239,7 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
     });
     effect(() => {
       this.store.canvasSessionMode();
-      this.store.nodes().length;
+      this.store.nodes();
       this.scheduleEmptyCanvasHintDismiss();
     });
     effect(() => {

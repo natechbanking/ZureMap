@@ -45,7 +45,7 @@ describe('ToolbarComponent', () => {
     component.rescan.subscribe(rescanSpy);
     component.relayout.subscribe(relayoutSpy);
 
-    const menuButton = fixture.nativeElement.querySelector('header > div:last-child > button') as HTMLButtonElement;
+    const menuButton = fixture.nativeElement.querySelector('button[aria-label="Open menu"]') as HTMLButtonElement;
     menuButton.click();
     fixture.detectChanges();
 

@@ -127,4 +127,30 @@ describe('DrawingToolbarComponent', () => {
     component.activeTool = 'subscriptionContainer';
     expect(component.getActiveToolHint()).toContain('subscription container');
   });
+
+  it('includes hand tool and supports hand hint', () => {
+    const handTool = component.tools.find(t => t.id === 'hand');
+    expect(handTool).toBeDefined();
+
+    component.activeTool = 'hand';
+    expect(component.getActiveToolHint()).toContain('pan');
+  });
+
+  it('hides style panel when hand tool is active without style-edit selection', () => {
+    component.activeTool = 'hand';
+    component.canEditTextStyle = false;
+    component.canEditFillStyle = false;
+
+    expect(component.showStylePanel).toBeFalse();
+  });
+
+  it('opens secondary drawer on azure tab by default', () => {
+    component.activeTab = 'actions';
+    component.secondaryDrawerOpen = false;
+
+    component.toggleSecondaryDrawer();
+
+    expect(component.secondaryDrawerOpen).toBeTrue();
+    expect(component.activeTab).toBe('azure');
+  });
 });

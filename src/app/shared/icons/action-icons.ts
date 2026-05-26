@@ -11,8 +11,11 @@ import {
   faChevronUp,
   faCopy,
   faCrosshairs,
+  faHand,
   faLink,
+  faLayerGroup,
   faMagnifyingGlass,
+  faPaintbrush,
   faPaste,
   faPenToSquare,
   faPlus,
@@ -46,7 +49,10 @@ export type ActionIconName =
   | 'moveDown'
   | 'chevronLeft'
   | 'chevronRight'
-  | 'tags';
+  | 'tags'
+  | 'layers'
+  | 'hand'
+  | 'brush';
 
 export const ACTION_ICONS: Record<ActionIconName, IconDefinition> = {
   copy: faCopy,
@@ -72,4 +78,7 @@ export const ACTION_ICONS: Record<ActionIconName, IconDefinition> = {
   chevronLeft: faChevronLeft,
   chevronRight: faChevronRight,
   tags: faTags,
+  layers: faLayerGroup,
+  hand: faHand,
+  brush: faPaintbrush,
 };

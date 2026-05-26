@@ -18,7 +18,11 @@
       <div class="flex flex-1 overflow-hidden relative">
 
         @if (showEmptyCanvasHint) {
-          <div class="absolute top-3 right-3 z-[140] max-w-sm rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-gray-700 shadow-sm">
+          <div
+            class="absolute top-3 right-3 z-[140] max-w-sm rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-gray-700 shadow-sm transition-opacity duration-300"
+            [class.opacity-100]="!emptyCanvasHintFading"
+            [class.opacity-0]="emptyCanvasHintFading"
+          >
             <div class="flex items-start gap-2">
               <span class="mt-0.5 text-blue-700">i</span>
               <div class="min-w-0">
@@ -28,7 +32,7 @@
               <button
                 type="button"
                 class="ml-2 text-gray-500 hover:text-gray-700"
-                (click)="dismissEmptyCanvasHint = true"
+                (click)="dismissEmptyCanvasHintNow()"
                 title="Dismiss hint"
               >
                 ✕
@@ -37,66 +41,52 @@
           </div>
         }
 
-        <!-- Floating drawing toolbar (draggable) -->
-        <div
-          class="absolute z-[120] pointer-events-auto select-none"
-          [style.left.px]="toolbarPos.x"
-          [style.top.px]="toolbarPos.y"
-        >
-          <!-- Drag handle -->
-          <div
-            class="flex justify-center pb-0.5 pt-0.5"
-            [class.cursor-grab]="toolbarDragState === null"
-            [class.cursor-grabbing]="toolbarDragState !== null"
-            (mousedown)="onToolbarDragMouseDown($event)"
-          >
-            <div class="w-8 h-1 bg-gray-400 rounded-full opacity-50 hover:opacity-80 transition-opacity"></div>
-          </div>
-          <app-drawing-toolbar
-            [activeTool]="activeTool"
-            [activeColor]="activeColor"
-            [activeFontFamily]="activeFontFamily"
-            [activeFontSize]="activeFontSize"
-            [activeStrokeWidth]="activeStrokeWidth"
-            [activeStrokeStyle]="activeStrokeStyle"
-            [activeSloppiness]="activeSloppiness"
-            [activeEdgeRouting]="activeEdgeRouting"
-            [activeEdgeMode]="activeEdgeMode"
-            [activeFill]="activeFill"
-            [activeFillOpacity]="activeFillOpacity"
-            [canEditTextStyle]="canEditSelectedTextStyle"
-            [canEditFillStyle]="canEditSelectedFillStyle"
-            [hasSelection]="selectedAnnotationIds.length > 0"
-            [annotationCount]="store.annotations().length"
-            [tagRules]="store.tagRules()"
-            [availableTags]="availableTags"
-            [activeResourceType]="activeResourceType"
-            [discoveredResourceTypes]="discoveredResourceTypes"
-            (toolChange)="setTool($event)"
-            (resourceTypeChange)="onResourceTypeChange($event)"
-            (colorChange)="onToolbarColorChange($event)"
-            (fontFamilyChange)="onToolbarFontFamilyChange($event)"
-            (fontSizeChange)="onToolbarFontSizeChange($event)"
-            (strokeWidthChange)="onToolbarStrokeWidthChange($event)"
-            (strokeStyleChange)="onToolbarStrokeStyleChange($event)"
-            (sloppinessChange)="onToolbarSloppinessChange($event)"
-            (edgeRoutingChange)="onToolbarEdgeRoutingChange($event)"
-            (edgeModeChange)="onToolbarEdgeModeChange($event)"
-            (fillChange)="onToolbarFillChange($event)"
-            (fillOpacityChange)="onToolbarFillOpacityChange($event)"
-            (undo)="store.undo()"
-            (clearAll)="clearAllAnnotations()"
-            (deleteSelected)="deleteSelectedAnnotation()"
-            (duplicateSelected)="duplicateSelectedAnnotation()"
-            (bringToFront)="bringSelectedAnnotationToFront()"
-            (sendToBack)="sendSelectedAnnotationToBack()"
-            (tagRulesChange)="onTagRulesChange($event)"
-          />
-        </div>
+        <app-drawing-toolbar
+          [activeTool]="activeTool"
+          [activeColor]="activeColor"
+          [activeFontFamily]="activeFontFamily"
+          [activeFontSize]="activeFontSize"
+          [activeStrokeWidth]="activeStrokeWidth"
+          [activeStrokeStyle]="activeStrokeStyle"
+          [activeSloppiness]="activeSloppiness"
+          [activeEdgeRouting]="activeEdgeRouting"
+          [activeEdgeMode]="activeEdgeMode"
+          [activeFill]="activeFill"
+          [activeFillOpacity]="activeFillOpacity"
+          [canEditTextStyle]="canEditSelectedTextStyle"
+          [canEditFillStyle]="canEditSelectedFillStyle"
+          [hasSelection]="selectedAnnotationIds.length > 0"
+          [annotationCount]="store.annotations().length"
+          [tagRules]="store.tagRules()"
+          [availableTags]="availableTags"
+          [activeResourceType]="activeResourceType"
+          [discoveredResourceTypes]="discoveredResourceTypes"
+          (toolChange)="setTool($event)"
+          (resourceTypeChange)="onResourceTypeChange($event)"
+          (colorChange)="onToolbarColorChange($event)"
+          (fontFamilyChange)="onToolbarFontFamilyChange($event)"
+          (fontSizeChange)="onToolbarFontSizeChange($event)"
+          (strokeWidthChange)="onToolbarStrokeWidthChange($event)"
+          (strokeStyleChange)="onToolbarStrokeStyleChange($event)"
+          (sloppinessChange)="onToolbarSloppinessChange($event)"
+          (edgeRoutingChange)="onToolbarEdgeRoutingChange($event)"
+          (edgeModeChange)="onToolbarEdgeModeChange($event)"
+          (fillChange)="onToolbarFillChange($event)"
+          (fillOpacityChange)="onToolbarFillOpacityChange($event)"
+          (undo)="store.undo()"
+          (clearAll)="clearAllAnnotations()"
+          (deleteSelected)="deleteSelectedAnnotation()"
+          (duplicateSelected)="duplicateSelectedAnnotation()"
+          (bringToFront)="bringSelectedAnnotationToFront()"
+          (sendToBack)="sendSelectedAnnotationToBack()"
+          (tagRulesChange)="onTagRulesChange($event)"
+        />
 
         <div
           #canvasHost
           class="flex-1 relative overflow-auto bg-[#faf9f8]"
+          [class.cursor-grab]="activeTool === 'hand' && !canvasPanState"
+          [class.cursor-grabbing]="activeTool === 'hand' && !!canvasPanState"
           style="background-image: radial-gradient(circle, #d2d0ce 1px, transparent 1px); background-size: 24px 24px;"
           (wheel)="onCanvasWheel($event)"
           (mousedown)="onCanvasBackgroundMouseDown($event)"
@@ -307,7 +297,7 @@
             </svg>
 
             <!-- HTML drawing overlay: captures events when a drawing tool is active -->
-            @if (activeTool !== 'pointer') {
+            @if (activeTool !== 'pointer' && activeTool !== 'hand') {
               <div
                 class="absolute top-0 left-0"
                 [style.width.px]="canvasWidth"

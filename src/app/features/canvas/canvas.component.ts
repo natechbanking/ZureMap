@@ -238,6 +238,11 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
       this.refreshVisibility(nodes, edges);
     });
     effect(() => {
+      this.store.canvasSessionMode();
+      this.store.nodes().length;
+      this.scheduleEmptyCanvasHintDismiss();
+    });
+    effect(() => {
       const revision = this.store.revision();
       if (!this.autosave.enabled() || revision === 0) return;
       if (this.autosaveTimer !== null) window.clearTimeout(this.autosaveTimer);
@@ -260,6 +265,14 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
     if (this.autosaveTimer !== null) {
       window.clearTimeout(this.autosaveTimer);
       this.autosaveTimer = null;
+    }
+    if (this.emptyCanvasHintTimer !== null) {
+      window.clearTimeout(this.emptyCanvasHintTimer);
+      this.emptyCanvasHintTimer = null;
+    }
+    if (this.emptyCanvasHintFadeTimer !== null) {
+      window.clearTimeout(this.emptyCanvasHintFadeTimer);
+      this.emptyCanvasHintFadeTimer = null;
     }
   }
 
@@ -352,6 +365,7 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
 
   // Marquee selection
   marqueeState: { startX: number; startY: number; currentX: number; currentY: number; ctrlHeld: boolean } | null = null;
+  canvasPanState: { lastX: number; lastY: number } | null = null;
 
   get marqueeRect(): { x: number; y: number; w: number; h: number } {
     if (!this.marqueeState) return { x: 0, y: 0, w: 0, h: 0 };
@@ -390,11 +404,37 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
   exportEmbed = false;
   exportBusy = false;
   dismissEmptyCanvasHint = false;
+  emptyCanvasHintFading = false;
+  private emptyCanvasHintTimer: number | null = null;
+  private emptyCanvasHintFadeTimer: number | null = null;
 
   get showEmptyCanvasHint(): boolean {
     return !this.dismissEmptyCanvasHint
       && this.store.canvasSessionMode() === 'empty'
       && this.store.nodes().length === 0;
+  }
+
+  private scheduleEmptyCanvasHintDismiss(): void {
+    if (!this.showEmptyCanvasHint || this.emptyCanvasHintTimer !== null || this.emptyCanvasHintFadeTimer !== null) return;
+    this.emptyCanvasHintTimer = window.setTimeout(() => {
+      this.emptyCanvasHintFading = true;
+      this.emptyCanvasHintFadeTimer = window.setTimeout(() => {
+        this.dismissEmptyCanvasHintNow();
+      }, 300);
+    }, 3000);
+  }
+
+  dismissEmptyCanvasHintNow(): void {
+    this.dismissEmptyCanvasHint = true;
+    this.emptyCanvasHintFading = false;
+    if (this.emptyCanvasHintTimer !== null) {
+      window.clearTimeout(this.emptyCanvasHintTimer);
+      this.emptyCanvasHintTimer = null;
+    }
+    if (this.emptyCanvasHintFadeTimer !== null) {
+      window.clearTimeout(this.emptyCanvasHintFadeTimer);
+      this.emptyCanvasHintFadeTimer = null;
+    }
   }
 
   // ── Keyboard shortcuts ─────────────────────────────────────────────────────
@@ -517,6 +557,16 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
 
   // ── Document-level mouse events (for drag completion outside SVG) ──────────
   onDocMouseMove(e: MouseEvent): void {
+    if (this.canvasPanState) {
+      const host = this.canvasHostRef?.nativeElement as HTMLElement | undefined;
+      if (host) {
+        host.scrollLeft -= (e.clientX - this.canvasPanState.lastX);
+        host.scrollTop -= (e.clientY - this.canvasPanState.lastY);
+      }
+      this.canvasPanState = { lastX: e.clientX, lastY: e.clientY };
+      return;
+    }
+
     if (this.activeTool !== 'pointer' && this.isDrawing) {
       this.onDrawMouseMove(e);
       return;
@@ -708,9 +758,10 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
   }
 
   onDocMouseUp(e: MouseEvent): void {
-    if (this.activeTool !== 'pointer' && this.isDrawing) {
+    if (this.activeTool !== 'pointer' && this.activeTool !== 'hand' && this.isDrawing) {
       this.onDrawMouseUp(e);
     }
+    this.canvasPanState = null;
     if (this.tagHighlightResizeDrag) {
       const { ruleId, currentOffset } = this.tagHighlightResizeDrag;
       this.store.tagRules.set(
@@ -2060,8 +2111,12 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
   }
 
   onCanvasBackgroundMouseDown(event: MouseEvent): void {
-    if (this.activeTool !== 'pointer') return;
     if (event.button !== 0) return;
+    if (this.activeTool === 'hand') {
+      this.canvasPanState = { lastX: event.clientX, lastY: event.clientY };
+      return;
+    }
+    if (this.activeTool !== 'pointer') return;
     this.closeContextMenu();
     this.selectedAnnotationId = null;
     this.selectedAnnotationIds = [];

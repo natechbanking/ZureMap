@@ -28,6 +28,7 @@ const AZURE_RESOURCE_DND_TYPE = 'application/x-zuremap-azure-resource';
 
 const TOOLS: Tool[] = [
   { id: 'pointer',  label: 'Select',    key: 'V', icon: 'M4 2 L4 14 L7 11 L9 16 L11 15 L9 10 L13 10 Z', category: 'select' },
+  { id: 'hand',     label: 'Hand',      key: 'H', icon: 'M7 18 L7 10 M10 18 L10 6 M13 18 L13 8 M16 18 L16 10 M4 13 C4 11,6 11,7 12 L7 18 L14 18 C16 18,18 16,18 14 L18 11 C18 9,16 9,16 11', category: 'select' },
   { id: 'draw',     label: 'Pen',       key: 'P', icon: 'M14 2 L18 6 L7 17 L3 18 L4 14 Z M14 2 L18 6', category: 'draw' },
   { id: 'line',     label: 'Line',      key: 'L', icon: 'M3 15 L17 5', category: 'draw' },
   { id: 'arrow',    label: 'Arrow',     key: 'A', icon: 'M3 10 L17 10 M12 5 L17 10 L12 15', category: 'draw' },
@@ -62,126 +63,66 @@ const FONT_FAMILIES = [
   standalone: true,
   imports: [FormsModule, ActionIconComponent],
   template: `
-    <div class="bg-white/95 backdrop-blur rounded-2xl shadow-xl border border-gray-200 select-none overflow-hidden transition-all"
-      [style.width.px]="collapsed ? 52 : 280">
-
-      <!-- Header -->
-      <div class="flex items-center gap-2 px-3 py-2.5 border-b border-gray-100 bg-gradient-to-r from-blue-50 to-indigo-50">
-        <div class="w-7 h-7 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 text-white flex items-center justify-center shadow-sm">
-          <app-action-icon icon="edit" iconClass="w-4 h-4" />
-        </div>
-        @if (!collapsed) {
-          <div class="flex-1 min-w-0">
-            <p class="text-sm font-semibold text-gray-800">Drawing Tools</p>
-          </div>
-        }
-        <button
-          class="w-7 h-7 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-white/60 transition-all flex items-center justify-center"
-          [title]="collapsed ? 'Expand' : 'Collapse'"
-          (click)="collapsed = !collapsed"
-        >
-          <app-action-icon [icon]="collapsed ? 'chevronRight' : 'chevronLeft'" iconClass="w-4 h-4" />
-        </button>
-      </div>
-
-      @if (collapsed) {
-        <!-- Collapsed: Vertical tool strip -->
-        <div class="p-1.5 flex flex-col gap-1">
-          @for (tool of tools; track tool.id) {
-            <button
-              class="w-9 h-9 rounded-lg flex items-center justify-center transition-all"
-              [class.bg-blue-500]="activeTool === tool.id"
-              [class.text-white]="activeTool === tool.id"
-              [class.shadow-sm]="activeTool === tool.id"
-              [class.text-gray-500]="activeTool !== tool.id"
-              [class.hover:bg-gray-100]="activeTool !== tool.id"
-              [title]="tool.label + ' (' + tool.key + ')'"
-              (click)="toolChange.emit(tool.id)"
-            >
+    <div class="pointer-events-none absolute left-0 right-0 top-3 z-[165] select-none">
+      <div class="pointer-events-auto mx-auto flex w-max items-center gap-1 rounded-xl border border-gray-200 bg-white/95 p-1 shadow-lg backdrop-blur">
+        @for (tool of tools; track tool.id) {
+          <button
+            class="h-9 w-9 rounded-lg transition-colors flex items-center justify-center"
+            [class.bg-blue-500]="activeTool === tool.id"
+            [class.text-white]="activeTool === tool.id"
+            [class.text-gray-600]="activeTool !== tool.id"
+            [class.hover:bg-gray-100]="activeTool !== tool.id"
+            [title]="tool.label + ' (' + tool.key + ')'"
+            (click)="toolChange.emit(tool.id)"
+          >
+            @if (tool.id === 'hand') {
+              <app-action-icon icon="hand" iconClass="w-4 h-4" />
+            } @else {
               <svg viewBox="0 0 20 20" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
                 <path [attr.d]="tool.icon" />
               </svg>
-            </button>
-          }
-          <div class="h-px bg-gray-200 my-1"></div>
-          <button
-            class="w-9 h-9 rounded-lg flex items-center justify-center text-gray-500 hover:bg-gray-100 transition-all"
-            title="Undo (Ctrl+Z)"
-            (click)="undo.emit()"
-          >
-            <app-action-icon icon="undo" iconClass="w-4 h-4" />
+            }
           </button>
-        </div>
-      } @else {
-        <!-- Expanded: Full panel with tabs -->
-        <div class="flex border-b border-gray-100">
-          @for (tab of tabs; track tab.id) {
+        }
+        <div class="mx-1 h-6 w-px bg-gray-200"></div>
+        <button class="h-9 w-9 rounded-lg text-gray-600 hover:bg-gray-100" title="Undo (Ctrl+Z)" (click)="undo.emit()">
+          <app-action-icon icon="undo" iconClass="w-4 h-4" />
+        </button>
+      </div>
+
+      @if (showStylePanel) {
+        <div
+          class="pointer-events-auto absolute w-[360px] max-w-[92vw]"
+          [style.left.px]="stylePanelPos.x"
+          [style.top.px]="stylePanelPos.y"
+        >
+          @if (stylePanelCollapsed) {
             <button
-              class="flex-1 py-2 text-xs font-medium transition-colors relative"
-              [class.text-blue-600]="activeTab === tab.id"
-              [class.text-gray-500]="activeTab !== tab.id"
-              [class.hover:text-gray-700]="activeTab !== tab.id"
-              (click)="activeTab = tab.id"
+              type="button"
+              class="flex h-10 w-10 cursor-pointer items-center justify-center rounded-lg border border-gray-200 bg-white/95 text-gray-700 shadow-md backdrop-blur hover:bg-white"
+              (click)="stylePanelCollapsed = false"
+              title="Show style panel"
+              aria-label="Show style panel"
             >
-              {{ tab.label }}
-              @if (activeTab === tab.id) {
-                <div class="absolute bottom-0 left-2 right-2 h-0.5 bg-blue-500 rounded-full"></div>
-              }
+              <app-action-icon icon="brush" iconClass="w-4 h-4" />
             </button>
-          }
-        </div>
-
-        <div class="p-3">
-          @if (activeTab === 'tools') {
-            <!-- TOOLS TAB -->
-            <div class="space-y-3">
-              <!-- Tool Categories -->
-              @for (category of toolCategories; track category.id) {
-                <div>
-                  <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">{{ category.label }}</p>
-                  <div class="flex gap-1.5">
-                    @for (tool of getToolsByCategory(category.id); track tool.id) {
-                      <button
-                        class="flex-1 h-12 rounded-xl border-2 flex flex-col items-center justify-center gap-1 transition-all"
-                        [class.border-blue-400]="activeTool === tool.id"
-                        [class.bg-blue-50]="activeTool === tool.id"
-                        [class.text-blue-600]="activeTool === tool.id"
-                        [class.shadow-sm]="activeTool === tool.id"
-                        [class.border-gray-100]="activeTool !== tool.id"
-                        [class.text-gray-500]="activeTool !== tool.id"
-                        [class.hover:border-gray-200]="activeTool !== tool.id"
-                        [class.hover:bg-gray-50]="activeTool !== tool.id"
-                        [title]="tool.label + ' (' + tool.key + ')'"
-                        (click)="toolChange.emit(tool.id)"
-                      >
-                        <svg viewBox="0 0 20 20" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                          <path [attr.d]="tool.icon" />
-                        </svg>
-                        <span class="text-[10px] font-medium leading-none">{{ tool.label }}</span>
-                      </button>
-                    }
-                  </div>
-                </div>
-              }
-
-              <!-- Active Tool Hint -->
-              <div class="flex items-center gap-2 px-2.5 py-2 bg-gray-50 rounded-lg">
-                <div class="w-6 h-6 rounded-md bg-blue-100 text-blue-600 flex items-center justify-center">
-                  <svg viewBox="0 0 20 20" class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                    <path [attr.d]="getActiveToolIcon()" />
-                  </svg>
-                </div>
-                <div class="flex-1 min-w-0">
-                  <p class="text-xs font-medium text-gray-700">{{ getActiveToolLabel() }}</p>
-                  <p class="text-[10px] text-gray-400">{{ getActiveToolHint() }}</p>
-                </div>
+          } @else {
+            <div class="rounded-xl border border-gray-200 bg-white/95 p-3 shadow-lg backdrop-blur">
+              <div
+                class="mb-2 flex items-center justify-between cursor-grab"
+                [class.cursor-grabbing]="stylePanelDragState !== null"
+                (mousedown)="onStylePanelDragStart($event)"
+              >
+                <p class="text-xs font-semibold text-gray-700">Style</p>
+                <button
+                  type="button"
+                  class="rounded-md px-2 py-1 text-[11px] text-gray-600 hover:bg-gray-100"
+                  (click)="stylePanelCollapsed = true"
+                >
+                  Collapse
+                </button>
               </div>
-            </div>
-          }
-
-          @if (activeTab === 'style') {
-            <!-- STYLE TAB -->
-            <div class="space-y-4">
+              <div class="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
               <!-- Color -->
               <div>
                 <div class="flex items-center justify-between mb-2">
@@ -396,12 +337,73 @@ const FONT_FAMILIES = [
                 </div>
               </div>
             </div>
+            </div>
           }
+        </div>
+      }
 
+      <div class="pointer-events-auto absolute right-2 top-3">
+        <button
+          type="button"
+          class="flex h-10 w-10 cursor-pointer items-center justify-center rounded-lg border border-gray-200 bg-white/95 text-gray-700 shadow-md backdrop-blur transition-colors hover:bg-white"
+          (click)="toggleSecondaryDrawer()"
+          title="Open tools panel"
+          aria-label="Open tools panel"
+        >
+          <app-action-icon icon="layers" iconClass="w-4 h-4" />
+        </button>
+        <div
+          class="absolute right-0 top-11 w-[420px] max-w-[94vw] rounded-l-xl border border-r-0 border-gray-200 bg-white p-3 shadow-xl transition-transform duration-200"
+          [style.transform]="secondaryDrawerOpen ? 'translateX(0)' : 'translateX(calc(100% + 24px))'"
+          [class.pointer-events-auto]="secondaryDrawerOpen"
+          [class.pointer-events-none]="!secondaryDrawerOpen"
+        >
+            <div class="mb-2 flex items-center justify-between">
+              <p class="text-xs font-semibold text-gray-700">Canvas Tools</p>
+              <button
+                type="button"
+                class="rounded-md px-2 py-1 text-[11px] text-gray-600 hover:bg-gray-100"
+                (click)="secondaryDrawerOpen = false"
+              >
+                Collapse
+              </button>
+            </div>
+            <div class="grid grid-cols-[120px_1fr] gap-3">
+              <div class="rounded-lg border border-gray-200 bg-gray-50 p-1">
+                <button
+                  class="mb-1 flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs font-medium transition-colors"
+                  [class.bg-white]="activeTab==='actions'"
+                  [class.text-blue-700]="activeTab==='actions'"
+                  [class.text-gray-600]="activeTab!=='actions'"
+                  (click)="activeTab='actions'"
+                >
+                  <app-action-icon icon="layout" iconClass="w-3.5 h-3.5" />
+                  Actions
+                </button>
+                <button
+                  class="mb-1 flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs font-medium transition-colors"
+                  [class.bg-white]="activeTab==='highlight'"
+                  [class.text-blue-700]="activeTab==='highlight'"
+                  [class.text-gray-600]="activeTab!=='highlight'"
+                  (click)="activeTab='highlight'"
+                >
+                  <app-action-icon icon="tags" iconClass="w-3.5 h-3.5" />
+                  Highlight
+                </button>
+                <button
+                  class="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs font-medium transition-colors"
+                  [class.bg-white]="activeTab==='azure'"
+                  [class.text-blue-700]="activeTab==='azure'"
+                  [class.text-gray-600]="activeTab!=='azure'"
+                  (click)="activeTab='azure'"
+                >
+                  <app-action-icon icon="plus" iconClass="w-3.5 h-3.5" />
+                  Azure
+                </button>
+              </div>
+              <div class="rounded-lg border border-gray-200 bg-white p-2 max-h-[70vh] overflow-y-auto">
           @if (activeTab === 'highlight') {
-            <!-- HIGHLIGHT TAB -->
             <div class="space-y-3">
-
               <!-- New rule builder (collapsed when a rule is being edited) -->
               @if (!editDraft) {
                 <div class="bg-gray-50 rounded-lg border border-gray-200 p-2.5 space-y-2">
@@ -718,7 +720,6 @@ const FONT_FAMILIES = [
           }
 
           @if (activeTab === 'azure') {
-            <!-- AZURE RESOURCES TAB -->
             <div class="space-y-3">
               <!-- Search + Category filter -->
               <div class="flex gap-2">
@@ -790,7 +791,6 @@ const FONT_FAMILIES = [
           }
 
           @if (activeTab === 'actions') {
-            <!-- ACTIONS TAB -->
             <div class="space-y-3">
               <!-- Quick Actions -->
               <div>
@@ -935,8 +935,10 @@ const FONT_FAMILIES = [
               </div>
             </div>
           }
+              </div>
+            </div>
         </div>
-      }
+      </div>
     </div>
   `,
 })
@@ -1190,7 +1192,26 @@ export class DrawingToolbarComponent implements OnInit {
   ];
 
   activeTab: TabId = 'tools';
-  collapsed = false;
+  secondaryDrawerOpen = false;
+  stylePanelCollapsed = false;
+  stylePanelPos = { x: 12, y: 72 };
+  stylePanelDragState: { lastX: number; lastY: number } | null = null;
+
+  get showStylePanel(): boolean {
+    return (this.activeTool !== 'pointer' && this.activeTool !== 'hand') || this.canEditTextStyle || this.canEditFillStyle;
+  }
+
+  toggleSecondaryDrawer(): void {
+    const opening = !this.secondaryDrawerOpen;
+    this.secondaryDrawerOpen = opening;
+    if (opening) this.activeTab = 'azure';
+  }
+
+  onStylePanelDragStart(event: MouseEvent): void {
+    if ((event.target as HTMLElement).closest('button')) return;
+    event.preventDefault();
+    this.stylePanelDragState = { lastX: event.clientX, lastY: event.clientY };
+  }
 
   getToolsByCategory(category: Tool['category']): Tool[] {
     return this.tools.filter(t => t.category === category);
@@ -1209,6 +1230,7 @@ export class DrawingToolbarComponent implements OnInit {
   getActiveToolHint(): string {
     const hints: Record<DrawingTool, string> = {
       pointer: 'Click to select, drag to move',
+      hand: 'Drag canvas to pan',
       draw: 'Click and drag to draw freely',
       line: 'Click and drag to draw a line',
       arrow: 'Click and drag to draw an arrow',
@@ -1276,6 +1298,7 @@ export class DrawingToolbarComponent implements OnInit {
     const hasModifier = e.ctrlKey || e.metaKey || e.altKey;
     const map: Record<string, DrawingTool> = {
       v: 'pointer',
+      h: 'hand',
       p: 'draw',
       l: 'line',
       a: 'arrow',
@@ -1302,5 +1325,24 @@ export class DrawingToolbarComponent implements OnInit {
       e.preventDefault();
       this.sendToBack.emit();
     }
+  }
+
+  @HostListener('window:mousemove', ['$event'])
+  onWindowMouseMove(event: MouseEvent): void {
+    if (!this.stylePanelDragState) return;
+    const dx = event.clientX - this.stylePanelDragState.lastX;
+    const dy = event.clientY - this.stylePanelDragState.lastY;
+    this.stylePanelDragState = { lastX: event.clientX, lastY: event.clientY };
+    const maxX = Math.max(8, window.innerWidth - 380);
+    const maxY = Math.max(72, window.innerHeight - 120);
+    this.stylePanelPos = {
+      x: Math.max(8, Math.min(maxX, this.stylePanelPos.x + dx)),
+      y: Math.max(72, Math.min(maxY, this.stylePanelPos.y + dy)),
+    };
+  }
+
+  @HostListener('window:mouseup')
+  onWindowMouseUp(): void {
+    this.stylePanelDragState = null;
   }
 }

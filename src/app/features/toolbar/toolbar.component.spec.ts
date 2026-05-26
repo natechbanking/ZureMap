@@ -45,12 +45,24 @@ describe('ToolbarComponent', () => {
     component.rescan.subscribe(rescanSpy);
     component.relayout.subscribe(relayoutSpy);
 
+    const menuButton = fixture.nativeElement.querySelector('header > div:last-child > button') as HTMLButtonElement;
+    menuButton.click();
+    fixture.detectChanges();
+
     const buttons = fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>;
-    buttons[0].click();
-    buttons[1].click();
-    buttons[2].click();
-    buttons[3].click();
-    buttons[4].click();
+    buttons[1].click(); // FinOps
+    menuButton.click();
+    fixture.detectChanges();
+    fixture.nativeElement.querySelectorAll('button')[2].click(); // JSON
+    menuButton.click();
+    fixture.detectChanges();
+    fixture.nativeElement.querySelectorAll('button')[3].click(); // Export
+    menuButton.click();
+    fixture.detectChanges();
+    fixture.nativeElement.querySelectorAll('button')[4].click(); // Rescan
+    menuButton.click();
+    fixture.detectChanges();
+    fixture.nativeElement.querySelectorAll('button')[5].click(); // Auto-layout
 
     expect(toggleFinOpsSpy).toHaveBeenCalledTimes(1);
     expect(exportJsonSpy).toHaveBeenCalledTimes(1);

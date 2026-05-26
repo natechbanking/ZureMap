@@ -1,5 +1,6 @@
 export type DrawingTool =
   | 'pointer'
+  | 'hand'
   | 'draw'
   | 'line'
   | 'arrow'

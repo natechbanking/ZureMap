@@ -352,11 +352,9 @@ const FONT_FAMILIES = [
         >
           <app-action-icon icon="layers" iconClass="w-4 h-4" />
         </button>
+        @if (secondaryDrawerOpen) {
         <div
-          class="absolute right-0 top-11 w-[420px] max-w-[94vw] rounded-l-xl border border-r-0 border-gray-200 bg-white p-3 shadow-xl transition-transform duration-200"
-          [style.transform]="secondaryDrawerOpen ? 'translateX(0)' : 'translateX(calc(100% + 24px))'"
-          [class.pointer-events-auto]="secondaryDrawerOpen"
-          [class.pointer-events-none]="!secondaryDrawerOpen"
+          class="absolute right-0 top-11 w-[420px] max-w-[94vw] rounded-l-xl border border-r-0 border-gray-200 bg-white p-3 shadow-xl animate-[fadeIn_150ms_ease-out]"
         >
             <div class="mb-2 flex items-center justify-between">
               <p class="text-xs font-semibold text-gray-700">Canvas Tools</p>
@@ -938,6 +936,7 @@ const FONT_FAMILIES = [
               </div>
             </div>
         </div>
+        }
       </div>
     </div>
   `,

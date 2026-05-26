@@ -70,4 +70,18 @@ describe('ToolbarComponent', () => {
     expect(rescanSpy).toHaveBeenCalledTimes(1);
     expect(relayoutSpy).toHaveBeenCalledTimes(1);
   });
+
+  it('does not render dropdown actions while menu is closed', () => {
+    const finOpsButton = fixture.nativeElement.querySelector('button[title="Open/close FinOps drawer"]');
+    expect(finOpsButton).toBeNull();
+  });
+
+  it('renders dropdown actions when menu is open', () => {
+    const menuButton = fixture.nativeElement.querySelector('button[aria-label="Open menu"]') as HTMLButtonElement;
+    menuButton.click();
+    fixture.detectChanges();
+
+    const finOpsButton = fixture.nativeElement.querySelector('button[title="Open/close FinOps drawer"]');
+    expect(finOpsButton).not.toBeNull();
+  });
 });

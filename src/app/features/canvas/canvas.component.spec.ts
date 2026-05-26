@@ -1037,6 +1037,39 @@ describe('CanvasComponent', () => {
     expect(ctxMenuSvcMock.ctxSubscriptionAutoLayout).toHaveBeenCalled();
   });
 
+  describe('hand tool panning', () => {
+    it('starts canvas pan on background mousedown when hand tool is active', () => {
+      component.activeTool = 'hand';
+
+      component.onCanvasBackgroundMouseDown({ button: 0, clientX: 120, clientY: 80 } as MouseEvent);
+
+      expect(component.canvasPanState).toEqual({ lastX: 120, lastY: 80 });
+    });
+
+    it('pans canvas scroll on document mouse move while hand pan is active', () => {
+      const host = document.createElement('div');
+      host.scrollLeft = 200;
+      host.scrollTop = 100;
+      component.canvasHostRef = { nativeElement: host } as unknown as typeof component.canvasHostRef;
+      component.canvasPanState = { lastX: 100, lastY: 100 };
+
+      component.onDocMouseMove(new MouseEvent('mousemove', { clientX: 130, clientY: 90 }));
+
+      expect(host.scrollLeft).toBe(170);
+      expect(host.scrollTop).toBe(110);
+      expect(component.canvasPanState).toEqual({ lastX: 130, lastY: 90 });
+    });
+
+    it('clears hand pan state on document mouse up', () => {
+      component.activeTool = 'hand';
+      component.canvasPanState = { lastX: 50, lastY: 50 };
+
+      component.onDocMouseUp(new MouseEvent('mouseup', { clientX: 50, clientY: 50 }));
+
+      expect(component.canvasPanState).toBeNull();
+    });
+  });
+
   describe('panel state persistence', () => {
     it('persists storage panel expanded state on node custom.panelState for export/import', () => {
       const node = makeDiagramNode({ id: 'sa-1' });

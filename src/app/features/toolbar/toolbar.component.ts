@@ -19,17 +19,10 @@ import { CommonModule } from '@angular/common';
         </button>
         <img src="logo.png" alt="ZureMap" class="h-6 w-auto" />
         <span class="text-sm font-semibold tracking-tight text-slate-800">ZureMap</span>
+        @if (menuOpen) {
           <div
-            class="absolute left-0 mt-2 w-60 rounded-lg bg-white p-2 shadow-lg ring-1 ring-black/10 origin-top-left transition-all duration-150"
+            class="absolute left-0 mt-2 w-60 rounded-lg bg-white p-2 shadow-lg ring-1 ring-black/10 origin-top-left animate-[fadeIn_150ms_ease-out]"
             style="top: calc(100% + 8px);"
-            [class.opacity-100]="menuOpen"
-            [class.scale-100]="menuOpen"
-            [class.translate-y-0]="menuOpen"
-            [class.pointer-events-auto]="menuOpen"
-            [class.opacity-0]="!menuOpen"
-            [class.scale-95]="!menuOpen"
-            [class.-translate-y-1]="!menuOpen"
-            [class.pointer-events-none]="!menuOpen"
           >
             <div class="px-2 py-1 text-[11px] text-slate-500">
               {{ nodeCount }} resources · {{ edgeCount }} connections
@@ -65,6 +58,7 @@ import { CommonModule } from '@angular/common';
               title="Re-run ELK auto-layout (undoable with Ctrl+Z)"
             >{{ relayoutBusy ? '⟳ Arranging…' : '⊞ Auto-layout' }}</button>
           </div>
+        }
       </div>
       <div></div>
     </header>

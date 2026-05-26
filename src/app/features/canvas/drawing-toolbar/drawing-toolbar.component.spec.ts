@@ -127,4 +127,58 @@ describe('DrawingToolbarComponent', () => {
     component.activeTool = 'subscriptionContainer';
     expect(component.getActiveToolHint()).toContain('subscription container');
   });
+
+  it('includes hand tool and supports hand hint', () => {
+    const handTool = component.tools.find(t => t.id === 'hand');
+    expect(handTool).toBeDefined();
+
+    component.activeTool = 'hand';
+    expect(component.getActiveToolHint()).toContain('pan');
+  });
+
+  it('hides style panel when hand tool is active without style-edit selection', () => {
+    component.activeTool = 'hand';
+    component.canEditTextStyle = false;
+    component.canEditFillStyle = false;
+
+    expect(component.showStylePanel).toBeFalse();
+  });
+
+  it('opens secondary drawer on azure tab by default', () => {
+    component.activeTab = 'actions';
+    component.secondaryDrawerOpen = false;
+
+    component.toggleSecondaryDrawer();
+
+    expect(component.secondaryDrawerOpen).toBeTrue();
+    expect(component.activeTab).toBe('azure');
+  });
+
+  it('does not render secondary drawer content while closed', () => {
+    component.secondaryDrawerOpen = false;
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).not.toContain('Canvas Tools');
+  });
+
+  it('renders secondary drawer with azure view when opened from toggle', () => {
+    component.secondaryDrawerOpen = false;
+    component.activeTab = 'actions';
+    component.toggleSecondaryDrawer();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('Canvas Tools');
+    expect(component.activeTab).toBe('azure');
+    const azureSearch = fixture.nativeElement.querySelector('input[placeholder="Search resources..."]');
+    expect(azureSearch).not.toBeNull();
+  });
+
+  it('shows brush reopen button when style panel is collapsed', () => {
+    component.activeTool = 'rect';
+    component.stylePanelCollapsed = true;
+    fixture.detectChanges();
+
+    const reopenButton = fixture.nativeElement.querySelector('button[aria-label="Show style panel"]');
+    expect(reopenButton).not.toBeNull();
+  });
 });

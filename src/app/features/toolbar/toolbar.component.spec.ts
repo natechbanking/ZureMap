@@ -45,17 +45,43 @@ describe('ToolbarComponent', () => {
     component.rescan.subscribe(rescanSpy);
     component.relayout.subscribe(relayoutSpy);
 
+    const menuButton = fixture.nativeElement.querySelector('button[aria-label="Open menu"]') as HTMLButtonElement;
+    menuButton.click();
+    fixture.detectChanges();
+
     const buttons = fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>;
-    buttons[0].click();
-    buttons[1].click();
-    buttons[2].click();
-    buttons[3].click();
-    buttons[4].click();
+    buttons[1].click(); // FinOps
+    menuButton.click();
+    fixture.detectChanges();
+    fixture.nativeElement.querySelectorAll('button')[2].click(); // JSON
+    menuButton.click();
+    fixture.detectChanges();
+    fixture.nativeElement.querySelectorAll('button')[3].click(); // Export
+    menuButton.click();
+    fixture.detectChanges();
+    fixture.nativeElement.querySelectorAll('button')[4].click(); // Rescan
+    menuButton.click();
+    fixture.detectChanges();
+    fixture.nativeElement.querySelectorAll('button')[5].click(); // Auto-layout
 
     expect(toggleFinOpsSpy).toHaveBeenCalledTimes(1);
     expect(exportJsonSpy).toHaveBeenCalledTimes(1);
     expect(exportDialogSpy).toHaveBeenCalledTimes(1);
     expect(rescanSpy).toHaveBeenCalledTimes(1);
     expect(relayoutSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not render dropdown actions while menu is closed', () => {
+    const finOpsButton = fixture.nativeElement.querySelector('button[title="Open/close FinOps drawer"]');
+    expect(finOpsButton).toBeNull();
+  });
+
+  it('renders dropdown actions when menu is open', () => {
+    const menuButton = fixture.nativeElement.querySelector('button[aria-label="Open menu"]') as HTMLButtonElement;
+    menuButton.click();
+    fixture.detectChanges();
+
+    const finOpsButton = fixture.nativeElement.querySelector('button[title="Open/close FinOps drawer"]');
+    expect(finOpsButton).not.toBeNull();
   });
 });

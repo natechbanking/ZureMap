@@ -1,11 +1,11 @@
 import { Component, Input, inject } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { IconRegistryService } from '../../../core/services/icon-registry.service';
 
 @Component({
   selector: 'app-azure-icon',
   standalone: true,
-  imports: [CommonModule],
+  imports: [],
   template: `
     <img
       [src]="resolvedUrl"

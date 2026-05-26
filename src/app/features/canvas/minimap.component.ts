@@ -2,7 +2,7 @@ import {
   Component, Input, Output, EventEmitter, HostListener,
   ChangeDetectionStrategy, ElementRef, ViewChild,
 } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { DiagramNode } from '../../core/models/diagram-node.model';
 
 const MINI_W = 200;
@@ -24,7 +24,7 @@ interface PanEvent { scrollLeft: number; scrollTop: number; }
 @Component({
   selector: 'app-minimap',
   standalone: true,
-  imports: [CommonModule],
+  imports: [],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (visible) {

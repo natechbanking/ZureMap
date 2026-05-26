@@ -1,5 +1,5 @@
 import { Component, Input, Output, EventEmitter, HostListener, inject, ElementRef, OnChanges, SimpleChanges } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { DiagramNode, NodeInternalItem } from '../../../core/models/diagram-node.model';
 import { AzureIconComponent } from '../../../shared/components/azure-icon/azure-icon.component';
 import { CostBadgeComponent } from '../../../shared/components/cost-badge/cost-badge.component';
@@ -85,7 +85,6 @@ import { NodeToggleButtonComponent } from '../shared/node-toggle-button.componen
   selector: 'app-diagram-node',
   standalone: true,
   imports: [
-    CommonModule,
     AzureIconComponent,
     CostBadgeComponent,
     NodeToggleButtonComponent,
@@ -95,8 +94,8 @@ import { NodeToggleButtonComponent } from '../shared/node-toggle-button.componen
     StorageDetailsPanelComponent,
     AksDetailsPanelComponent,
     VmDetailsPanelComponent,
-    NsgRulesPanelComponent,
-  ],
+    NsgRulesPanelComponent
+],
   templateUrl: './diagram-node.component.html',
   styleUrls: ['./diagram-node.component.scss'],
 })

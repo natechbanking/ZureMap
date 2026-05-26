@@ -6,6 +6,41 @@ const app = express();
 const PORT = Number(process.env.PORT || 3001);
 const HOST = process.env.HOST || (process.env.NODE_ENV === 'production' ? '0.0.0.0' : '127.0.0.1');
 
+function createIpRateLimiter({ windowMs, maxRequests }) {
+  const hits = new Map();
+  return (req, res, next) => {
+    const now = Date.now();
+    for (const [ip, entry] of hits) {
+      if (now - entry.windowStart >= windowMs) {
+        hits.delete(ip);
+      }
+    }
+    const key = req.ip || req.socket?.remoteAddress || 'unknown';
+    const entry = hits.get(key);
+
+    if (!entry || now - entry.windowStart >= windowMs) {
+      hits.set(key, { windowStart: now, count: 1 });
+      next();
+      return;
+    }
+
+    entry.count += 1;
+    if (entry.count > maxRequests) {
+      res.status(429).json({ error: 'Too many requests' });
+      return;
+    }
+    next();
+  };
+}
+
+function parsePositiveIntEnv(name, fallback) {
+  const raw = process.env[name];
+  if (raw === undefined) return fallback;
+  const value = Number(raw);
+  if (!Number.isFinite(value) || value <= 0) return fallback;
+  return Math.floor(value);
+}
+
 app.use((req, res, next) => {
   const start = Date.now();
   res.on('finish', () => {
@@ -32,6 +67,11 @@ app.use('/api',     require('./routes/diagram'));
 if (process.env.NODE_ENV === 'production') {
   const path = require('path');
   const distPath = path.join(__dirname, '../dist/zuremap/browser');
+  const staticRateLimiter = createIpRateLimiter({
+    windowMs: parsePositiveIntEnv('STATIC_RATE_WINDOW_MS', 60_000),
+    maxRequests: parsePositiveIntEnv('STATIC_RATE_MAX_REQUESTS', 120),
+  });
+  app.use(staticRateLimiter);
   app.use(express.static(distPath));
   app.get('*splat', (_req, res) => res.sendFile(path.join(distPath, 'index.html')));
 }

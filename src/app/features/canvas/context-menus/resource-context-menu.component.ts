@@ -1,4 +1,4 @@
-import { CommonModule } from '@angular/common';
+
 import { Component, EventEmitter, Input, Output } from '@angular/core';
 import { DiagramNode } from '../../../core/models/diagram-node.model';
 import { ActionIconComponent } from '../../../shared/components/action-icon/action-icon.component';
@@ -6,7 +6,7 @@ import { ActionIconComponent } from '../../../shared/components/action-icon/acti
 @Component({
   selector: 'app-resource-context-menu',
   standalone: true,
-  imports: [CommonModule, ActionIconComponent],
+  imports: [ActionIconComponent],
   template: `
     <div
       class="fixed z-[191] w-52 rounded-lg bg-white border border-gray-200 shadow-xl py-1 select-none"

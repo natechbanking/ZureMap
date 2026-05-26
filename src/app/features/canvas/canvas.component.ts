@@ -1,5 +1,5 @@
 import { Component, inject, effect, ViewChild, ElementRef, computed, AfterViewInit, OnDestroy, ChangeDetectionStrategy } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { DiagramStore } from '../../core/store/diagram.store';
 import { ELKLayoutService } from '../../core/services/elk-layout.service';
 import { IconRegistryService } from '../../core/services/icon-registry.service';
@@ -121,7 +121,6 @@ interface ShapeBindCandidate {
   selector: 'app-canvas',
   standalone: true,
   imports: [
-    CommonModule,
     SidebarComponent,
     ToolbarComponent,
     DrawingToolbarComponent,
@@ -141,8 +140,8 @@ interface ShapeBindCandidate {
     CanvasSvgLayerComponent,
     CanvasContainersLayerComponent,
     CanvasNodesLayerComponent,
-    CanvasAnnotationOverlayLayerComponent,
-  ],
+    CanvasAnnotationOverlayLayerComponent
+],
   templateUrl: "./canvas.component.html",
   styleUrl: "./canvas.component.scss",
   changeDetection: ChangeDetectionStrategy.OnPush,

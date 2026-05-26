@@ -1,5 +1,5 @@
 import { Component, Input, Output, EventEmitter, HostListener, OnInit, inject } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { FormsModule } from '@angular/forms';
 import { DrawingTool, StrokeStyle, EdgeRouting, EdgeMode } from '../../../core/models/annotation.model';
 import { HighlightRuleType, TagRule, TagRuleOperator } from '../canvas.types';
@@ -60,7 +60,7 @@ const FONT_FAMILIES = [
 @Component({
   selector: 'app-drawing-toolbar',
   standalone: true,
-  imports: [CommonModule, FormsModule, ActionIconComponent],
+  imports: [FormsModule, ActionIconComponent],
   template: `
     <div class="bg-white/95 backdrop-blur rounded-2xl shadow-xl border border-gray-200 select-none overflow-hidden transition-all"
       [style.width.px]="collapsed ? 52 : 280">

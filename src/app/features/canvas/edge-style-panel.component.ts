@@ -1,11 +1,11 @@
-import { CommonModule } from '@angular/common';
+
 import { Component, EventEmitter, HostListener, Input, Output } from '@angular/core';
 import { DiagramEdge } from '../../core/models/diagram-edge.model';
 
 @Component({
   selector: 'app-edge-style-panel',
   standalone: true,
-  imports: [CommonModule],
+  imports: [],
   template: `
     <aside
       class="absolute top-[220px] z-[130] w-[320px] rounded-xl border border-blue-200 bg-white/95 backdrop-blur shadow-lg p-3"

@@ -1,4 +1,4 @@
-import { Component, inject, effect, ViewChild, ElementRef, computed, AfterViewInit, OnDestroy, ChangeDetectionStrategy } from '@angular/core';
+import { Component, inject, effect, ViewChild, ElementRef, computed, AfterViewInit, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
 
 import { DiagramStore } from '../../core/store/diagram.store';
 import { ELKLayoutService } from '../../core/services/elk-layout.service';
@@ -205,6 +205,7 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
   private autosave = inject(AutosaveService);
   readonly ctxMenuSvc = inject(CanvasContextMenuService);
   readonly facade = inject(CanvasFacade);
+  private readonly cdr = inject(ChangeDetectorRef);
   readonly childToParentMap = computed(() => {
     const map = new Map<string, string>();
     for (const node of this.store.nodes()) {
@@ -3369,6 +3370,8 @@ effect(() => {
       this.eraserTrailNow = now;
       this.eraserTrailPoints = this.eraserTrailPoints.filter(point => now - point.createdAt < ERASER_TRAIL_FADE_MS);
       this.eraserTrailCleanupTimer = null;
+      // CanvasComponent uses OnPush; mark for check so fade progresses even with no mouse events.
+      this.cdr.markForCheck();
       if (this.eraserTrailPoints.length > 0) {
         this.scheduleEraserTrailTick();
       }

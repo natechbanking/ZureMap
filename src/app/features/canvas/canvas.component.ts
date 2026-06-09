@@ -237,12 +237,7 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
       const edges = this.store.edges();
       this.refreshVisibility(nodes, edges);
     });
-    effect(() => {
-      this.store.canvasSessionMode();
-      this.store.nodes();
-      this.scheduleEmptyCanvasHintDismiss();
-    });
-    effect(() => {
+effect(() => {
       const revision = this.store.revision();
       if (!this.autosave.enabled() || revision === 0) return;
       if (this.autosaveTimer !== null) window.clearTimeout(this.autosaveTimer);
@@ -265,14 +260,6 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
     if (this.autosaveTimer !== null) {
       window.clearTimeout(this.autosaveTimer);
       this.autosaveTimer = null;
-    }
-    if (this.emptyCanvasHintTimer !== null) {
-      window.clearTimeout(this.emptyCanvasHintTimer);
-      this.emptyCanvasHintTimer = null;
-    }
-    if (this.emptyCanvasHintFadeTimer !== null) {
-      window.clearTimeout(this.emptyCanvasHintFadeTimer);
-      this.emptyCanvasHintFadeTimer = null;
     }
   }
 
@@ -403,40 +390,6 @@ export class CanvasComponent implements AfterViewInit, OnDestroy {
   exportBg: 'white' | 'black' | 'transparent' = 'white';
   exportEmbed = false;
   exportBusy = false;
-  dismissEmptyCanvasHint = false;
-  emptyCanvasHintFading = false;
-  private emptyCanvasHintTimer: number | null = null;
-  private emptyCanvasHintFadeTimer: number | null = null;
-
-  get showEmptyCanvasHint(): boolean {
-    return !this.dismissEmptyCanvasHint
-      && this.store.canvasSessionMode() === 'empty'
-      && this.store.nodes().length === 0;
-  }
-
-  private scheduleEmptyCanvasHintDismiss(): void {
-    if (!this.showEmptyCanvasHint || this.emptyCanvasHintTimer !== null || this.emptyCanvasHintFadeTimer !== null) return;
-    this.emptyCanvasHintTimer = window.setTimeout(() => {
-      this.emptyCanvasHintFading = true;
-      this.emptyCanvasHintFadeTimer = window.setTimeout(() => {
-        this.dismissEmptyCanvasHintNow();
-      }, 300);
-    }, 3000);
-  }
-
-  dismissEmptyCanvasHintNow(): void {
-    this.dismissEmptyCanvasHint = true;
-    this.emptyCanvasHintFading = false;
-    if (this.emptyCanvasHintTimer !== null) {
-      window.clearTimeout(this.emptyCanvasHintTimer);
-      this.emptyCanvasHintTimer = null;
-    }
-    if (this.emptyCanvasHintFadeTimer !== null) {
-      window.clearTimeout(this.emptyCanvasHintFadeTimer);
-      this.emptyCanvasHintFadeTimer = null;
-    }
-  }
-
   // ── Keyboard shortcuts ─────────────────────────────────────────────────────
   onKeyDown(e: KeyboardEvent): void {
     if ((e.target as HTMLElement).matches('input,textarea,[contenteditable]')) return;

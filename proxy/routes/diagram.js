@@ -15,9 +15,9 @@ router.post('/diagram/state', (req, res) => {
 router.get('/mcp/diagram-summary', (req, res) => {
   const state = getState();
   if (!state) {
-    return res.status(503).type('text/markdown').send('# ZureMap\nNo diagram loaded yet. Run a scan first.');
+    return res.status(503).type('text/plain; charset=utf-8').send('# ZureMap\nNo diagram loaded yet. Run a scan first.');
   }
-  res.type('text/markdown').send(buildMarkdownSummary(state));
+  res.type('text/plain; charset=utf-8').send(buildMarkdownSummary(state));
 });
 
 module.exports = router;

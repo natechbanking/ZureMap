@@ -42,6 +42,7 @@ function parsePositiveIntEnv(name, fallback) {
 }
 
 app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
   const start = Date.now();
   res.on('finish', () => {
     const ms = Date.now() - start;

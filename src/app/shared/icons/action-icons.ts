@@ -32,7 +32,6 @@ import {
   faPlus,
   faRotate,
   faRotateLeft,
-  faSquare,
   faT,
   faTags,
   faTrash,

@@ -6,6 +6,7 @@ import { HighlightRuleType, TagRule, TagRuleOperator } from '../canvas.types';
 import { IconRegistryService } from '../../../core/services/icon-registry.service';
 import { ActionIconComponent } from '../../../shared/components/action-icon/action-icon.component';
 import { ActionIconName } from '../../../shared/icons/action-icons';
+import { compareStrings } from '../../../core/utils/sort.utils';
 
 interface Tool {
   id: DrawingTool;
@@ -1043,7 +1044,7 @@ export class DrawingToolbarComponent implements OnInit {
 
   ngOnInit(): void {
     this.resourceCatalog = this.iconRegistry.getHybridResourceTypeCatalog(this.discoveredResourceTypes);
-    const cats = [...new Set(this.resourceCatalog.map(e => e.category))].sort();
+    const cats = [...new Set(this.resourceCatalog.map(e => e.category))].sort(compareStrings);
     this.resourceCategories = cats;
   }
 
@@ -1092,12 +1093,12 @@ export class DrawingToolbarComponent implements OnInit {
   draftInternalBackgroundColor = '#eff6ff';
 
   get tagKeyOptions(): string[] {
-    return Array.from(this.availableTags.keys()).sort();
+    return Array.from(this.availableTags.keys()).sort(compareStrings);
   }
 
   get tagValueOptions(): string[] {
     if (!this.draftKey) return [];
-    return Array.from(this.availableTags.get(this.draftKey) ?? []).sort();
+    return Array.from(this.availableTags.get(this.draftKey) ?? []).sort(compareStrings);
   }
 
   addRule(): void {
@@ -1145,7 +1146,7 @@ export class DrawingToolbarComponent implements OnInit {
 
   get editTagValueOptions(): string[] {
     if (!this.editDraft?.tagKey) return [];
-    return Array.from(this.availableTags.get(this.editDraft.tagKey) ?? []).sort();
+    return Array.from(this.availableTags.get(this.editDraft.tagKey) ?? []).sort(compareStrings);
   }
 
   targetLabel(target: NonNullable<TagRule['target']>): string {

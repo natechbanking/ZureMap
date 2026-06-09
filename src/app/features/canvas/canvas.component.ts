@@ -111,6 +111,7 @@ import { CanvasSelectionController } from './controllers/canvas-selection.contro
 import { CanvasControllerContextService } from './controllers/canvas-controller-context.service';
 import { CanvasEdgeController } from './controllers/canvas-edge.controller';
 import { CanvasResourcePlacementController } from './controllers/canvas-resource-placement.controller';
+import { compareStrings } from '../../core/utils/sort.utils';
 
 const ZERO_OFFSET: SizeOffset = { top: 0, right: 0, bottom: 0, left: 0 };
 interface ShapeBindCandidate {
@@ -2462,7 +2463,7 @@ effect(() => {
     for (const edge of this.visibleEdges) {
       if (edge.style.markerEnd === 'arrow') colors.add(edge.style.strokeColor);
     }
-    return Array.from(colors).sort();
+    return Array.from(colors).sort(compareStrings);
   }
 
   edgeMarkerId(color: string): string {
@@ -2478,7 +2479,7 @@ effect(() => {
       }
     }
     if (this.activeEdgeMode !== 'none') colors.add(this.activeColor);
-    return Array.from(colors).sort();
+    return Array.from(colors).sort(compareStrings);
   }
 
   annMarkerId(color: string): string {

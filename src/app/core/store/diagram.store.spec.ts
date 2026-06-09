@@ -1,6 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { DiagramStore } from './diagram.store';
 import { makeAnnotation, makeDiagramEdge, makeDiagramNode } from '../../testing/test-helpers';
+import { compareStrings } from '../utils/sort.utils';
 
 describe('DiagramStore', () => {
   let store: DiagramStore;
@@ -143,7 +144,7 @@ describe('DiagramStore', () => {
 
     store.deleteSelectedNodes();
 
-    expect(store.nodes().map(n => n.id).sort()).toEqual(['a', 'd']);
+    expect(store.nodes().map(n => n.id).sort(compareStrings)).toEqual(['a', 'd']);
     expect(store.nodes().find(n => n.id === 'a')?.children).toEqual([]);
     expect(store.edges()).toEqual([]);
   });

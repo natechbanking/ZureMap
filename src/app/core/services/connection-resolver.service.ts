@@ -3,6 +3,7 @@ import { AzureResource } from '../models/azure-resource.model';
 import { DiagramNode } from '../models/diagram-node.model';
 import { DiagramEdge, EdgeType, EDGE_STYLES } from '../models/diagram-edge.model';
 import { AZURE_RESOURCE_TYPES } from '../constants/azure-resource-types';
+import { compareStrings } from '../utils/sort.utils';
 
 @Injectable({ providedIn: 'root' })
 export class ConnectionResolverService {
@@ -67,7 +68,7 @@ export class ConnectionResolverService {
       for (const p of peerings) {
         const remoteId = p.properties?.remoteVirtualNetwork?.id;
         if (!remoteId || !nodeIds.has(remoteId)) continue;
-        const key = [r.id, remoteId].sort().join('|');
+        const key = [r.id, remoteId].sort(compareStrings).join('|');
         if (!seen.has(key)) {
           seen.add(key);
           edges.push(this.createEdge(r.id, remoteId, 'vnetPeering', false));

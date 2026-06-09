@@ -1798,28 +1798,31 @@ effect(() => {
   private resolveRgContainerOverlaps(bounds: RgBound[]): void {
     if (this.isResolvingRgOverlaps || bounds.length < 2) return;
     const gap = 18;
-    const maxIters = 16;
+    const maxIters = 24;
     const draggedRgId = this.rgDragState?.id;
     this.isResolvingRgOverlaps = true;
     try {
+      // Snapshot bounds and iterate in-memory — never write signals inside the loop.
+      // Calling moveNodeGroup per-iteration triggered a nodes-signal write on every
+      // iteration, which re-fired the effect that depends on nodes, causing an
+      // unbounded loop when containers overlapped. Batch-apply at the end matches
+      // the proven pattern used by resolveSubscriptionContainerOverlaps.
+      const current = bounds
+        .filter(b => !!b.subscriptionId)
+        .map(b => ({ ...b }));
+      if (current.length < 2) return;
+
+      const totalDelta = new Map<string, { dx: number; dy: number }>();
+
       for (let iter = 0; iter < maxIters; iter++) {
         let moved = false;
-        const nodes = this.store.nodes();
-        const current = this.visibilitySvc.computeRgBounds(
-          nodes.filter(n => !this.collapsedSubscriptions.has(n.metadata?.subscriptionId || '')),
-          this.collapsedResourceGroups,
-          this.store.customContainerNames(),
-        );
 
-        outer:
         for (let i = 0; i < current.length; i++) {
           for (let j = i + 1; j < current.length; j++) {
             const a = current[i];
             const b = current[j];
-            if (!a.subscriptionId || !b.subscriptionId || a.subscriptionId !== b.subscriptionId) continue;
+            if (a.subscriptionId !== b.subscriptionId) continue;
 
-            // Overlap is positive when penetrating, negative when apart.
-            // Start pushing once containers are within `gap` of each other in both axes.
             const overlapX = Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x);
             const overlapY = Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y);
             if (overlapX <= -gap || overlapY <= -gap) continue;
@@ -1827,27 +1830,40 @@ effect(() => {
             const moveX = overlapX + gap;
             const moveY = overlapY + gap;
 
-            // Never push the container being dragged — always push the other one.
-            // Among non-dragged containers, resolve along the axis needing less movement,
-            // pushing the container that sits further in that direction.
             const aIsDragged = a.id === draggedRgId;
             const bIsDragged = b.id === draggedRgId;
 
             if (moveX <= moveY) {
               const pushTarget = aIsDragged || (!bIsDragged && a.x <= b.x) ? b : a;
-              const sign = pushTarget === b ? 1 : -1;
-              this.store.moveNodeGroup(pushTarget.id, { dx: moveX * sign, dy: 0 });
+              const other = pushTarget === b ? a : b;
+              // Push away from the other container. `pushTarget===b?1:-1` is wrong when
+              // a.x>b.x: it pushes `a` leftward into the x=0 wall, clamping prevents
+              // real movement, overlap never resolves → infinite effect re-fires.
+              const sign = pushTarget.x >= other.x ? 1 : -1;
+              const dx = moveX * sign;
+              pushTarget.x += dx;
+              const prev = totalDelta.get(pushTarget.id) ?? { dx: 0, dy: 0 };
+              totalDelta.set(pushTarget.id, { dx: prev.dx + dx, dy: prev.dy });
             } else {
               const pushTarget = aIsDragged || (!bIsDragged && a.y <= b.y) ? b : a;
-              const sign = pushTarget === b ? 1 : -1;
-              this.store.moveNodeGroup(pushTarget.id, { dx: 0, dy: moveY * sign });
+              const other = pushTarget === b ? a : b;
+              const sign = pushTarget.y >= other.y ? 1 : -1;
+              const dy = moveY * sign;
+              pushTarget.y += dy;
+              const prev = totalDelta.get(pushTarget.id) ?? { dx: 0, dy: 0 };
+              totalDelta.set(pushTarget.id, { dx: prev.dx, dy: prev.dy + dy });
             }
 
             moved = true;
-            break outer;
           }
         }
+
         if (!moved) break;
+      }
+
+      for (const [rgId, delta] of totalDelta) {
+        if (!delta.dx && !delta.dy) continue;
+        this.store.moveNodeGroup(rgId, delta);
       }
     } finally {
       this.isResolvingRgOverlaps = false;

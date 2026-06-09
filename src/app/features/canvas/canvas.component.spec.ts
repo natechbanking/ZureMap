@@ -84,7 +84,7 @@ describe('CanvasComponent', () => {
         { provide: CanvasTagVisualizationService, useValue: {} },
         { provide: CanvasContextMenuService, useValue: ctxMenuSvcMock },
         { provide: AutosaveService, useValue: autosaveMock },
-        { provide: ChangeDetectorRef, useValue: { markForCheck: () => {}, detectChanges: () => {}, detach: () => {}, reattach: () => {} } },
+        { provide: ChangeDetectorRef, useValue: { markForCheck: jasmine.createSpy('markForCheck'), detectChanges: jasmine.createSpy('detectChanges'), detach: jasmine.createSpy('detach'), reattach: jasmine.createSpy('reattach') } },
       ],
     });
 
@@ -1058,8 +1058,8 @@ describe('CanvasComponent', () => {
 
     it('pans canvas scroll on document mouse move while hand pan is active', () => {
       const host = document.createElement('div');
-      host.scrollLeft = 200;
-      host.scrollTop = 100;
+      Object.defineProperty(host, 'scrollLeft', { value: 200, writable: true });
+      Object.defineProperty(host, 'scrollTop', { value: 100, writable: true });
       component.canvasHostRef = { nativeElement: host } as unknown as typeof component.canvasHostRef;
       component.canvasPanState = { lastX: 100, lastY: 100 };
 

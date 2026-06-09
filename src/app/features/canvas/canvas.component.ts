@@ -171,6 +171,9 @@ const ERASER_TRAIL_TICK_MS = 32;
     '(document:paste)': 'onPaste($event)',
     '(document:mousemove)': 'onDocMouseMove($event)',
     '(document:mouseup)': 'onDocMouseUp($event)',
+    '(window:blur)': 'onWindowBlur()',
+    '(window:mouseout)': 'onWindowMouseOut($event)',
+    '(document:visibilitychange)': 'onDocumentVisibilityChange()',
   },
   providers: [
     CanvasControllerContextService,
@@ -883,6 +886,23 @@ effect(() => {
     this.annShapeResizeDrag = null;
     this.annRotateDrag = null;
     this.annEndpointDragState = null;
+  }
+
+  onWindowBlur(): void {
+    this.forceCompleteEraserTrail();
+  }
+
+  onWindowMouseOut(event: MouseEvent): void {
+    // relatedTarget is null when the pointer leaves the window/document.
+    if (!event.relatedTarget) {
+      this.forceCompleteEraserTrail();
+    }
+  }
+
+  onDocumentVisibilityChange(): void {
+    if (document.visibilityState !== 'visible') {
+      this.forceCompleteEraserTrail();
+    }
   }
 
   // ── Tool management ────────────────────────────────────────────────────────
@@ -3325,6 +3345,11 @@ effect(() => {
     this.isErasing = false;
     this.eraserUndoPushed = false;
     this.scheduleEraserTrailTick();
+  }
+
+  private forceCompleteEraserTrail(): void {
+    if (!this.isErasing) return;
+    this.finishEraserStroke();
   }
 
   private scheduleEraserTrailTick(): void {

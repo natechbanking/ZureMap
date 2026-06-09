@@ -186,21 +186,41 @@ const FONT_FAMILIES = [
               <!-- Stroke Width - Visual Preview -->
               <div>
                 <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2">{{ widthLabel() }}</p>
-                <div class="flex gap-1.5">
-                  @for (w of widthOptions(); track w) {
-                    <button
-                      class="flex-1 h-10 rounded-lg border-2 flex items-center justify-center transition-all"
-                      [class.border-blue-400]="currentWidthValue() === w"
-                      [class.bg-blue-50]="currentWidthValue() === w"
-                      [class.border-gray-100]="currentWidthValue() !== w"
-                      [class.hover:border-gray-200]="currentWidthValue() !== w"
-                      [title]="w + 'px'"
-                      (click)="isEraserTool() ? eraserWidthChange.emit(w) : strokeWidthChange.emit(w)"
-                    >
-                      <div class="rounded-full bg-gray-700" [style.width.px]="w * 2 + 4" [style.height.px]="w * 2 + 4"></div>
-                    </button>
-                  }
-                </div>
+                @if (isEraserTool()) {
+                  <div class="space-y-2">
+                    <input
+                      type="range"
+                      [min]="eraserWidths[0]"
+                      [max]="eraserWidths[eraserWidths.length - 1]"
+                      step="1"
+                      class="w-full h-1.5 rounded-full appearance-none bg-gray-200 cursor-pointer"
+                      [value]="activeEraserWidth"
+                      (input)="eraserWidthChange.emit(toNumber($event))"
+                      title="Eraser width"
+                    />
+                    <div class="flex items-center justify-between">
+                      <span class="text-[9px] text-gray-400">{{ eraserWidths[0] }}px</span>
+                      <span class="text-[10px] font-medium text-gray-600">{{ activeEraserWidth }}px</span>
+                      <span class="text-[9px] text-gray-400">{{ eraserWidths[eraserWidths.length - 1] }}px</span>
+                    </div>
+                  </div>
+                } @else {
+                  <div class="flex gap-1.5">
+                    @for (w of widths; track w) {
+                      <button
+                        class="flex-1 h-10 rounded-lg border-2 flex items-center justify-center transition-all"
+                        [class.border-blue-400]="activeStrokeWidth === w"
+                        [class.bg-blue-50]="activeStrokeWidth === w"
+                        [class.border-gray-100]="activeStrokeWidth !== w"
+                        [class.hover:border-gray-200]="activeStrokeWidth !== w"
+                        [title]="w + 'px'"
+                        (click)="strokeWidthChange.emit(w)"
+                      >
+                        <div class="rounded-full bg-gray-700" [style.width.px]="w * 2 + 4" [style.height.px]="w * 2 + 4"></div>
+                      </button>
+                    }
+                  </div>
+                }
               </div>
 
               <!-- Line Style - Visual Preview -->

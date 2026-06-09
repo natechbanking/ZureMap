@@ -249,6 +249,10 @@ export class CanvasSvgLayerComponent implements OnChanges {
     return Math.max(3, (this.eraserWidth * 0.42) + (index / 5));
   }
 
+  singleTrailPointRadius(): number {
+    return Math.max(2, this.eraserWidth * 0.45);
+  }
+
   isErasing(kind: 'edge' | 'annotation', id: string): boolean {
     return this.erasingTargetKeys.has(`${kind}:${id}`);
   }

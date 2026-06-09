@@ -65,13 +65,14 @@
     pointer-events="none"
   />
 }
-@for (point of eraserTrailPoints; track $index) {
+@if (eraserTrailPoints.length === 1) {
+  @let point = eraserTrailPoints[0];
   <svg:circle
     [attr.cx]="point.x"
     [attr.cy]="point.y"
-    [attr.r]="trailPointRadius($index) / zoomLevel"
+    [attr.r]="singleTrailPointRadius() / zoomLevel"
     fill="#f97316"
-    [attr.opacity]="trailPointOpacity(point, $index)"
+    [attr.opacity]="trailPointOpacity(point, 0)"
     pointer-events="none"
   />
 }

@@ -9,11 +9,11 @@ const router = Router();
 let deviceCodeLogin = null; // { promise, child, timer }
 
 function parseDeviceCodePrompt(text) {
-  const urlMatch = text.match(/https?:\/\/\S+/i);
-  const codeMatch = text.match(/enter the code\s+([A-Z0-9-]+)/i);
+  const urlMatch = text.match(/https?:\/\/\S{1,2000}/i);
+  const codeMatch = text.match(/enter the code[ \t]{1,10}([A-Z0-9-]{1,64})/i);
   if (!urlMatch || !codeMatch) return null;
   return {
-    verificationUrl: urlMatch[0].replace(/[.)\]]+$/, ''),
+    verificationUrl: urlMatch[0].replace(/[.)\]]{1,10}$/, ''),
     userCode: codeMatch[1],
     message: text.trim(),
   };

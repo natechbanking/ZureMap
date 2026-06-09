@@ -1,4 +1,4 @@
-import { signal, WritableSignal } from '@angular/core';
+import { signal, WritableSignal, ChangeDetectorRef } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { CanvasComponent } from './canvas.component';
 import { DiagramStore } from '../../core/store/diagram.store';
@@ -84,6 +84,7 @@ describe('CanvasComponent', () => {
         { provide: CanvasTagVisualizationService, useValue: {} },
         { provide: CanvasContextMenuService, useValue: ctxMenuSvcMock },
         { provide: AutosaveService, useValue: autosaveMock },
+        { provide: ChangeDetectorRef, useValue: { markForCheck: () => {}, detectChanges: () => {}, detach: () => {}, reattach: () => {} } },
       ],
     });
 

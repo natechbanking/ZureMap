@@ -17,6 +17,7 @@ import {
   faCopy,
   faCrosshairs,
   faDiamond,
+  faDownLeftAndUpRightToCenter,
   faEraser,
   faHand,
   faLayerGroup,
@@ -43,6 +44,7 @@ import {
 export type ActionIconName =
   | 'arrowRight'
   | 'bringFront'
+  | 'compress'
   | 'brush'
   | 'check'
   | 'chevronLeft'
@@ -85,6 +87,7 @@ export type ActionIconName =
 export const ACTION_ICONS: Record<ActionIconName, IconDefinition> = {
   arrowRight: faArrowRight,
   bringFront: faArrowUp,
+  compress: faDownLeftAndUpRightToCenter,
   brush: faPaintbrush,
   check: faCheck,
   chevronLeft: faChevronLeft,

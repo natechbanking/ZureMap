@@ -53,6 +53,29 @@
   }
 </ng-template>
 
+@if (eraserTrailPoints.length > 1) {
+  <svg:path
+    [attr.d]="smoothedTrailPath()"
+    fill="none"
+    stroke="#f97316"
+    [attr.stroke-width]="eraserWidth / zoomLevel"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    [attr.opacity]="trailPathOpacity()"
+    pointer-events="none"
+  />
+}
+@for (point of eraserTrailPoints; track $index) {
+  <svg:circle
+    [attr.cx]="point.x"
+    [attr.cy]="point.y"
+    [attr.r]="trailPointRadius($index) / zoomLevel"
+    fill="#f97316"
+    [attr.opacity]="trailPointOpacity(point, $index)"
+    pointer-events="none"
+  />
+}
+
 <!-- Edges (pass-through) -->
 @for (edge of visibleEdges; track edge.id) {
   @let edgePts = getEdgePolylineString(edge);
@@ -74,6 +97,7 @@
       [attr.points]="edgePts"
       fill="none"
       [attr.stroke]="edge.style.strokeColor"
+      [attr.opacity]="isErasing('edge', edge.id) ? 0.2 : 1"
       [attr.stroke-width]="edge.style.strokeWidth"
       [attr.stroke-dasharray]="edge.style.dashArray ?? null"
       stroke-linecap="round"
@@ -142,6 +166,7 @@
     <svg:path
       [attr.d]="ann.pathData"
       [attr.stroke]="ann.color"
+      [attr.opacity]="isErasing('annotation', ann.id) ? 0.2 : 1"
       [attr.stroke-width]="ann.strokeWidth"
       [attr.stroke-dasharray]="strokeDashArray(ann)"
       [attr.filter]="sloppyFilter(ann)"
@@ -159,6 +184,7 @@
       [attr.pointer-events]="activeTool === 'pointer' ? 'all' : 'none'"
       [class.cursor-move]="activeTool === 'pointer'"
       [style.color]="ann.color"
+      [attr.opacity]="isErasing('annotation', ann.id) ? 0.2 : 1"
       (mousedown)="annotationMouseDown.emit({ event: $event, ann: ann })"
       (contextmenu)="annotationContextMenu.emit({ event: $event, ann: ann })"
     >
@@ -189,6 +215,7 @@
       [attr.pointer-events]="activeTool === 'pointer' ? 'all' : 'none'"
       [class.cursor-move]="activeTool === 'pointer'"
       [style.color]="ann.color"
+      [attr.opacity]="isErasing('annotation', ann.id) ? 0.2 : 1"
       (mousedown)="annotationMouseDown.emit({ event: $event, ann: ann })"
       (contextmenu)="annotationContextMenu.emit({ event: $event, ann: ann })"
     >
@@ -218,6 +245,7 @@
     <svg:rect
       [attr.x]="ann.x" [attr.y]="ann.y"
       [attr.width]="ann.width" [attr.height]="ann.height"
+      [attr.opacity]="isErasing('annotation', ann.id) ? 0.2 : 1"
       [attr.stroke]="ann.color" [attr.stroke-width]="ann.strokeWidth"
       [attr.stroke-dasharray]="strokeDashArray(ann)"
       [attr.filter]="sloppyFilter(ann)"
@@ -235,6 +263,7 @@
       [attr.cy]="ann.y + ann.height / 2"
       [attr.rx]="ann.width / 2"
       [attr.ry]="ann.height / 2"
+      [attr.opacity]="isErasing('annotation', ann.id) ? 0.2 : 1"
       [attr.stroke]="ann.color" [attr.stroke-width]="ann.strokeWidth"
       [attr.stroke-dasharray]="strokeDashArray(ann)"
       [attr.filter]="sloppyFilter(ann)"
@@ -249,6 +278,7 @@
   @if (ann.type === 'diamond' && ann.width && ann.height) {
     <svg:polygon
       [attr.points]="diamondPoints(ann)"
+      [attr.opacity]="isErasing('annotation', ann.id) ? 0.2 : 1"
       [attr.stroke]="ann.color" [attr.stroke-width]="ann.strokeWidth"
       [attr.stroke-dasharray]="strokeDashArray(ann)"
       [attr.filter]="sloppyFilter(ann)"

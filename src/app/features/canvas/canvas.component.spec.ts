@@ -91,6 +91,15 @@ describe('CanvasComponent', () => {
     store = TestBed.inject(DiagramStore);
   });
 
+  function setCanvasHost(): void {
+    const host = document.createElement('div');
+    Object.defineProperty(host, 'scrollLeft', { value: 0, writable: true });
+    Object.defineProperty(host, 'scrollTop', { value: 0, writable: true });
+    host.getBoundingClientRect = () =>
+      ({ left: 0, top: 0, right: 1200, bottom: 800, width: 1200, height: 800, x: 0, y: 0, toJSON: () => ({}) }) as DOMRect;
+    component.canvasHostRef = { nativeElement: host } as unknown as typeof component.canvasHostRef;
+  }
+
   it('Ctrl+Z triggers exactly one store.undo call', () => {
     const undoSpy = spyOn(store, 'undo');
     const event = {
@@ -1067,6 +1076,108 @@ describe('CanvasComponent', () => {
       component.onDocMouseUp(new MouseEvent('mouseup', { clientX: 50, clientY: 50 }));
 
       expect(component.canvasPanState).toBeNull();
+    });
+  });
+
+  describe('eraser tool', () => {
+    beforeEach(() => {
+      setCanvasHost();
+      component.setTool('eraser');
+    });
+
+    it('erases a node and its connected edges after the fade delay', () => {
+      jasmine.clock().install();
+      try {
+        const node1 = makeDiagramNode({ id: 'n1', position: { x: 40, y: 40 }, size: { width: 120, height: 80 } });
+        const node2 = makeDiagramNode({ id: 'n2', position: { x: 260, y: 40 }, size: { width: 120, height: 80 } });
+        const edge = makeDiagramEdge({ id: 'e1', sourceId: 'n1', targetId: 'n2' });
+        store.setNodes([node1, node2]);
+        store.setEdges([edge]);
+        component.visibleNodes = [node1, node2];
+        component.visibleEdges = [edge];
+        const pushUndoSpy = spyOn(store, 'pushUndo').and.callThrough();
+
+        component.onCanvasBackgroundMouseDown(new MouseEvent('mousedown', { clientX: 80, clientY: 70, button: 0 }));
+
+        expect(component.erasingTargetKeys.has('node:n1')).toBeTrue();
+        jasmine.clock().tick(181);
+
+        expect(pushUndoSpy).toHaveBeenCalledTimes(1);
+        expect(store.nodes().map(node => node.id)).toEqual(['n2']);
+        expect(store.edges().length).toBe(0);
+      } finally {
+        jasmine.clock().uninstall();
+      }
+    });
+
+    it('batches multiple erased nodes into a single undo step for one stroke', () => {
+      jasmine.clock().install();
+      try {
+        const node1 = makeDiagramNode({ id: 'n1', position: { x: 40, y: 40 }, size: { width: 80, height: 80 } });
+        const node2 = makeDiagramNode({ id: 'n2', position: { x: 220, y: 40 }, size: { width: 80, height: 80 } });
+        store.setNodes([node1, node2]);
+        component.visibleNodes = [node1, node2];
+        const pushUndoSpy = spyOn(store, 'pushUndo').and.callThrough();
+
+        component.onCanvasBackgroundMouseDown(new MouseEvent('mousedown', { clientX: 70, clientY: 70, button: 0 }));
+        component.onDocMouseMove(new MouseEvent('mousemove', { clientX: 250, clientY: 70 }));
+        component.onDocMouseUp(new MouseEvent('mouseup', { clientX: 250, clientY: 70 }));
+        jasmine.clock().tick(181);
+
+        expect(pushUndoSpy).toHaveBeenCalledTimes(1);
+        expect(store.nodes().length).toBe(0);
+
+        store.undo();
+
+        expect(store.nodes().map(node => node.id)).toEqual(['n1', 'n2']);
+      } finally {
+        jasmine.clock().uninstall();
+      }
+    });
+
+    it('erases an edge without deleting its endpoint nodes', () => {
+      jasmine.clock().install();
+      try {
+        const node1 = makeDiagramNode({ id: 'n1', position: { x: 40, y: 40 }, size: { width: 80, height: 80 } });
+        const node2 = makeDiagramNode({ id: 'n2', position: { x: 260, y: 40 }, size: { width: 80, height: 80 } });
+        const edge = makeDiagramEdge({
+          id: 'e1',
+          sourceId: 'n1',
+          targetId: 'n2',
+          waypoints: [{ x: 180, y: 80 }],
+        });
+        store.setNodes([node1, node2]);
+        store.setEdges([edge]);
+        component.visibleNodes = [node1, node2];
+        component.visibleEdges = [edge];
+
+        component.onCanvasBackgroundMouseDown(new MouseEvent('mousedown', { clientX: 180, clientY: 80, button: 0 }));
+        jasmine.clock().tick(181);
+
+        expect(store.nodes().map(node => node.id)).toEqual(['n1', 'n2']);
+        expect(store.edges().length).toBe(0);
+      } finally {
+        jasmine.clock().uninstall();
+      }
+    });
+
+    it('erases an annotation and clears its selection', () => {
+      jasmine.clock().install();
+      try {
+        const annotation = makeAnnotation({ id: 'ann-1', type: 'text', x: 100, y: 120, text: 'Erase me', fontSize: 16 });
+        store.setAnnotations([annotation]);
+        component.selectedAnnotationId = 'ann-1';
+        component.selectedAnnotationIds = ['ann-1'];
+
+        component.onCanvasBackgroundMouseDown(new MouseEvent('mousedown', { clientX: 110, clientY: 130, button: 0 }));
+        jasmine.clock().tick(181);
+
+        expect(store.annotations().length).toBe(0);
+        expect(component.selectedAnnotationId).toBeNull();
+        expect(component.selectedAnnotationIds).toEqual([]);
+      } finally {
+        jasmine.clock().uninstall();
+      }
     });
   });
 

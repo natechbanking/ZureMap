@@ -1,6 +1,7 @@
 export type DrawingTool =
   | 'pointer'
   | 'hand'
+  | 'eraser'
   | 'draw'
   | 'line'
   | 'arrow'

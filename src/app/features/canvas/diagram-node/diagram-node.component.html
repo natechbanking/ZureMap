@@ -303,10 +303,7 @@
         title="Rotate resource"
         (mousedown)="onRotateHandleMouseDown($event)"
       >
-        <svg viewBox="0 0 16 16" class="w-2.5 h-2.5 text-gray-500" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M13.5 6A6 6 0 1 0 10 12.5" />
-          <polyline points="13.5 2 13.5 6 9.5 6" />
-        </svg>
+        <app-action-icon icon="rotate" iconClass="w-2.5 h-2.5 text-gray-500" />
       </button>
 
       <button
@@ -317,11 +314,7 @@
         title="Resize resource"
         (mousedown)="onResizeMouseDown($event)"
       >
-        <svg viewBox="0 0 16 16" class="w-2.5 h-2.5 text-gray-500" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round">
-          <path d="M6 10 L10 6" />
-          <path d="M8 12 L12 8" />
-          <path d="M10 14 L14 10" />
-        </svg>
+        <app-action-icon icon="arrowRight" iconClass="w-2.5 h-2.5 text-gray-500" />
       </button>
 
       @if (finOpsActive && node.costData) {

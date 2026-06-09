@@ -2,11 +2,12 @@ import { Component, Input, Output, EventEmitter } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { AzureSubscription } from '../../../core/models/azure-resource.model';
+import { ActionIconComponent } from '../../../shared/components/action-icon/action-icon.component';
 
 @Component({
   selector: 'app-subscription-selector',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, ActionIconComponent],
   template: `
     <div class="space-y-4">
       <div class="flex items-center justify-between">
@@ -60,9 +61,7 @@ import { AzureSubscription } from '../../../core/models/azure-resource.model';
                   <div class="flex items-center justify-center w-5 h-5 rounded border flex-shrink-0 transition-colors"
                     [ngClass]="isSelected(sub) ? 'border-azure-blue bg-azure-blue' : 'border-gray-300'">
                     @if (isSelected(sub)) {
-                      <svg class="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path>
-                      </svg>
+                      <app-action-icon icon="check" iconClass="w-3 h-3 text-white" />
                     }
                   </div>
 

@@ -11,6 +11,7 @@ import { AutosaveService } from '../../core/services/autosave.service';
 import { DiagramStore } from '../../core/store/diagram.store';
 import { AzureResource, AzureSubscription } from '../../core/models/azure-resource.model';
 import { SubscriptionSelectorComponent } from './subscription-selector/subscription-selector.component';
+import { ActionIconComponent } from '../../shared/components/action-icon/action-icon.component';
 import { environment } from '../../../environments/environment';
 
 interface ConnectionType {
@@ -22,7 +23,7 @@ interface ConnectionType {
 @Component({
   selector: 'app-scan',
   standalone: true,
-  imports: [CommonModule, SubscriptionSelectorComponent],
+  imports: [CommonModule, SubscriptionSelectorComponent, ActionIconComponent],
   template: `
     <div class="min-h-screen bg-azure-neutral flex items-center justify-center p-8">
       <div class="bg-white rounded-xl shadow-lg w-full max-w-xl p-8">
@@ -208,13 +209,11 @@ interface ConnectionType {
                   (click)="showAdvancedOptions = !showAdvancedOptions"
                   class="flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors w-full py-2"
                 >
-                  <svg
-                    class="w-4 h-4 transform transition-transform duration-200"
-                    [class.rotate-90]="showAdvancedOptions"
-                    fill="none" viewBox="0 0 24 24" stroke="currentColor"
-                  >
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-                  </svg>
+                  <app-action-icon
+                    icon="chevronRight"
+                    iconClass="w-4 h-4 transform transition-transform duration-200"
+                    [ngClass]="{'rotate-90': showAdvancedOptions}"
+                  />
                   Advanced Options
                 </button>
 
@@ -316,9 +315,7 @@ interface ConnectionType {
                   class="flex-1 py-2.5 px-4 bg-azure-blue text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors shadow-sm flex items-center justify-center gap-2"
                 >
                   <span>{{ startMode === 'scan' ? 'Start Scan' : 'Open Empty Canvas' }}</span>
-                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
-                  </svg>
+                  <app-action-icon icon="arrowRight" iconClass="w-4 h-4" />
                 </button>
               </div>
             </div>
@@ -449,11 +446,7 @@ interface ConnectionType {
             <div class="py-2">
               <div class="flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-lg mb-4">
                 <div class="w-8 h-8 bg-amber-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                  <svg class="w-4 h-4 text-amber-600" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75">
-                    <circle cx="8" cy="8" r="6.5"/>
-                    <line x1="8" y1="5" x2="8" y2="8.5"/>
-                    <circle cx="8" cy="11" r="0.75" fill="currentColor" stroke="none"/>
-                  </svg>
+                  <app-action-icon icon="info" iconClass="w-4 h-4 text-amber-600" />
                 </div>
                 <div class="flex-1 min-w-0">
                   <p class="text-sm font-semibold text-amber-800 mb-1">No resources found</p>

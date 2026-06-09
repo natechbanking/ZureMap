@@ -45,6 +45,7 @@ export class CanvasNodesLayerComponent {
   @Input() visibleNodes: DiagramNode[] = [];
   @Input() activeTool: DrawingTool = 'pointer';
   @Input() nodeDragState: NodeDragState | null = null;
+  @Input() erasingTargetKeys: Set<string> = new Set<string>();
   @Input() nodeTagHighlights: Map<string, string> = new Map<string, string>();
   @Input() childToParentMap: Map<string, string> = new Map<string, string>();
   @Input() parentLabelById: Map<string, string> = new Map<string, string>();
@@ -84,5 +85,9 @@ export class CanvasNodesLayerComponent {
 
   containerActionFor(nodeId: string): NodeContainerAction | null {
     return this.nodeContainerActions.get(nodeId) ?? null;
+  }
+
+  isErasing(nodeId: string): boolean {
+    return this.erasingTargetKeys.has(`node:${nodeId}`);
   }
 }

@@ -2,6 +2,7 @@ import { Component, Input, Output, EventEmitter, HostListener, inject, ElementRe
 
 import { DiagramNode, NodeInternalItem } from '../../../core/models/diagram-node.model';
 import { AzureIconComponent } from '../../../shared/components/azure-icon/azure-icon.component';
+import { ActionIconComponent } from '../../../shared/components/action-icon/action-icon.component';
 import { CostBadgeComponent } from '../../../shared/components/cost-badge/cost-badge.component';
 import { CostService } from '../../../core/services/cost.service';
 import { DiagramStore } from '../../../core/store/diagram.store';
@@ -85,6 +86,7 @@ import { NodeToggleButtonComponent } from '../shared/node-toggle-button.componen
   selector: 'app-diagram-node',
   standalone: true,
   imports: [
+    ActionIconComponent,
     AzureIconComponent,
     CostBadgeComponent,
     NodeToggleButtonComponent,

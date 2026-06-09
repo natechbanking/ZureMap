@@ -27,6 +27,10 @@ export class CanvasSvgLayerComponent implements OnChanges {
   @Input() visibleEdges: DiagramEdge[] = [];
   @Input() annotations: Annotation[] = [];
   @Input() visibleNodes: DiagramNode[] = [];
+  @Input() erasingTargetKeys: Set<string> = new Set<string>();
+  @Input() eraserTrailPoints: { x: number; y: number; createdAt: number }[] = [];
+  @Input() eraserTrailNow = 0;
+  @Input() eraserWidth = 12;
   @Input() selectedEdgeId: string | null = null;
   @Input() selectedAnnotationId: string | null = null;
   @Input() activeTool: DrawingTool = 'pointer';
@@ -203,6 +207,50 @@ export class CanvasSvgLayerComponent implements OnChanges {
 
   previewMarkerEnd(): string | null {
     return this.activeEdgeMode === 'end' || this.activeEdgeMode === 'both' ? this.annMarkerUrl(this.activeColor) : null;
+  }
+
+  smoothedTrailPath(): string {
+    if (this.eraserTrailPoints.length === 0) return '';
+    if (this.eraserTrailPoints.length === 1) {
+      const point = this.eraserTrailPoints[0];
+      return `M ${point.x} ${point.y}`;
+    }
+
+    const [first, second, ...rest] = this.eraserTrailPoints;
+    let path = `M ${first.x} ${first.y} Q ${first.x} ${first.y} ${(first.x + second.x) / 2} ${(first.y + second.y) / 2}`;
+    let previous = second;
+    for (const point of rest) {
+      const midX = (previous.x + point.x) / 2;
+      const midY = (previous.y + point.y) / 2;
+      path += ` Q ${previous.x} ${previous.y} ${midX} ${midY}`;
+      previous = point;
+    }
+    path += ` T ${previous.x} ${previous.y}`;
+    return path;
+  }
+
+  trailPointOpacity(point: { createdAt: number }, index: number): number {
+    const age = Math.max(0, this.eraserTrailNow - point.createdAt);
+    const ageFade = Math.max(0, 1 - age / 900);
+    const headBias = 0.35 + ((index + 1) / Math.max(1, this.eraserTrailPoints.length)) * 0.65;
+    return Math.max(0, Math.min(0.8, ageFade * headBias));
+  }
+
+  trailPathOpacity(): number {
+    if (this.eraserTrailPoints.length === 0) return 0;
+    const first = this.eraserTrailPoints[0];
+    const last = this.eraserTrailPoints[this.eraserTrailPoints.length - 1];
+    const firstFade = Math.max(0, 1 - Math.max(0, this.eraserTrailNow - first.createdAt) / 900);
+    const lastFade = Math.max(0, 1 - Math.max(0, this.eraserTrailNow - last.createdAt) / 900);
+    return Math.max(0, Math.min(0.45, ((firstFade + lastFade) / 2) * 0.45));
+  }
+
+  trailPointRadius(index: number): number {
+    return Math.max(3, (this.eraserWidth * 0.42) + (index / 5));
+  }
+
+  isErasing(kind: 'edge' | 'annotation', id: string): boolean {
+    return this.erasingTargetKeys.has(`${kind}:${id}`);
   }
 
   private resolveAnnEndpoint(ann: Annotation, endpoint: 'start' | 'end'): { x: number; y: number } {

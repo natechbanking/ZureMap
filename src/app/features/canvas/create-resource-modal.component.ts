@@ -2,6 +2,7 @@ import { Component, Input, Output, EventEmitter, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { NodeStatus } from '../../core/models/diagram-node.model';
+import { ActionIconComponent } from '../../shared/components/action-icon/action-icon.component';
 
 export interface ResourceCreationData {
   name: string;
@@ -27,7 +28,7 @@ const AZURE_REGIONS = [
 @Component({
   selector: 'app-create-resource-modal',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, ActionIconComponent],
   template: `
     <div
       class="fixed inset-0 z-[500] flex items-center justify-center p-4"
@@ -58,10 +59,7 @@ const AZURE_REGIONS = [
             @if (iconUrl) {
               <img [src]="iconUrl" class="w-6 h-6 object-contain" alt="" />
             } @else {
-              <svg viewBox="0 0 20 20" class="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" stroke-width="1.5">
-                <rect x="3" y="3" width="14" height="14" rx="2" />
-                <path d="M7 10 L13 10 M10 7 L10 13" />
-              </svg>
+              <app-action-icon icon="plus" iconClass="w-5 h-5 text-blue-500" />
             }
           </div>
           <div class="flex-1 min-w-0">
@@ -72,9 +70,7 @@ const AZURE_REGIONS = [
             class="w-8 h-8 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-all flex items-center justify-center"
             (click)="dismissed.emit()"
           >
-            <svg viewBox="0 0 20 20" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-              <path d="M4 4 L16 16 M16 4 L4 16" />
-            </svg>
+            <app-action-icon icon="close" iconClass="w-4 h-4" />
           </button>
         </div>
 
@@ -188,9 +184,7 @@ const AZURE_REGIONS = [
                       class="w-6 h-6 flex-shrink-0 text-gray-300 hover:text-red-400 transition-colors flex items-center justify-center"
                       (click)="removeTag(i)"
                     >
-                      <svg viewBox="0 0 20 20" class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-                        <path d="M4 4 L16 16 M16 4 L4 16" />
-                      </svg>
+                      <app-action-icon icon="close" iconClass="w-3.5 h-3.5" />
                     </button>
                   </div>
                 }
@@ -224,9 +218,7 @@ const AZURE_REGIONS = [
                       class="w-6 h-6 flex-shrink-0 text-gray-300 hover:text-red-400 transition-colors flex items-center justify-center"
                       (click)="removeLabel(i)"
                     >
-                      <svg viewBox="0 0 20 20" class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-                        <path d="M4 4 L16 16 M16 4 L4 16" />
-                      </svg>
+                      <app-action-icon icon="close" iconClass="w-3.5 h-3.5" />
                     </button>
                   </div>
                 }

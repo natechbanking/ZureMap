@@ -29,6 +29,8 @@
       class="absolute select-none"
       [class.ring-2]="isSelected"
       [class.ring-blue-400]="isSelected"
+      [style.opacity]="isErasing(ann.id) ? '0.2' : '1'"
+      [style.transition]="isErasing(ann.id) ? 'opacity 180ms ease, transform 180ms ease' : null"
       [style.left.px]="ann.x"
       [style.top.px]="ann.y"
       [style.width.px]="ann.width ?? 240"
@@ -60,6 +62,8 @@
       class="absolute select-none"
       [class.ring-2]="isSelected"
       [class.ring-blue-400]="isSelected"
+      [style.opacity]="isErasing(ann.id) ? '0.2' : '1'"
+      [style.transition]="isErasing(ann.id) ? 'opacity 180ms ease, transform 180ms ease' : null"
       [style.left.px]="ann.x"
       [style.top.px]="ann.y"
       [style.width.px]="annotationTextWidth(ann)"
@@ -113,10 +117,7 @@
           aria-label="Rotate text"
           (mousedown)="annotationRotateMouseDown.emit({ event: $event, ann: ann })"
         >
-          <svg viewBox="0 0 16 16" class="w-2.5 h-2.5 text-gray-500" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M13.5 6A6 6 0 1 0 10 12.5" />
-            <polyline points="13.5 2 13.5 6 9.5 6" />
-          </svg>
+          <app-action-icon icon="rotate" iconClass="w-2.5 h-2.5 text-gray-500" />
         </button>
       }
     </div>

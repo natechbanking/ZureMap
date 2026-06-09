@@ -7,6 +7,7 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Annotation, DrawingTool } from '../../../core/models/annotation.model';
+import { ActionIconComponent } from '../../../shared/components/action-icon/action-icon.component';
 import {
   annotationTextWidth,
   annotationTextHeight,
@@ -18,12 +19,13 @@ import {
 @Component({
   selector: 'app-canvas-annotation-overlay-layer',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, ActionIconComponent],
   templateUrl: './canvas-annotation-overlay-layer.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class CanvasAnnotationOverlayLayerComponent {
   @Input() annotations: Annotation[] = [];
+  @Input() erasingTargetKeys: Set<string> = new Set<string>();
   @Input() selectedAnnotationId: string | null = null;
   @Input() editingAnnotation: Annotation | null = null;
   @Input() activeTool: DrawingTool = 'pointer';
@@ -61,5 +63,9 @@ export class CanvasAnnotationOverlayLayerComponent {
 
   isAnnotationSelected(id: string): boolean {
     return this._selectedAnnotationIdSet.has(id);
+  }
+
+  isErasing(id: string): boolean {
+    return this.erasingTargetKeys.has(`annotation:${id}`);
   }
 }

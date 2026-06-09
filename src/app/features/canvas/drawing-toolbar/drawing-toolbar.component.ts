@@ -5,12 +5,14 @@ import { DrawingTool, StrokeStyle, EdgeRouting, EdgeMode } from '../../../core/m
 import { HighlightRuleType, TagRule, TagRuleOperator } from '../canvas.types';
 import { IconRegistryService } from '../../../core/services/icon-registry.service';
 import { ActionIconComponent } from '../../../shared/components/action-icon/action-icon.component';
+import { ActionIconName } from '../../../shared/icons/action-icons';
 
 interface Tool {
   id: DrawingTool;
   label: string;
   key: string;
-  icon: string;
+  icon: ActionIconName;
+  svgIcon?: string;
   category: 'select' | 'draw' | 'shape' | 'annotate' | 'container';
 }
 
@@ -27,18 +29,19 @@ interface ResourceCatalogEntry {
 const AZURE_RESOURCE_DND_TYPE = 'application/x-zuremap-azure-resource';
 
 const TOOLS: Tool[] = [
-  { id: 'pointer',  label: 'Select',    key: 'V', icon: 'M4 2 L4 14 L7 11 L9 16 L11 15 L9 10 L13 10 Z', category: 'select' },
-  { id: 'hand',     label: 'Hand',      key: 'H', icon: 'M7 18 L7 10 M10 18 L10 6 M13 18 L13 8 M16 18 L16 10 M4 13 C4 11,6 11,7 12 L7 18 L14 18 C16 18,18 16,18 14 L18 11 C18 9,16 9,16 11', category: 'select' },
-  { id: 'draw',     label: 'Pen',       key: 'P', icon: 'M14 2 L18 6 L7 17 L3 18 L4 14 Z M14 2 L18 6', category: 'draw' },
-  { id: 'line',     label: 'Line',      key: 'L', icon: 'M3 15 L17 5', category: 'draw' },
-  { id: 'arrow',    label: 'Arrow',     key: 'A', icon: 'M3 10 L17 10 M12 5 L17 10 L12 15', category: 'draw' },
-  { id: 'rect',     label: 'Rectangle', key: 'R', icon: 'M3 4 L17 4 L17 16 L3 16 Z', category: 'shape' },
-  { id: 'ellipse',  label: 'Ellipse',   key: 'E', icon: 'M10 4 A7 5 0 1 0 10 16 A7 5 0 1 0 10 4', category: 'shape' },
-  { id: 'diamond',  label: 'Diamond',   key: 'D', icon: 'M10 2 L18 10 L10 18 L2 10 Z', category: 'shape' },
-  { id: 'rgContainer', label: 'RG Container', key: 'G', icon: 'M2 4 L18 4 L18 17 L2 17 Z M2 8 L18 8', category: 'container' },
-  { id: 'subscriptionContainer', label: 'Sub Container', key: 'U', icon: 'M2 3 L18 3 L18 17 L2 17 Z M2 7 L18 7', category: 'container' },
-  { id: 'text',     label: 'Text',      key: 'T', icon: 'M3 5 L17 5 M10 5 L10 17 M7 17 L13 17', category: 'annotate' },
-  { id: 'sticky',   label: 'Note',      key: 'S', icon: 'M3 3 L14 3 L17 6 L17 17 L3 17 Z M14 3 L14 6 L17 6', category: 'annotate' },
+  { id: 'pointer',  label: 'Select',    key: 'V', icon: 'pointer',   category: 'select' },
+  { id: 'hand',     label: 'Hand',      key: 'H', icon: 'hand',      category: 'select' },
+  { id: 'eraser',   label: 'Eraser',    key: 'X', icon: 'eraser',    category: 'select' },
+  { id: 'draw',     label: 'Pen',       key: 'P', icon: 'penNib',    category: 'draw' },
+  { id: 'line',     label: 'Line',      key: 'L', icon: 'line',      category: 'draw' },
+  { id: 'arrow',    label: 'Arrow',     key: 'A', icon: 'arrowRight', category: 'draw' },
+  { id: 'rect',     label: 'Rectangle', key: 'R', icon: 'rectangle', category: 'shape' },
+  { id: 'ellipse',  label: 'Ellipse',   key: 'E', icon: 'ellipse',   category: 'shape' },
+  { id: 'diamond',  label: 'Diamond',   key: 'D', icon: 'diamond',   category: 'shape' },
+  { id: 'rgContainer',           label: 'RG Container',  key: 'G', icon: 'layers',    svgIcon: 'M2 4 L18 4 L18 17 L2 17 Z M2 8 L18 8',  category: 'container' },
+  { id: 'subscriptionContainer', label: 'Sub Container', key: 'U', icon: 'layers',    svgIcon: 'M2 3 L18 3 L18 17 L2 17 Z M2 7 L18 7',  category: 'container' },
+  { id: 'text',     label: 'Text',      key: 'T', icon: 'text',      category: 'annotate' },
+  { id: 'sticky',   label: 'Note',      key: 'S', icon: 'sticky',    category: 'annotate' },
 ];
 
 const COLORS = [
@@ -47,6 +50,7 @@ const COLORS = [
 ];
 
 const WIDTHS = [1, 2, 4, 6, 8];
+const ERASER_WIDTHS = [8, 12, 16, 24, 32];
 const FONT_SIZES = [10, 12, 14, 16, 18, 20, 24, 28, 32];
 const STROKE_STYLES: StrokeStyle[] = ['solid', 'dashed', 'dotted'];
 const EDGE_ROUTINGS: EdgeRouting[] = ['straight', 'elbow'];
@@ -75,12 +79,12 @@ const FONT_FAMILIES = [
             [title]="tool.label + ' (' + tool.key + ')'"
             (click)="toolChange.emit(tool.id)"
           >
-            @if (tool.id === 'hand') {
-              <app-action-icon icon="hand" iconClass="w-4 h-4" />
-            } @else {
+            @if (tool.svgIcon) {
               <svg viewBox="0 0 20 20" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                <path [attr.d]="tool.icon" />
+                <path [attr.d]="tool.svgIcon" />
               </svg>
+            } @else {
+              <app-action-icon [icon]="tool.icon" iconClass="w-4 h-4" />
             }
           </button>
         }
@@ -123,7 +127,7 @@ const FONT_FAMILIES = [
                 </button>
               </div>
               <div class="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
-              <!-- Color -->
+              @if (!isEraserTool()) {
               <div>
                 <div class="flex items-center justify-between mb-2">
                   <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Color</p>
@@ -150,6 +154,7 @@ const FONT_FAMILIES = [
                   }
                 </div>
               </div>
+              }
 
               <!-- Font (text/sticky) -->
               @if (isTextTool()) {
@@ -180,17 +185,17 @@ const FONT_FAMILIES = [
 
               <!-- Stroke Width - Visual Preview -->
               <div>
-                <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2">{{ isLineTool() ? 'Arrow Width' : 'Stroke Width' }}</p>
+                <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2">{{ widthLabel() }}</p>
                 <div class="flex gap-1.5">
-                  @for (w of widths; track w) {
+                  @for (w of widthOptions(); track w) {
                     <button
                       class="flex-1 h-10 rounded-lg border-2 flex items-center justify-center transition-all"
-                      [class.border-blue-400]="activeStrokeWidth === w"
-                      [class.bg-blue-50]="activeStrokeWidth === w"
-                      [class.border-gray-100]="activeStrokeWidth !== w"
-                      [class.hover:border-gray-200]="activeStrokeWidth !== w"
+                      [class.border-blue-400]="currentWidthValue() === w"
+                      [class.bg-blue-50]="currentWidthValue() === w"
+                      [class.border-gray-100]="currentWidthValue() !== w"
+                      [class.hover:border-gray-200]="currentWidthValue() !== w"
                       [title]="w + 'px'"
-                      (click)="strokeWidthChange.emit(w)"
+                      (click)="isEraserTool() ? eraserWidthChange.emit(w) : strokeWidthChange.emit(w)"
                     >
                       <div class="rounded-full bg-gray-700" [style.width.px]="w * 2 + 4" [style.height.px]="w * 2 + 4"></div>
                     </button>
@@ -199,6 +204,7 @@ const FONT_FAMILIES = [
               </div>
 
               <!-- Line Style - Visual Preview -->
+              @if (!isEraserTool()) {
               <div>
                 <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2">Line Style</p>
                 <div class="flex gap-1.5">
@@ -219,6 +225,7 @@ const FONT_FAMILIES = [
                   }
                 </div>
               </div>
+              }
 
               <!-- Fill (only for shapes) -->
               @if (isShapeTool()) {
@@ -317,6 +324,7 @@ const FONT_FAMILIES = [
               }
 
               <!-- Hand-drawn Effect -->
+              @if (!isEraserTool()) {
               <div>
                 <div class="flex items-center justify-between mb-2">
                   <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Hand-drawn Effect</p>
@@ -336,6 +344,7 @@ const FONT_FAMILIES = [
                   <span class="text-[9px] text-gray-400">Sketchy</span>
                 </div>
               </div>
+              }
             </div>
             </div>
           }
@@ -949,6 +958,7 @@ export class DrawingToolbarComponent implements OnInit {
   @Input() activeFontFamily = 'Arial, sans-serif';
   @Input() activeFontSize = 14;
   @Input() activeStrokeWidth = 2;
+  @Input() activeEraserWidth = 12;
   @Input() activeStrokeStyle: StrokeStyle = 'solid';
   @Input() activeSloppiness = 0;
   @Input() activeEdgeRouting: EdgeRouting = 'straight';
@@ -971,6 +981,7 @@ export class DrawingToolbarComponent implements OnInit {
   @Output() fontFamilyChange = new EventEmitter<string>();
   @Output() fontSizeChange = new EventEmitter<number>();
   @Output() strokeWidthChange = new EventEmitter<number>();
+  @Output() eraserWidthChange = new EventEmitter<number>();
   @Output() strokeStyleChange = new EventEmitter<StrokeStyle>();
   @Output() sloppinessChange = new EventEmitter<number>();
   @Output() edgeRoutingChange = new EventEmitter<EdgeRouting>();
@@ -988,6 +999,7 @@ export class DrawingToolbarComponent implements OnInit {
   readonly tools = TOOLS;
   readonly colors = COLORS;
   readonly widths = WIDTHS;
+  readonly eraserWidths = ERASER_WIDTHS;
   readonly fontSizes = FONT_SIZES;
   readonly strokeStyles = STROKE_STYLES;
   readonly edgeRoutings = EDGE_ROUTINGS;
@@ -1197,7 +1209,12 @@ export class DrawingToolbarComponent implements OnInit {
   stylePanelDragState: { lastX: number; lastY: number } | null = null;
 
   get showStylePanel(): boolean {
-    return (this.activeTool !== 'pointer' && this.activeTool !== 'hand') || this.canEditTextStyle || this.canEditFillStyle;
+    return (
+      (this.activeTool !== 'pointer' && this.activeTool !== 'hand' && this.activeTool !== 'eraser') ||
+      this.activeTool === 'eraser' ||
+      this.canEditTextStyle ||
+      this.canEditFillStyle
+    );
   }
 
   toggleSecondaryDrawer(): void {
@@ -1230,6 +1247,7 @@ export class DrawingToolbarComponent implements OnInit {
     const hints: Record<DrawingTool, string> = {
       pointer: 'Click to select, drag to move',
       hand: 'Drag canvas to pan',
+      eraser: 'Drag to erase items with a fading trace',
       draw: 'Click and drag to draw freely',
       line: 'Click and drag to draw a line',
       arrow: 'Click and drag to draw an arrow',
@@ -1262,6 +1280,10 @@ export class DrawingToolbarComponent implements OnInit {
     return ['rect', 'ellipse', 'diamond'].includes(this.activeTool) || this.canEditFillStyle;
   }
 
+  isEraserTool(): boolean {
+    return this.activeTool === 'eraser';
+  }
+
   isLineTool(): boolean {
     return ['line', 'arrow'].includes(this.activeTool);
   }
@@ -1273,6 +1295,19 @@ export class DrawingToolbarComponent implements OnInit {
   onCustomColor(event: Event): void {
     const value = (event.target as HTMLInputElement).value;
     if (value) this.colorChange.emit(value);
+  }
+
+  currentWidthValue(): number {
+    return this.isEraserTool() ? this.activeEraserWidth : this.activeStrokeWidth;
+  }
+
+  widthOptions(): number[] {
+    return this.isEraserTool() ? this.eraserWidths : this.widths;
+  }
+
+  widthLabel(): string {
+    if (this.isEraserTool()) return 'Eraser Width';
+    return this.isLineTool() ? 'Arrow Width' : 'Stroke Width';
   }
 
   toNumber(event: Event): number {
@@ -1298,6 +1333,7 @@ export class DrawingToolbarComponent implements OnInit {
     const map: Record<string, DrawingTool> = {
       v: 'pointer',
       h: 'hand',
+      x: 'eraser',
       p: 'draw',
       l: 'line',
       a: 'arrow',

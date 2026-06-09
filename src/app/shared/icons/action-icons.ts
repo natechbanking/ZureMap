@@ -2,83 +2,126 @@ import { IconDefinition } from '@fortawesome/fontawesome-svg-core';
 import {
   faArrowDown,
   faArrowLeft,
+  faArrowRight,
+  faArrowPointer,
   faArrowUp,
   faArrowsUpDownLeftRight,
   faBullseye,
+  faCheck,
   faChevronDown,
   faChevronLeft,
   faChevronRight,
   faChevronUp,
+  faCircle,
+  faCircleInfo,
   faCopy,
   faCrosshairs,
+  faDiamond,
+  faEraser,
   faHand,
-  faLink,
   faLayerGroup,
+  faLink,
   faMagnifyingGlass,
+  faMap,
+  faMinus,
+  faNoteSticky,
   faPaintbrush,
   faPaste,
+  faPenNib,
   faPenToSquare,
   faPlus,
+  faRotate,
   faRotateLeft,
-  faTrash,
+  faSquare,
+  faT,
   faTags,
+  faTrash,
   faUpRightFromSquare,
+  faVectorSquare,
   faXmark,
 } from '@fortawesome/free-solid-svg-icons';
 
 export type ActionIconName =
-  | 'copy'
-  | 'paste'
-  | 'focus'
-  | 'link'
-  | 'detach'
-  | 'reset'
-  | 'delete'
-  | 'layout'
-  | 'undo'
-  | 'search'
-  | 'crosshair'
-  | 'plus'
-  | 'duplicate'
+  | 'arrowRight'
   | 'bringFront'
-  | 'sendBack'
-  | 'clear'
-  | 'edit'
-  | 'close'
-  | 'moveUp'
-  | 'moveDown'
+  | 'brush'
+  | 'check'
   | 'chevronLeft'
   | 'chevronRight'
-  | 'tags'
-  | 'layers'
+  | 'clear'
+  | 'close'
+  | 'copy'
+  | 'crosshair'
+  | 'delete'
+  | 'detach'
+  | 'diamond'
+  | 'duplicate'
+  | 'edit'
+  | 'ellipse'
+  | 'eraser'
+  | 'focus'
   | 'hand'
-  | 'brush';
+  | 'info'
+  | 'layers'
+  | 'layout'
+  | 'line'
+  | 'link'
+  | 'map'
+  | 'moveDown'
+  | 'moveUp'
+  | 'paste'
+  | 'penNib'
+  | 'plus'
+  | 'pointer'
+  | 'rectangle'
+  | 'reset'
+  | 'rotate'
+  | 'search'
+  | 'sendBack'
+  | 'sticky'
+  | 'tags'
+  | 'text'
+  | 'undo';
 
 export const ACTION_ICONS: Record<ActionIconName, IconDefinition> = {
-  copy: faCopy,
-  paste: faPaste,
-  focus: faBullseye,
-  link: faLink,
-  detach: faUpRightFromSquare,
-  reset: faArrowLeft,
-  delete: faTrash,
-  layout: faArrowsUpDownLeftRight,
-  undo: faRotateLeft,
-  search: faMagnifyingGlass,
-  crosshair: faCrosshairs,
-  plus: faPlus,
-  duplicate: faCopy,
+  arrowRight: faArrowRight,
   bringFront: faArrowUp,
-  sendBack: faArrowDown,
-  clear: faXmark,
-  edit: faPenToSquare,
-  close: faXmark,
-  moveUp: faChevronUp,
-  moveDown: faChevronDown,
+  brush: faPaintbrush,
+  check: faCheck,
   chevronLeft: faChevronLeft,
   chevronRight: faChevronRight,
-  tags: faTags,
-  layers: faLayerGroup,
+  clear: faXmark,
+  close: faXmark,
+  copy: faCopy,
+  crosshair: faCrosshairs,
+  delete: faTrash,
+  detach: faUpRightFromSquare,
+  diamond: faDiamond,
+  duplicate: faCopy,
+  edit: faPenToSquare,
+  ellipse: faCircle,
+  eraser: faEraser,
+  focus: faBullseye,
   hand: faHand,
-  brush: faPaintbrush,
+  info: faCircleInfo,
+  layers: faLayerGroup,
+  layout: faArrowsUpDownLeftRight,
+  line: faMinus,
+  link: faLink,
+  map: faMap,
+  moveDown: faChevronDown,
+  moveUp: faChevronUp,
+  paste: faPaste,
+  penNib: faPenNib,
+  plus: faPlus,
+  pointer: faArrowPointer,
+  rectangle: faVectorSquare,
+  reset: faArrowLeft,
+  rotate: faRotate,
+  search: faMagnifyingGlass,
+  sendBack: faArrowDown,
+  sticky: faNoteSticky,
+  tags: faTags,
+  text: faT,
+  undo: faRotateLeft,
 };

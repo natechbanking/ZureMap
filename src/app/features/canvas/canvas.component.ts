@@ -94,6 +94,7 @@ import {
   annotationMaxY as annotationMaxYUtil,
   annotationTextHeight as annotationTextHeightUtil,
   annotationTextWidth as annotationTextWidthUtil,
+  edgePolylinePoints,
   edgeAnchorBetween,
   defaultNodePorts,
   portPosition,
@@ -116,6 +117,26 @@ interface ShapeBindCandidate {
   annotation: Annotation;
   bounds: { x: number; y: number; width: number; height: number };
 }
+
+type ErasableTargetKind = 'node' | 'edge' | 'annotation';
+
+interface EraseTarget {
+  key: string;
+  kind: ErasableTargetKind;
+  id: string;
+}
+
+interface CanvasPoint {
+  x: number;
+  y: number;
+}
+
+interface EraserTrailPoint extends CanvasPoint {
+  createdAt: number;
+}
+
+const ERASER_TRAIL_FADE_MS = 900;
+const ERASER_TRAIL_TICK_MS = 32;
 
 @Component({
   selector: 'app-canvas',
@@ -261,6 +282,14 @@ effect(() => {
       window.clearTimeout(this.autosaveTimer);
       this.autosaveTimer = null;
     }
+    if (this.eraserTrailCleanupTimer !== null) {
+      window.clearTimeout(this.eraserTrailCleanupTimer);
+      this.eraserTrailCleanupTimer = null;
+    }
+    for (const timerId of this.eraseCommitTimers.values()) {
+      window.clearTimeout(timerId);
+    }
+    this.eraseCommitTimers.clear();
   }
 
   // ── Drawing tool state ─────────────────────────────────────────────────────
@@ -269,6 +298,7 @@ effect(() => {
   activeFontFamily = 'Arial, sans-serif';
   activeFontSize = 14;
   activeStrokeWidth = 2;
+  activeEraserWidth = 12;
   activeStrokeStyle: StrokeStyle = 'solid';
   activeSloppiness = 0;
   activeEdgeRouting: EdgeRouting = 'straight';
@@ -321,6 +351,14 @@ effect(() => {
   drawBindPreviewPorts: { nodeId: string; portId: string; x: number; y: number }[] = [];
   drawBindPreviewActivePortId: string | null = null;
   private drawStartBindPort: { nodeId: string; portId: string; x: number; y: number } | null = null;
+  eraserTrailPoints: EraserTrailPoint[] = [];
+  erasingTargetKeys = new Set<string>();
+  private isErasing = false;
+  private eraserQueuedTargets = new Map<string, EraseTarget>();
+  private eraserUndoPushed = false;
+  eraserTrailNow = 0;
+  private eraserTrailCleanupTimer: number | null = null;
+  private eraseCommitTimers = new Map<string, number>();
 
   // Internal drawing state
   private isDrawing = false;
@@ -520,6 +558,11 @@ effect(() => {
       return;
     }
 
+    if (this.isErasing) {
+      this.onEraserMouseMove(e);
+      return;
+    }
+
     if (this.activeTool !== 'pointer' && this.isDrawing) {
       this.onDrawMouseMove(e);
       return;
@@ -711,6 +754,9 @@ effect(() => {
   }
 
   onDocMouseUp(e: MouseEvent): void {
+    if (this.isErasing) {
+      this.finishEraserStroke();
+    }
     if (this.activeTool !== 'pointer' && this.activeTool !== 'hand' && this.isDrawing) {
       this.onDrawMouseUp(e);
     }
@@ -847,6 +893,8 @@ effect(() => {
     this.selectedEdgeId = null;
     this.applyDrawingRuntime(resetDrawingRuntime(this.currentDrawingRuntime()));
     this.clearDrawBindPreviewPorts();
+    this.finishEraserStroke();
+    this.eraserTrailPoints = [];
   }
 
   get discoveredResourceTypes(): string[] {
@@ -901,6 +949,10 @@ effect(() => {
   onToolbarStrokeWidthChange(strokeWidth: number): void {
     this.activeStrokeWidth = strokeWidth;
     this.updateSelectedAnnotation({ strokeWidth });
+  }
+
+  onToolbarEraserWidthChange(width: number): void {
+    this.activeEraserWidth = width;
   }
 
   onToolbarStrokeStyleChange(strokeStyle: StrokeStyle): void {
@@ -2067,6 +2119,10 @@ effect(() => {
     if (event.button !== 0) return;
     if (this.activeTool === 'hand') {
       this.canvasPanState = { lastX: event.clientX, lastY: event.clientY };
+      return;
+    }
+    if (this.activeTool === 'eraser') {
+      this.onEraserMouseDown(event);
       return;
     }
     if (this.activeTool !== 'pointer') return;
@@ -3240,5 +3296,221 @@ effect(() => {
     this.previewRect = next.previewRect;
     this.previewDiamond = next.previewDiamond;
     this.previewEllipse = next.previewEllipse;
+  }
+
+  private onEraserMouseDown(event: MouseEvent): void {
+    event.preventDefault();
+    this.closeContextMenu();
+    this.cancelRename();
+    if (this.editingAnnotation) this.cancelEdit();
+    const point = this.canvasPointFromClient(event.clientX, event.clientY);
+    this.isErasing = true;
+    this.eraserUndoPushed = false;
+    this.eraserTrailPoints = [this.makeEraserTrailPoint(point.x, point.y)];
+    this.scheduleEraserTrailTick();
+    this.collectEraseTargetsAtPoint(point);
+  }
+
+  private onEraserMouseMove(event: MouseEvent): void {
+    const point = this.canvasPointFromClient(event.clientX, event.clientY);
+    const last = this.eraserTrailPoints[this.eraserTrailPoints.length - 1];
+    if (!last || Math.hypot(point.x - last.x, point.y - last.y) >= 4) {
+      this.eraserTrailPoints = [...this.eraserTrailPoints, this.makeEraserTrailPoint(point.x, point.y)];
+      this.scheduleEraserTrailTick();
+    }
+    this.collectEraseTargetsAlongStroke(last ?? point, point);
+  }
+
+  private finishEraserStroke(): void {
+    this.isErasing = false;
+    this.eraserUndoPushed = false;
+    this.scheduleEraserTrailTick();
+  }
+
+  private scheduleEraserTrailTick(): void {
+    if (this.eraserTrailCleanupTimer !== null) return;
+    this.eraserTrailCleanupTimer = window.setTimeout(() => {
+      const now = Date.now();
+      this.eraserTrailNow = now;
+      this.eraserTrailPoints = this.eraserTrailPoints.filter(point => now - point.createdAt < ERASER_TRAIL_FADE_MS);
+      this.eraserTrailCleanupTimer = null;
+      if (this.eraserTrailPoints.length > 0) {
+        this.scheduleEraserTrailTick();
+      }
+    }, ERASER_TRAIL_TICK_MS);
+  }
+
+  private makeEraserTrailPoint(x: number, y: number): EraserTrailPoint {
+    const now = Date.now();
+    this.eraserTrailNow = now;
+    return { x, y, createdAt: now };
+  }
+
+  private collectEraseTargetsAlongStroke(from: CanvasPoint, to: CanvasPoint): void {
+    const distance = Math.hypot(to.x - from.x, to.y - from.y);
+    const steps = Math.max(1, Math.ceil(distance / 12));
+    for (let index = 0; index <= steps; index++) {
+      const t = index / steps;
+      this.collectEraseTargetsAtPoint({
+        x: from.x + (to.x - from.x) * t,
+        y: from.y + (to.y - from.y) * t,
+      });
+    }
+  }
+
+  private collectEraseTargetsAtPoint(point: CanvasPoint): void {
+    for (const target of this.erasableTargetsAtPoint(point.x, point.y)) {
+      this.queueEraseTarget(target);
+    }
+  }
+
+  private erasableTargetsAtPoint(canvasX: number, canvasY: number): EraseTarget[] {
+    const targets: EraseTarget[] = [];
+    const node = this.nodeAtCanvasPoint(canvasX, canvasY);
+    if (node) {
+      targets.push({ key: `node:${node.id}`, kind: 'node', id: node.id });
+    }
+
+    for (const annotation of this.store.annotations().slice().reverse()) {
+      if (!this.annotationHitTest(annotation, canvasX, canvasY)) continue;
+      targets.push({ key: `annotation:${annotation.id}`, kind: 'annotation', id: annotation.id });
+    }
+
+    for (const edge of this.visibleEdges.slice().reverse()) {
+      if (!this.edgeHitTest(edge, canvasX, canvasY)) continue;
+      targets.push({ key: `edge:${edge.id}`, kind: 'edge', id: edge.id });
+    }
+
+    return targets;
+  }
+
+  private queueEraseTarget(target: EraseTarget): void {
+    if (this.erasingTargetKeys.has(target.key)) return;
+    if (!this.eraserUndoPushed) {
+      this.store.pushUndo();
+      this.eraserUndoPushed = true;
+    }
+    this.clearSelectionForErasedTarget(target);
+    this.erasingTargetKeys = new Set(this.erasingTargetKeys).add(target.key);
+    this.eraserQueuedTargets.set(target.key, target);
+    const timerId = window.setTimeout(() => {
+      this.commitErasedTarget(target);
+    }, 180);
+    this.eraseCommitTimers.set(target.key, timerId);
+  }
+
+  private commitErasedTarget(target: EraseTarget): void {
+    this.eraseCommitTimers.delete(target.key);
+    this.erasingTargetKeys.delete(target.key);
+    this.erasingTargetKeys = new Set(this.erasingTargetKeys);
+    if (!this.eraserQueuedTargets.has(target.key)) return;
+    this.eraserQueuedTargets.delete(target.key);
+
+    if (target.kind === 'node') {
+      if (this.store.nodes().some(node => node.id === target.id)) {
+        this.store.deleteNode(target.id);
+      }
+      return;
+    }
+
+    if (target.kind === 'edge') {
+      if (this.store.edges().some(edge => edge.id === target.id)) {
+        this.store.setEdges(this.store.edges().filter(edge => edge.id !== target.id));
+      }
+      if (this.selectedEdgeId === target.id) this.selectedEdgeId = null;
+      return;
+    }
+
+    this.deleteAnnotationById(target.id);
+  }
+
+  private deleteAnnotationById(annotationId: string): void {
+    const annotation = this.annotationById(annotationId);
+    if (!annotation) return;
+    this.clearShapeBinding(annotationId);
+    this.store.deleteAnnotation(annotationId);
+    this.selectedAnnotationIds = this.selectedAnnotationIds.filter(id => id !== annotationId);
+    this.selectedAnnotationId = this.selectedAnnotationIds[0] ?? null;
+    if (this.editingAnnotation?.id === annotationId) {
+      this.editingAnnotation = null;
+      this.editingTextValue = '';
+    }
+  }
+
+  private clearSelectionForErasedTarget(target: EraseTarget): void {
+    if (target.kind === 'node' && this.store.selectedNodeIds().includes(target.id)) {
+      this.store.selectNodes(this.store.selectedNodeIds().filter(id => id !== target.id));
+    }
+    if (target.kind === 'edge' && this.selectedEdgeId === target.id) {
+      this.selectedEdgeId = null;
+    }
+    if (target.kind === 'annotation' && this.selectedAnnotationIds.includes(target.id)) {
+      this.selectedAnnotationIds = this.selectedAnnotationIds.filter(id => id !== target.id);
+      this.selectedAnnotationId = this.selectedAnnotationIds[0] ?? null;
+    }
+    if (target.kind === 'annotation' && this.editingAnnotation?.id === target.id) {
+      this.editingAnnotation = null;
+      this.editingTextValue = '';
+    }
+  }
+
+  private annotationHitTest(annotation: Annotation, canvasX: number, canvasY: number): boolean {
+    if (annotation.type === 'arrow' || annotation.type === 'line') {
+      const start = this.resolveAnnotationEndpointPosition(annotation, 'start');
+      const end = this.resolveAnnotationEndpointPosition(annotation, 'end');
+      const points = [start, ...(annotation.waypoints ?? []), end];
+      return this.pointNearPolyline(points, canvasX, canvasY, Math.max(10, annotation.strokeWidth * 3));
+    }
+
+    if (annotation.type === 'draw' && annotation.pathData) {
+      const bounds = annotationBoundsUtil(annotation);
+      return canvasX >= bounds.minX - 8 &&
+        canvasX <= bounds.maxX + 8 &&
+        canvasY >= bounds.minY - 8 &&
+        canvasY <= bounds.maxY + 8;
+    }
+
+    const bounds = annotationBoundsUtil(annotation);
+    return canvasX >= bounds.minX &&
+      canvasX <= bounds.maxX &&
+      canvasY >= bounds.minY &&
+      canvasY <= bounds.maxY;
+  }
+
+  private edgeHitTest(edge: DiagramEdge, canvasX: number, canvasY: number): boolean {
+    const nodeMap = new Map(this.visibleNodes.map(node => [node.id, node]));
+    const annotationMap = new Map(this.store.annotations().map(annotation => [annotation.id, annotation]));
+    const points = edgePolylinePoints(this.visibleNodes, edge, nodeMap, annotationMap);
+    return this.pointNearPolyline(points, canvasX, canvasY, Math.max(10, edge.style.strokeWidth * 3));
+  }
+
+  private pointNearPolyline(
+    points: { x: number; y: number }[],
+    canvasX: number,
+    canvasY: number,
+    threshold: number,
+  ): boolean {
+    if (points.length < 2) return false;
+    for (let index = 0; index < points.length - 1; index++) {
+      if (this.distanceToSegment(canvasX, canvasY, points[index], points[index + 1]) <= threshold) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private distanceToSegment(
+    px: number,
+    py: number,
+    start: { x: number; y: number },
+    end: { x: number; y: number },
+  ): number {
+    const dx = end.x - start.x;
+    const dy = end.y - start.y;
+    if (dx === 0 && dy === 0) return Math.hypot(px - start.x, py - start.y);
+    const t = Math.max(0, Math.min(1, ((px - start.x) * dx + (py - start.y) * dy) / (dx * dx + dy * dy)));
+    const cx = start.x + dx * t;
+    const cy = start.y + dy * t;
+    return Math.hypot(px - cx, py - cy);
   }
 }

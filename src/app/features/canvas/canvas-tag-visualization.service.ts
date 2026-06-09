@@ -76,7 +76,7 @@ export class CanvasTagVisualizationService {
       const x = Math.max(2, Math.min(Math.max(2, nodeWidth - 24), xUnclamped));
       const y = startY + row * rowHeight;
       const text = key === '_more' ? value : `${key}: ${value}`;
-      const stableKey = key.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || `tag-${index}`;
+      const stableKey = key.toLowerCase().replace(/[^a-z0-9]{1,512}/g, '-').replace(/^-{1,512}|-{1,512}$/g, '') || `tag-${index}`;
       return {
         id: `${prefix}${stableKey}`,
         text,

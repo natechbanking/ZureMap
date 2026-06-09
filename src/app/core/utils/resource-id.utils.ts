@@ -3,7 +3,7 @@
  * Trims whitespace and removes trailing slashes.
  */
 export function normalizeResourceId(resourceId: string): string {
-  return resourceId.trim().toLowerCase().replace(/\/+$/, '');
+  return resourceId.trim().toLowerCase().replace(/\/{1,100}$/, '');
 }
 
 /**

@@ -1296,6 +1296,10 @@ effect(() => {
     const nodes = this.store.nodes();
     const anns = this.store.annotations();
     let maxX = 1200;
+    const host = this.canvasHostRef?.nativeElement as HTMLElement | undefined;
+    const visibleMaxX = host
+      ? (host.scrollLeft + host.clientWidth) / Math.max(this.zoomLevel, 0.0001)
+      : 0;
 
     for (const n of nodes) {
       maxX = Math.max(maxX, n.position.x + n.size.width + 80);
@@ -1310,6 +1314,7 @@ effect(() => {
       }
     }
     maxX = Math.max(maxX, this.previewMaxX() + 80);
+    maxX = Math.max(maxX, visibleMaxX);
 
     return maxX;
   }
@@ -1318,6 +1323,10 @@ effect(() => {
     const nodes = this.store.nodes();
     const anns = this.store.annotations();
     let maxY = 800;
+    const host = this.canvasHostRef?.nativeElement as HTMLElement | undefined;
+    const visibleMaxY = host
+      ? (host.scrollTop + host.clientHeight) / Math.max(this.zoomLevel, 0.0001)
+      : 0;
 
     for (const n of nodes) {
       maxY = Math.max(maxY, n.position.y + n.size.height + 80);
@@ -1332,6 +1341,7 @@ effect(() => {
       }
     }
     maxY = Math.max(maxY, this.previewMaxY() + 80);
+    maxY = Math.max(maxY, visibleMaxY);
 
     return maxY;
   }

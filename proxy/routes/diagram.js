@@ -1,4 +1,5 @@
 const { Router } = require('express');
+const escapeHtml = require('escape-html');
 const { getState, setState, buildMarkdownSummary } = require('../lib/diagram-state');
 const { log } = require('../lib/logger');
 
@@ -17,7 +18,7 @@ router.get('/mcp/diagram-summary', (req, res) => {
   if (!state) {
     return res.status(503).type('text/plain; charset=utf-8').send('# ZureMap\nNo diagram loaded yet. Run a scan first.');
   }
-  res.type('text/plain; charset=utf-8').send(buildMarkdownSummary(state));
+  res.type('text/plain; charset=utf-8').send(escapeHtml(buildMarkdownSummary(state)));
 });
 
 module.exports = router;

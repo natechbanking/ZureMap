@@ -1,3 +1,5 @@
+const { inspect } = require('node:util');
+
 const dim    = s => `\x1b[2m${s}\x1b[0m`;
 const green  = s => `\x1b[32m${s}\x1b[0m`;
 const yellow = s => `\x1b[33m${s}\x1b[0m`;
@@ -10,7 +12,18 @@ function log(level, msg, ...extra) {
                  level === 'warn'  ? yellow('[warn] ') :
                  level === 'error' ? red('[err]  ') :
                                      dim('[dbg]  ');
-  console.log(`${dim(ts)} ${prefix}${msg}`, ...extra);
+  const safeMessage = sanitizeLogString(msg);
+  const safeExtra = extra.map(value => sanitizeLogString(
+    typeof value === 'string' ? value : inspect(value, { breakLength: Infinity })
+  ));
+  console.log(`${dim(ts)} ${prefix}${safeMessage}`, ...safeExtra);
 }
 
-module.exports = { log, dim, green, yellow, red, cyan };
+function sanitizeLogString(value) {
+  return String(value)
+    .replace(/\r/g, '\\r')
+    .replace(/\n/g, '\\n')
+    .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f]/g, '');
+}
+
+module.exports = { log, sanitizeLogString, dim, green, yellow, red, cyan };

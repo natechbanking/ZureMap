@@ -36,6 +36,7 @@
     "elkjs": "^0.11.1",
     "escape-html": "^1.0.3",
     "express": "^5.2.1",
+    "express-rate-limit": "^8.6.2",
     "file-saver": "^2.0.5",
     "html-to-image": "^1.11.13",
     "ng-diagram": "^1.1.2",

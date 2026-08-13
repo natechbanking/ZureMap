@@ -1,5 +1,6 @@
 const { Router } = require('express');
 const { runAz, azErrorBody } = require('../lib/az-cli');
+const { isUuid } = require('../lib/azure-validation');
 const { log } = require('../lib/logger');
 
 const router = Router();
@@ -7,8 +8,8 @@ const router = Router();
 router.get('/uai-role-assignments', async (req, res) => {
   const principalId    = String(req.query.principalId    ?? '').trim();
   const subscriptionId = String(req.query.subscriptionId ?? '').trim();
-  if (!principalId || !subscriptionId) {
-    return res.status(400).json({ error: 'principalId and subscriptionId are required' });
+  if (!isUuid(principalId) || !isUuid(subscriptionId)) {
+    return res.status(400).json({ error: 'principalId and subscriptionId must be UUIDs' });
   }
   try {
     const assignments = await runAz([

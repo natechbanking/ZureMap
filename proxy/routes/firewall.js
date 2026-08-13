@@ -15,7 +15,6 @@ router.get('/firewall-policy-rule-counts', async (req, res) => {
     const authHeader = { Authorization: `Bearer ${token.accessToken}`, 'Content-Type': 'application/json' };
 
     const firewall = await httpsGet(
-      'management.azure.com',
       `${baseFirewallId}?api-version=2024-10-01`,
       authHeader,
     );
@@ -27,7 +26,6 @@ router.get('/firewall-policy-rule-counts', async (req, res) => {
 
     const basePolicyId = String(policyId).replace(/\/$/, '');
     const groups = await httpsGet(
-      'management.azure.com',
       `${basePolicyId}/ruleCollectionGroups?api-version=2024-10-01`,
       authHeader,
     );

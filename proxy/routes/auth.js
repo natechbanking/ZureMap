@@ -1,6 +1,7 @@
 const { spawn } = require('child_process');
 const { Router } = require('express');
 const { runAz, azErrorBody } = require('../lib/az-cli');
+const { ARM_TOKEN_RESOURCE, isArmTokenResource } = require('../lib/azure-validation');
 const { log } = require('../lib/logger');
 
 const DEVICE_CODE_TIMEOUT_MS = 5 * 60 * 1000;
@@ -163,7 +164,10 @@ router.get('/subscriptions', async (req, res) => {
 });
 
 router.get('/token', async (req, res) => {
-  const resource = req.query.resource || 'https://management.azure.com/';
+  const resource = req.query.resource || ARM_TOKEN_RESOURCE;
+  if (!isArmTokenResource(resource)) {
+    return res.status(400).json({ error: 'Only Azure Resource Manager tokens are supported' });
+  }
   try {
     const token = await runAz(['account', 'get-access-token', '--resource', resource, '--output', 'json']);
     res.json(token);

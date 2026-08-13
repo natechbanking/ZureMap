@@ -47,7 +47,6 @@ router.get('/dns-zone-records', async (req, res) => {
     const base = zoneId.replace(/\/$/, '');
 
     const result = await httpsGet(
-      'management.azure.com',
       `${base}/recordsets?api-version=${apiVersion}&$top=500`,
       authHeader,
     );

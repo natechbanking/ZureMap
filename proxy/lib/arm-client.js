@@ -1,10 +1,24 @@
 const https = require('https');
 
 const HTTPS_TIMEOUT_MS = 30_000;
+const ARM_ORIGIN = 'https://management.azure.com';
+const ARM_HOSTNAME = 'management.azure.com';
 
-function httpsRequest(method, hostname, path, headers, body) {
+function normalizeArmPath(path) {
+  if (typeof path !== 'string' || !path.startsWith('/') || /[\r\n\0]/.test(path)) {
+    throw new TypeError('Invalid Azure Resource Manager path');
+  }
+  const url = new URL(path, ARM_ORIGIN);
+  if (url.origin !== ARM_ORIGIN) {
+    throw new TypeError('Azure Resource Manager path must stay on the trusted origin');
+  }
+  return `${url.pathname}${url.search}`;
+}
+
+function httpsRequest(method, path, headers, body) {
+  const safePath = normalizeArmPath(path);
   return new Promise((resolve, reject) => {
-    const req = https.request({ hostname, path, method, headers }, (res) => {
+    const req = https.request({ hostname: ARM_HOSTNAME, path: safePath, method, headers }, (res) => {
       let data = '';
       res.on('data', chunk => data += chunk);
       res.on('end', () => {
@@ -22,7 +36,7 @@ function httpsRequest(method, hostname, path, headers, body) {
   });
 }
 
-const httpsGet  = (hostname, path, headers)      => httpsRequest('GET',  hostname, path, headers);
-const httpsPost = (hostname, path, headers, body) => httpsRequest('POST', hostname, path, headers, body);
+const httpsGet  = (path, headers)       => httpsRequest('GET', path, headers);
+const httpsPost = (path, headers, body) => httpsRequest('POST', path, headers, body);
 
-module.exports = { httpsRequest, httpsGet, httpsPost };
+module.exports = { normalizeArmPath, httpsRequest, httpsGet, httpsPost };

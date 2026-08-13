@@ -317,7 +317,6 @@ async function runCostQueryForSubscription(token, subscriptionId, request) {
   };
 
   const aggregateResult = await httpsPost(
-    'management.azure.com',
     `/subscriptions/${subscriptionId}/providers/Microsoft.CostManagement/query?api-version=2023-11-01`,
     { Authorization: `Bearer ${token.accessToken}`, 'Content-Type': 'application/json' },
     JSON.stringify(aggregateBody)
@@ -341,7 +340,6 @@ async function runCostQueryForSubscription(token, subscriptionId, request) {
   };
 
   const trendResult = await httpsPost(
-    'management.azure.com',
     `/subscriptions/${subscriptionId}/providers/Microsoft.CostManagement/query?api-version=2023-11-01`,
     { Authorization: `Bearer ${token.accessToken}`, 'Content-Type': 'application/json' },
     JSON.stringify(trendBody)

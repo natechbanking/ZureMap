@@ -17,7 +17,6 @@ router.post('/query', async (req, res) => {
     const body = JSON.stringify({ query, subscriptions, options });
     log('debug', `Resource Graph query across ${subscriptions.length} sub(s)${$skipToken ? ' [paged]' : ''}`);
     const result = await httpsPost(
-      'management.azure.com',
       '/providers/Microsoft.ResourceGraph/resources?api-version=2022-10-01',
       { Authorization: `Bearer ${token.accessToken}`, 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) },
       body
@@ -51,7 +50,6 @@ router.get('/scan-stream', async (req, res) => {
         options: { $skipToken: skipToken, resultFormat: 'objectArray' },
       });
       const result = await httpsPost(
-        'management.azure.com',
         '/providers/Microsoft.ResourceGraph/resources?api-version=2024-04-01',
         { Authorization: `Bearer ${token.accessToken}`, 'Content-Type': 'application/json' },
         body

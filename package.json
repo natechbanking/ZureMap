@@ -11,6 +11,7 @@
     "build:ci": "npm run build:stats && node scripts/check-bundle-stats.js",
     "watch": "ng build --watch --configuration development",
     "test": "CHROME_BIN=$(find $HOME/.cache/puppeteer -name chrome -type f 2>/dev/null | head -1) CHROMIUM_FLAGS='--no-sandbox --disable-gpu --disable-dev-shm-usage' ng test",
+    "test:proxy": "node --test proxy/**/*.test.js",
     "map-icons": "node scripts/map-icons.js",
     "lint": "ng lint"
   },
@@ -33,6 +34,7 @@
     "@fortawesome/free-solid-svg-icons": "^6.7.2",
     "cors": "^2.8.6",
     "elkjs": "^0.11.1",
+    "escape-html": "^1.0.3",
     "express": "^5.2.1",
     "file-saver": "^2.0.5",
     "html-to-image": "^1.11.13",

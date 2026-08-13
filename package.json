@@ -55,7 +55,7 @@
     "angular-eslint": "21.0.1",
     "autoprefixer": "^10.5.0",
     "concurrently": "^9.2.1",
-    "eslint": "^9.39.1",
+    "eslint": "^10.8.1",
     "jasmine-core": "~5.6.0",
     "karma": "~6.4.0",
     "karma-chrome-launcher": "~3.2.0",
@@ -65,6 +65,6 @@
     "postcss": "^8.5.10",
     "tailwindcss": "^4.2.2",
     "typescript": "~5.9.3",
-    "typescript-eslint": "8.46.4"
+    "typescript-eslint": "8.66.0"
   }
 }

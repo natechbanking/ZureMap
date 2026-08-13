@@ -9,11 +9,14 @@ function routeHandler(path, method) {
 }
 
 test('escapes user-controlled values in the diagram summary', () => {
-  const payload = '<script>alert("xss")</script>';
+  const payloads = [
+    '<script>alert("lowercase")</script>',
+    '<SCRIPT>alert("uppercase")</SCRIPT>',
+  ];
   routeHandler('/diagram/state', 'post')({
     body: {
-      nodes: [{ resourceType: payload }],
-      subscriptions: [{ name: payload }],
+      nodes: payloads.map((resourceType) => ({ resourceType })),
+      subscriptions: payloads.map((name) => ({ name })),
     },
   }, { json() {} });
 
@@ -31,6 +34,9 @@ test('escapes user-controlled values in the diagram summary', () => {
   routeHandler('/mcp/diagram-summary', 'get')({}, response);
 
   assert.equal(contentType, 'text/plain; charset=utf-8');
-  assert.doesNotMatch(summary, /<script>/);
-  assert.match(summary, /&lt;script&gt;alert\(&quot;xss&quot;\)&lt;\/script&gt;/);
+  for (const payload of payloads) {
+    assert.equal(summary.includes(payload), false);
+  }
+  assert.equal(summary.includes('&lt;script&gt;alert(&quot;lowercase&quot;)&lt;/script&gt;'), true);
+  assert.equal(summary.includes('&lt;SCRIPT&gt;alert(&quot;uppercase&quot;)&lt;/SCRIPT&gt;'), true);
 });

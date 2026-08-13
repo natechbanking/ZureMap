@@ -18,7 +18,7 @@ router.get('/storage-details', async (req, res) => {
 
     const safeGet = async (path) => {
       try {
-        return await httpsGet('management.azure.com', path, authHeader);
+        return await httpsGet(path, authHeader);
       } catch (err) {
         log('warn', `Storage sub-resource fetch failed (${path.split('/').slice(-3, -1).join('/')}):`, err.message);
         return { value: [] };

@@ -2,7 +2,7 @@
 FROM node:22-slim AS build
 WORKDIR /app
 COPY package*.json ./
-RUN npm ci
+RUN npm ci --ignore-scripts
 COPY . .
 RUN npm run build
 
@@ -12,7 +12,7 @@ FROM node:22-slim AS runtime
 RUN apt-get update && apt-get install -y --no-install-recommends \
       ca-certificates curl gnupg lsb-release && \
     mkdir -p /etc/apt/keyrings && \
-    curl -sLS https://packages.microsoft.com/keys/microsoft.asc | \
+    curl -sLS --proto '=https' --tlsv1.2 https://packages.microsoft.com/keys/microsoft.asc | \
       gpg --dearmor > /etc/apt/keyrings/microsoft.gpg && \
     chmod go+r /etc/apt/keyrings/microsoft.gpg && \
     echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/microsoft.gpg] \
@@ -24,7 +24,7 @@ https://packages.microsoft.com/repos/azure-cli/ $(lsb_release -cs) main" \
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm ci --omit=dev
+RUN npm ci --omit=dev --ignore-scripts
 
 COPY proxy/ ./proxy/
 COPY --from=build /app/dist ./dist

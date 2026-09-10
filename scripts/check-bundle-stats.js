@@ -2,7 +2,14 @@
 const fs = require('fs');
 const path = require('path');
 
-const statsPath = path.resolve(process.cwd(), process.argv[2] || 'dist/zuremap/stats.json');
+// The stats path comes from argv, so confine it to the project directory:
+// resolve first, then reject anything that escapes the root.
+const projectRoot = path.resolve(process.cwd());
+const statsPath = path.resolve(projectRoot, process.argv[2] || 'dist/zuremap/stats.json');
+if (statsPath !== projectRoot && !statsPath.startsWith(projectRoot + path.sep)) {
+  console.error(`stats file must live inside ${projectRoot}: ${statsPath}`);
+  process.exit(1);
+}
 if (!fs.existsSync(statsPath)) {
   console.error(`stats file not found: ${statsPath}`);
   process.exit(1);

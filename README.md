@@ -60,12 +60,41 @@ ZureMap is an intelligent Azure Architecture Diagram Generator built with Angula
 
 ## Prerequisites
 
-- [Node.js](https://nodejs.org/) (v18 or higher)
+- [Node.js](https://nodejs.org/) v22 or higher (npm 10+)
 - [Azure CLI](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli) — required for authentication (`az login`)
-- [Angular CLI](https://github.com/angular/angular-cli) v19.2+
+- [Angular CLI](https://github.com/angular/angular-cli) v19.2+ _(only for local development; not needed to run the `zuremap` CLI)_
 - [Docker](https://www.docker.com/) _(required for the pre-built image path; optional for local dev)_
 
 ## Getting Started
+
+### npm (CLI)
+
+The quickest way to run ZureMap against your own subscriptions — no clone, no build, no Docker.
+
+```bash
+npm i -g zuremap
+az login      # if you aren't logged in already
+zuremap
+```
+
+`zuremap` starts the local server, serves the pre-built UI and opens your browser at
+`http://127.0.0.1:3001`. It binds to loopback only, and reads Azure through the `az`
+CLI already on your PATH — no credentials are stored by ZureMap itself.
+
+```
+Options
+  -p, --port <n>     Port to listen on            (default 3001, env PORT)
+  -H, --host <addr>  Address to bind              (default 127.0.0.1, env HOST)
+      --no-open      Don't open the browser
+  -v, --version      Print version and exit
+  -h, --help         Show this help
+```
+
+Run it without installing:
+
+```bash
+npx zuremap
+```
 
 ### Local Development
 
@@ -199,6 +228,8 @@ The container serves the app on port `3001`.
 | `make lint` | Lint the project |
 | `make clean` | Remove build artifacts and caches |
 | `make map-icons` | Regenerate Azure icon mappings |
+| `make cli` | Build, then run the packaged CLI locally (`bin/zuremap.js`) |
+| `make pack` | Build the publishable npm tarball and list its contents |
 | `make docker-build` | Build the Docker image |
 | `make docker-up` | Build and start the container |
 | `make docker-down` | Stop and remove the container |
@@ -220,6 +251,8 @@ scripts/
   map-icons.js  # Normalizes raw Azure Architecture SVGs for use in ZureMap
 proxy/
   server.js     # Local proxy server for Azure CLI API calls
+bin/
+  zuremap.js    # `zuremap` CLI entry point — serves the built UI + proxy
 ```
 
 ## Updating Icons

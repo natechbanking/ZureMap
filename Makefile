@@ -1,5 +1,5 @@
 .PHONY: help install dev start proxy serve build build-prod build-demo demo test test-watch \
-       lint clean map-icons check \
+       lint clean map-icons check cli pack \
        docker-build docker-up docker-down docker-logs \
        docker-up-device-code docker-down-device-code
 
@@ -50,6 +50,16 @@ demo: build-demo ## Build demo and serve it locally at http://localhost:4300/Zur
 	@cp -r dist/zuremap-demo/browser/. dist/zuremap-demo-serve/ZureMap/
 	@echo "→  Demo: http://localhost:4300/ZureMap/"
 	npx http-server dist/zuremap-demo-serve -p 4300 -c-1 --silent
+
+# ---------------------------------------------------------------------------
+# CLI / npm package
+# ---------------------------------------------------------------------------
+
+cli: build ## Build, then run the packaged CLI locally
+	node bin/zuremap.js
+
+pack: ## Build the publishable npm tarball and list its contents
+	npm pack --dry-run
 
 # ---------------------------------------------------------------------------
 # Test

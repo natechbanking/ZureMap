@@ -2,8 +2,32 @@ const { execFile } = require('child_process');
 
 const AZ_TIMEOUT_MS = 60_000;
 
+// Defence in depth at the sink. Callers already validate what they interpolate
+// (identity.js requires UUIDs, auth.js accepts only the exact ARM resource
+// URL), but runAz is the single point where a request-derived value can reach
+// the Azure CLI, so the shape of every argument is enforced here too. execFile
+// runs without a shell, so this guards against argument/option injection —
+// a value that smuggles in an extra `az` flag — not shell metacharacters.
+const AZ_COMMAND_ALLOWLIST = new Set(['account', 'login', 'rest', 'role']);
+const AZ_ARG_PATTERN = /^[A-Za-z0-9._:/?&=@+-]{1,2048}$/;
+
+function assertSafeAzArgs(args) {
+  if (!Array.isArray(args) || args.length === 0) {
+    throw new TypeError('az arguments must be a non-empty array');
+  }
+  if (!AZ_COMMAND_ALLOWLIST.has(args[0])) {
+    throw new TypeError(`az command not allowed: ${String(args[0])}`);
+  }
+  for (const arg of args) {
+    if (typeof arg !== 'string' || !AZ_ARG_PATTERN.test(arg)) {
+      throw new TypeError('az arguments must be strings matching the permitted pattern');
+    }
+  }
+}
+
 function runAz(args) {
   return new Promise((resolve, reject) => {
+    assertSafeAzArgs(args);
     execFile('az', args, { maxBuffer: 50 * 1024 * 1024, timeout: AZ_TIMEOUT_MS }, (err, stdout, stderr) => {
       if (err) {
         const raw = stderr || err.message || '';
@@ -44,4 +68,4 @@ function azErrorBody(raw) {
   return { error: message, code, detail: raw.slice(0, 800) };
 }
 
-module.exports = { runAz, getArmToken, classifyAzError, azErrorBody };
+module.exports = { runAz, getArmToken, classifyAzError, azErrorBody, assertSafeAzArgs };

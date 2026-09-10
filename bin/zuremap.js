@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-const fs = require('fs');
-const path = require('path');
-const { execFile, spawn } = require('child_process');
+const fs = require('node:fs');
+const path = require('node:path');
+const { execFile, spawn } = require('node:child_process');
 
 const pkg = require('../package.json');
 
@@ -65,13 +65,16 @@ function parseArgs(argv) {
   return opts;
 }
 
-function openBrowser(url) {
-  const [cmd, args] =
-    process.platform === 'darwin' ? ['open', [url]] :
-    process.platform === 'win32' ? ['cmd', ['/c', 'start', '', url]] :
-    ['xdg-open', [url]];
+const BROWSER_OPENERS = {
+  darwin: ['open', (url) => [url]],
+  win32: ['cmd', (url) => ['/c', 'start', '', url]],
+  default: ['xdg-open', (url) => [url]],
+};
 
-  const child = spawn(cmd, args, { stdio: 'ignore', detached: true });
+function openBrowser(url) {
+  const [cmd, buildArgs] = BROWSER_OPENERS[process.platform] ?? BROWSER_OPENERS.default;
+
+  const child = spawn(cmd, buildArgs(url), { stdio: 'ignore', detached: true });
   child.on('error', () => { /* no browser available — the URL is printed anyway */ });
   child.unref();
 }

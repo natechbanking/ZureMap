@@ -298,15 +298,14 @@ jobs:
       id-token: write # npm trusted publishing (OIDC) + build provenance
     steps:
       - uses: actions/checkout@v7
+
+      # Node 24 for the publish job specifically: OIDC trusted publishing needs
+      # npm >= 11.5.1, and node 22 still ships npm 10.
       - uses: actions/setup-node@v7
         with:
-          node-version: '22'
+          node-version: '24'
           cache: 'npm'
           registry-url: 'https://registry.npmjs.org'
-
-      # OIDC trusted publishing needs npm >= 11.5.1; node 22 still ships npm 10.
-      - name: Upgrade npm
-        run: npm install -g npm@latest
 
       - name: Verify the tag matches the package version
         run: |
@@ -317,7 +316,9 @@ jobs:
             exit 1
           fi
 
-      - run: npm ci
+      # No dependency lifecycle scripts on the machine that holds the publish
+      # token; the Angular build does not need them.
+      - run: npm ci --ignore-scripts
 
       # Auth comes from OIDC trusted publishing — there is deliberately no NPM_TOKEN.
       # 'prepack' runs 'npm run build', so the published tarball carries dist/.

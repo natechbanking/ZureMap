@@ -264,7 +264,7 @@ jobs:
       - uses: docker/metadata-action@v6
         id: meta
         with:
-          images: ghcr.io/natechsa/zuremap
+          images: ghcr.io/natechbanking/zuremap
           tags: |
             type=raw,value=${{ steps.pkg.outputs.version }}
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
@@ -275,7 +275,7 @@ jobs:
           labels: |
             org.opencontainers.image.title=ZureMap
             org.opencontainers.image.description=Visualise Microsoft Azure infrastructure as interactive diagrams
-            org.opencontainers.image.vendor=natechsa
+            org.opencontainers.image.vendor=natechbanking
 
       - uses: docker/build-push-action@v7
         with:

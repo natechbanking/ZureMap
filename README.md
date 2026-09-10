@@ -6,7 +6,7 @@
 
 ZureMap is an intelligent Azure Architecture Diagram Generator built with Angular. It automatically scans your Azure subscriptions, discovers resources, and generates interactive architecture diagrams.
 
-**[Try the live demo →](https://natechsa.github.io/ZureMap/#/scan)**
+**[Try the live demo →](https://natechbanking.github.io/ZureMap/#/scan)**
 
 ## Features
 
@@ -123,7 +123,7 @@ npx zuremap
 The easiest way to run ZureMap is to pull the published image from the GitHub Container Registry — no build step required.
 
 ```bash
-docker pull ghcr.io/natechsa/zuremap:latest
+docker pull ghcr.io/natechbanking/zuremap:latest
 ```
 
 ZureMap talks to Azure through its local proxy server, which calls the Azure CLI inside the container. You need to pass your Azure credentials in at start-up. The recommended approach is to mount your local `~/.azure` directory (populated by `az login` on your host):
@@ -133,7 +133,7 @@ docker run -d \
   --name zuremap \
   -p 3001:3001 \
   -v "$HOME/.azure:/home/zuremap/.azure" \
-  ghcr.io/natechsa/zuremap:latest
+  ghcr.io/natechbanking/zuremap:latest
 ```
 
 Then open [http://localhost:3001](http://localhost:3001) in your browser.
@@ -158,7 +158,7 @@ Recommended options on Windows:
 docker run -d `
   --name zuremap `
   -p 3001:3001 `
-  ghcr.io/natechsa/zuremap:latest
+  ghcr.io/natechbanking/zuremap:latest
 
 docker exec -it zuremap az login --use-device-code
 ```
@@ -172,23 +172,23 @@ docker run -d `
   --name zuremap `
   -p 3001:3001 `
   -v "${env:USERPROFILE}\\.azure:/home/zuremap/.azure" `
-  ghcr.io/natechsa/zuremap:latest
+  ghcr.io/natechbanking/zuremap:latest
 ```
 
 #### Pin to a specific version
 
 ```bash
-docker pull ghcr.io/natechsa/zuremap:0.1.0
+docker pull ghcr.io/natechbanking/zuremap:0.1.0
 ```
 
-Available tags: `latest` (current `main`), semver releases (e.g. `0.1.0`), and per-commit `sha-<short>` tags for exact reproducibility. See all tags at [ghcr.io/natechsa/zuremap](https://github.com/natechsa/zuremap/pkgs/container/zuremap).
+Available tags: `latest` (current `main`), semver releases (e.g. `0.1.0`), and per-commit `sha-<short>` tags for exact reproducibility. See all tags at [ghcr.io/natechbanking/zuremap](https://github.com/natechbanking/zuremap/pkgs/container/zuremap).
 
 #### Using Docker Compose
 
 ```yaml
 services:
   zuremap:
-    image: ghcr.io/natechsa/zuremap:latest
+    image: ghcr.io/natechbanking/zuremap:latest
     ports:
       - "3001:3001"
     volumes:

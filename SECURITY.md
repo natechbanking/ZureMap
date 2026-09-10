@@ -31,7 +31,7 @@ This policy covers the ZureMap application source code. It does **not** cover:
 
 ## Disclosure Policy
 
-Once a fix is released, a security advisory will be published on the [GitHub Security Advisories](https://github.com/natechsa/ZureMap/security/advisories) page. Credit will be given to the reporter unless anonymity is requested.
+Once a fix is released, a security advisory will be published on the [GitHub Security Advisories](https://github.com/natechbanking/ZureMap/security/advisories) page. Credit will be given to the reporter unless anonymity is requested.
 
 ## Security Best Practices for Contributors
 

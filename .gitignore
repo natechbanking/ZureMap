@@ -6,6 +6,10 @@
 /out-tsc
 /bazel-out
 
+# The zuremap CLI lives in bin/; some global gitignores exclude bin/ by .NET convention.
+!/bin/
+!/bin/**
+
 # Node
 /node_modules
 npm-debug.log

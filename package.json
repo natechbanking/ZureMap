@@ -84,7 +84,7 @@
     "rxjs": "~7.8.0",
     "tailwindcss": "^4.2.2",
     "tslib": "^2.3.0",
-    "typescript": "~5.9.3",
+    "typescript": "~7.0.2",
     "typescript-eslint": "8.46.4",
     "zone.js": "~0.15.0"
   }

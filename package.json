@@ -60,7 +60,7 @@
     "@azure/msal-browser": "^5.18.0",
     "@fortawesome/angular-fontawesome": "^3.0.0",
     "@fortawesome/fontawesome-svg-core": "^6.7.2",
-    "@fortawesome/free-solid-svg-icons": "^6.7.2",
+    "@fortawesome/free-solid-svg-icons": "^7.3.1",
     "@tailwindcss/postcss": "^4.3.3",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",

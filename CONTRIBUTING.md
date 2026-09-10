@@ -93,9 +93,15 @@ git push --follow-tags
 
 Authentication is [npm trusted publishing](https://docs.npmjs.com/trusted-publishers)
 (OIDC) — there is **no `NPM_TOKEN` secret, and none should ever be added**. npm mints a
-short-lived token scoped to this repo and workflow, so there is no long-lived credential
-to leak or rotate. The job also runs behind the `npm` GitHub environment, so a release
-waits for a reviewer to approve it.
+short-lived token scoped to this repo, workflow and environment, so there is no
+long-lived credential to leak or rotate.
+
+The job runs in the `NPM_PROD` GitHub environment, which is declared in
+`Natech.IaC.Github` (`envs/prod/repo_catalogs/open-source.yaml`) with a **tag-only**
+deployment policy: only a `v*.*.*` tag may deploy to it, so no branch — `main`
+included — can reach the publish identity. Required reviewers are configured in that
+same catalog entry via the `PROD` tier but are inert on the org's current GitHub plan,
+so tagging is the gate today.
 
 One-time registry setup (already done for `zuremap`, documented for forks):
 
@@ -103,7 +109,8 @@ One-time registry setup (already done for `zuremap`, documented for forks):
    already exists.
 2. On npmjs.com → the package → *Settings* → *Trusted Publisher* → GitHub Actions:
    organization `natechbanking`, repository `ZureMap`, workflow `ci.yml`,
-   environment `npm`. The environment must match the job's `environment:` key exactly.
+   environment `NPM_PROD`. All four must match the job exactly, the environment
+   name included.
 
 ## Licensing Your Contribution
 

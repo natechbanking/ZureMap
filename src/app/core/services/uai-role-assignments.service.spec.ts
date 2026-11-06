@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClient, withXhr } from '@angular/common/http';
 import { UaiRoleAssignmentsService } from './uai-role-assignments.service';
 
 describe('UaiRoleAssignmentsService', () => {
@@ -8,7 +8,7 @@ describe('UaiRoleAssignmentsService', () => {
   let httpMock: HttpTestingController;
 
   beforeEach(() => {
-    TestBed.configureTestingModule({ providers: [UaiRoleAssignmentsService, provideHttpClient(), provideHttpClientTesting()] });
+    TestBed.configureTestingModule({ providers: [UaiRoleAssignmentsService, provideHttpClient(withXhr()), provideHttpClientTesting()] });
     service = TestBed.inject(UaiRoleAssignmentsService);
     httpMock = TestBed.inject(HttpTestingController);
   });

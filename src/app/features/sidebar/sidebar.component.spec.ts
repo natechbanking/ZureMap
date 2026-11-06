@@ -65,7 +65,16 @@ describe('SidebarComponent', () => {
     expect(component.portalUrl('/subscriptions/sub-1/resourceGroups/rg-a/providers/Microsoft.Compute/virtualMachines/vm-a'))
       .toBe('https://portal.azure.com/#resource/subscriptions/sub-1/resourceGroups/rg-a/providers/Microsoft.Compute/virtualMachines/vm-a/overview');
 
-    component.copyArmId('abc');
+    await component.copyArmId('abc');
     expect(clipboardSpy).toHaveBeenCalledWith('abc');
+  });
+
+  it('handles denied clipboard permission without an unhandled rejection', async () => {
+    spyOn(navigator.clipboard, 'writeText').and.rejectWith(new Error('Permission denied'));
+    const alertSpy = spyOn(window, 'alert');
+
+    await fixture.componentInstance.copyArmId('abc');
+
+    expect(alertSpy).toHaveBeenCalledWith('Unable to copy the ARM ID. Please select and copy it manually.');
   });
 });

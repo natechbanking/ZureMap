@@ -18,6 +18,7 @@ import {
   faCrosshairs,
   faDiamond,
   faDownLeftAndUpRightToCenter,
+  faDrawPolygon,
   faEraser,
   faHand,
   faLayerGroup,
@@ -37,7 +38,6 @@ import {
   faTags,
   faTrash,
   faUpRightFromSquare,
-  faVectorSquare,
   faXmark,
 } from '@fortawesome/free-solid-svg-icons';
 
@@ -117,7 +117,7 @@ export const ACTION_ICONS: Record<ActionIconName, IconDefinition> = {
   penNib: faPenNib,
   plus: faPlus,
   pointer: faArrowPointer,
-  rectangle: faVectorSquare,
+  rectangle: faDrawPolygon,
   reset: faArrowLeft,
   rotate: faRotate,
   search: faMagnifyingGlass,

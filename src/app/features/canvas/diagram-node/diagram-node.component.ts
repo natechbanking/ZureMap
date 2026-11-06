@@ -1,4 +1,4 @@
-import { Component, Input, Output, EventEmitter, HostListener, inject, ElementRef, OnChanges, SimpleChanges } from '@angular/core';
+import { Component, Input, Output, EventEmitter, HostListener, inject, ElementRef, OnChanges, SimpleChanges, ChangeDetectionStrategy } from '@angular/core';
 
 import { DiagramNode, NodeInternalItem } from '../../../core/models/diagram-node.model';
 import { AzureIconComponent } from '../../../shared/components/azure-icon/azure-icon.component';
@@ -99,6 +99,7 @@ import { NodeToggleButtonComponent } from '../shared/node-toggle-button.componen
     NsgRulesPanelComponent
 ],
   templateUrl: './diagram-node.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./diagram-node.component.scss'],
 })
 export class DiagramNodeComponent implements OnChanges {

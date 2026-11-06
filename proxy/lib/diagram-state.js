@@ -3,6 +3,22 @@ let currentDiagramState = null;
 const getState = () => currentDiagramState;
 const setState = (state) => { currentDiagramState = state; };
 
+const isRecord = value => value !== null && typeof value === 'object' && !Array.isArray(value);
+const optionalString = value => value === undefined || typeof value === 'string';
+
+function isValidDiagramState(state) {
+  if (!isRecord(state) || !optionalString(state.exportedAt)) return false;
+  const { nodes = [], edges = [], subscriptions = [] } = state;
+  return Array.isArray(nodes) && Array.isArray(edges) && Array.isArray(subscriptions)
+    && nodes.every(node => isRecord(node)
+      && optionalString(node.resourceType) && optionalString(node.label)
+      && (node.costData === undefined || (isRecord(node.costData)
+        && (node.costData.monthlyCostUsd === undefined || Number.isFinite(node.costData.monthlyCostUsd)))))
+    && edges.every(edge => isRecord(edge) && optionalString(edge.sourceId)
+      && optionalString(edge.targetId) && optionalString(edge.edgeType))
+    && subscriptions.every(subscription => isRecord(subscription) && optionalString(subscription.name));
+}
+
 function sanitizeForMarkdown(value) {
   return String(value ?? '')
     .replace(/\\/g, '\\\\')
@@ -52,4 +68,4 @@ ${edgeSummary || 'None'}${costSection}
 `;
 }
 
-module.exports = { getState, setState, buildMarkdownSummary };
+module.exports = { getState, setState, buildMarkdownSummary, isValidDiagramState };

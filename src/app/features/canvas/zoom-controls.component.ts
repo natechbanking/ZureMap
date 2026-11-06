@@ -1,11 +1,12 @@
 
-import { Component, EventEmitter, Input, Output } from '@angular/core';
+import { Component, EventEmitter, Input, Output, ChangeDetectionStrategy } from '@angular/core';
 import { ActionIconComponent } from '../../shared/components/action-icon/action-icon.component';
 
 @Component({
   selector: 'app-zoom-controls',
   standalone: true,
   imports: [ActionIconComponent],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <div
       class="absolute bottom-4 z-[130] flex items-center gap-1.5 px-2 py-1.5 rounded-xl border border-gray-200 bg-white/95 backdrop-blur shadow"

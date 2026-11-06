@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClient, withXhr } from '@angular/common/http';
 import { DnsRecordsService } from './dns-records.service';
 
 describe('DnsRecordsService', () => {
@@ -8,7 +8,7 @@ describe('DnsRecordsService', () => {
   let httpMock: HttpTestingController;
 
   beforeEach(() => {
-    TestBed.configureTestingModule({ providers: [DnsRecordsService, provideHttpClient(), provideHttpClientTesting()] });
+    TestBed.configureTestingModule({ providers: [DnsRecordsService, provideHttpClient(withXhr()), provideHttpClientTesting()] });
     service = TestBed.inject(DnsRecordsService);
     httpMock = TestBed.inject(HttpTestingController);
   });

@@ -4,7 +4,7 @@
 
 | Version | Supported |
 | ------- | --------- |
-| 0.5.x   | ✓         |
+| 0.7.x   | ✓         |
 
 ## Reporting a Vulnerability
 
@@ -36,5 +36,5 @@ Once a fix is released, a security advisory will be published on the [GitHub Sec
 ## Security Best Practices for Contributors
 
 - Never commit credentials, tokens, or subscription IDs — use environment variables or `.env` files (already in `.gitignore`)
-- Azure tokens are handled via MSAL; do not cache or log access tokens
-- Keep dependencies up to date; Dependabot is enabled for this repository
+- Azure tokens come from the Azure CLI session; do not cache or log access tokens
+- Keep dependencies up to date; Renovate is enabled for this repository

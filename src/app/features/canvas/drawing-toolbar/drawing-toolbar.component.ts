@@ -1,4 +1,4 @@
-import { Component, Input, Output, EventEmitter, HostListener, OnInit, inject } from '@angular/core';
+import { Component, Input, Output, EventEmitter, HostListener, OnInit, inject, ChangeDetectionStrategy } from '@angular/core';
 
 import { FormsModule } from '@angular/forms';
 import { DrawingTool, StrokeStyle, EdgeRouting, EdgeMode } from '../../../core/models/annotation.model';
@@ -67,6 +67,7 @@ const FONT_FAMILIES = [
   selector: 'app-drawing-toolbar',
   standalone: true,
   imports: [FormsModule, ActionIconComponent],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <div class="pointer-events-none absolute left-0 right-0 top-3 z-[165] select-none">
       <div class="pointer-events-auto mx-auto flex w-max items-center gap-1 rounded-xl border border-gray-200 bg-white/95 p-1 shadow-lg backdrop-blur">

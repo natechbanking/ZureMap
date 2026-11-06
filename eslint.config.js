@@ -38,6 +38,8 @@ module.exports = defineConfig([
       "@angular-eslint/no-output-native": "warn",
       // Migration from constructor injection to inject() — tracked separately
       "@angular-eslint/prefer-inject": "warn",
+      // Angular 22 migrations retain existing change detection with explicit Eager components.
+      "@angular-eslint/prefer-on-push-component-change-detection": "off",
       // Allow intentionally-unused params prefixed with _
       "@typescript-eslint/no-unused-vars": ["error", { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_" }],
     },

@@ -434,7 +434,7 @@ async function queryCostV2(rawRequest) {
     ? resources.length
     : resources.filter(r => requestedIdSet.has(r.normalizedResourceId)).length;
   const unmatchedCostRows = requestedIdSet.size === 0
-    ? 0
+    ? []
     : resources.filter(r => !requestedIdSet.has(r.normalizedResourceId));
 
   const trend = [...trendByDate.entries()]

@@ -3,6 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const { rateLimit } = require('express-rate-limit');
 const { log, dim, green, yellow, red, cyan } = require('./lib/logger');
+const { createApiRequestGuard } = require('./lib/api-request-guard');
 
 const DIST_PATH = path.join(__dirname, '../dist/zuremap/browser');
 
@@ -14,7 +15,7 @@ function parsePositiveIntEnv(name, fallback) {
   return Math.floor(value);
 }
 
-function createApp() {
+function createApp({ host } = {}) {
   const app = express();
   app.disable('x-powered-by');
 
@@ -30,6 +31,12 @@ function createApp() {
   });
 
   const corsOrigin = process.env.NODE_ENV === 'production' ? false : 'http://localhost:4200';
+  app.use('/api', rateLimit({
+    windowMs: parsePositiveIntEnv('API_RATE_WINDOW_MS', 60_000),
+    limit: parsePositiveIntEnv('API_RATE_MAX_REQUESTS', 600),
+    standardHeaders: 'draft-8',
+    legacyHeaders: false,
+  }), createApiRequestGuard({ host }));
   app.use(cors({ origin: corsOrigin }));
   app.use(express.json());
 
@@ -61,7 +68,7 @@ function start({ port, host, onListening } = {}) {
   const PORT = Number(port ?? process.env.PORT ?? 3001);
   const HOST = host ?? process.env.HOST ?? (process.env.NODE_ENV === 'production' ? '0.0.0.0' : '127.0.0.1');
 
-  const server = createApp().listen(PORT, HOST, () => {
+  const server = createApp({ host: HOST }).listen(PORT, HOST, () => {
     const { address, port: boundPort } = server.address();
     if (onListening) onListening({ host: address, port: boundPort });
     else log('info', `ZureMap proxy running on http://${address}:${boundPort}`);

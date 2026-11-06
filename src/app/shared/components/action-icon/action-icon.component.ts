@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, Input } from '@angular/core';
+import { Component, Input, ChangeDetectionStrategy } from '@angular/core';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { ACTION_ICONS, ActionIconName } from '../../icons/action-icons';
 
@@ -7,6 +7,7 @@ import { ACTION_ICONS, ActionIconName } from '../../icons/action-icons';
   selector: 'app-action-icon',
   standalone: true,
   imports: [CommonModule, FontAwesomeModule],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <fa-icon
       [icon]="iconDef"

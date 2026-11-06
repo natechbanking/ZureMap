@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClient, withXhr } from '@angular/common/http';
 import { AzAuthService } from './az-auth.service';
 
 describe('AzAuthService', () => {
@@ -8,7 +8,7 @@ describe('AzAuthService', () => {
   let httpMock: HttpTestingController;
 
   beforeEach(() => {
-    TestBed.configureTestingModule({ providers: [AzAuthService, provideHttpClient(), provideHttpClientTesting()] });
+    TestBed.configureTestingModule({ providers: [AzAuthService, provideHttpClient(withXhr()), provideHttpClientTesting()] });
     service = TestBed.inject(AzAuthService);
     httpMock = TestBed.inject(HttpTestingController);
   });

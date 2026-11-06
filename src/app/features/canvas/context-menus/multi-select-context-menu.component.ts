@@ -1,10 +1,11 @@
-import { Component, EventEmitter, Input, Output } from '@angular/core';
+import { Component, EventEmitter, Input, Output, ChangeDetectionStrategy } from '@angular/core';
 import { ActionIconComponent } from '../../../shared/components/action-icon/action-icon.component';
 
 @Component({
   selector: 'app-multi-select-context-menu',
   standalone: true,
   imports: [ActionIconComponent],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <div
       class="fixed z-[191] w-52 rounded-lg bg-white border border-gray-200 shadow-xl py-1 select-none"

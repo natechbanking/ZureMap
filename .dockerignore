@@ -4,4 +4,5 @@ dist
 .git
 .github
 coverage
+tmp
 *.md

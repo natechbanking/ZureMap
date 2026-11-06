@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClient, withXhr } from '@angular/common/http';
 import { StorageDetailsService } from './storage-details.service';
 
 describe('StorageDetailsService', () => {
@@ -8,7 +8,7 @@ describe('StorageDetailsService', () => {
   let httpMock: HttpTestingController;
 
   beforeEach(() => {
-    TestBed.configureTestingModule({ providers: [StorageDetailsService, provideHttpClient(), provideHttpClientTesting()] });
+    TestBed.configureTestingModule({ providers: [StorageDetailsService, provideHttpClient(withXhr()), provideHttpClientTesting()] });
     service = TestBed.inject(StorageDetailsService);
     httpMock = TestBed.inject(HttpTestingController);
   });

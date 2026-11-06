@@ -129,8 +129,12 @@ export class SidebarComponent {
     return Object.keys(tags ?? {});
   }
 
-  copyArmId(id: string): void {
-    navigator.clipboard.writeText(id);
+  async copyArmId(id: string): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(id);
+    } catch {
+      window.alert('Unable to copy the ARM ID. Please select and copy it manually.');
+    }
   }
 
   portalUrl(armId: string): string {

@@ -816,7 +816,7 @@ export class ScanComponent implements OnInit, OnDestroy {
       }
     }
     const subIds = this.store.activeSubscriptions().map(s => s.subscriptionId);
-    this.runScan(subIds);
+    await this.runScan(subIds);
   }
 
   async onImportFileChange(event: Event): Promise<void> {

@@ -105,6 +105,9 @@ or bind the CLI with `--host zuremap.example.internal`. This allowlist does not 
 authentication: keep ZureMap accessible only to trusted users, because its API uses
 your Azure CLI session. Docker examples bind the published port to loopback.
 
+The API allows 600 requests per minute by default. For larger scans, configure
+`API_RATE_MAX_REQUESTS` and `API_RATE_WINDOW_MS` on the server.
+
 ### Local Development
 
 1. **Install dependencies:**

@@ -11,6 +11,8 @@ FROM node:24-trixie-slim AS runtime
 
 # Microsoft recommends the bookworm repository when a newer Debian release
 # does not yet have an Azure CLI repository.
+# Patch vulnerable CLI libraries with the compatible pyOpenSSL release required
+# by cryptography 50. Core commands do not need pip's build dependencies.
 RUN apt-get update && apt-get upgrade -y && \
     apt-get install -y --no-install-recommends ca-certificates curl gnupg && \
     mkdir -p /etc/apt/keyrings && \
@@ -22,18 +24,13 @@ https://packages.microsoft.com/repos/azure-cli/ bookworm main" \
       > /etc/apt/sources.list.d/azure-cli.list && \
     apt-get update && apt-get install -y --no-install-recommends azure-cli && \
     apt-get purge -y --auto-remove curl gnupg && \
-    rm -rf /var/lib/apt/lists/*
-
-# Patch vulnerable libraries bundled by Azure CLI, including the compatible
-# pyOpenSSL release required by cryptography 50. Core CLI commands used by the
-# app do not need pip or its vendored build dependencies at runtime.
-RUN /opt/az/bin/python3 -m pip install --no-cache-dir --only-binary=:all: --upgrade \
+    rm -rf /var/lib/apt/lists/* && \
+    /opt/az/bin/python3 -m pip install --no-cache-dir --only-binary=:all: --upgrade \
       cryptography==50.0.2 pyOpenSSL==26.4.0 oauthlib==4.0.1 urllib3==2.8.0 pip==26.3 && \
     /opt/az/bin/python3 -m pip check && \
     rm -rf /opt/az/lib/python*/site-packages/pip /opt/az/lib/python*/site-packages/pip-*.dist-info \
-      /opt/az/lib/python*/ensurepip /opt/az/bin/pip*
-
-RUN mkdir -p /home/zuremap/.azure && chown -R node:node /home/zuremap
+      /opt/az/lib/python*/ensurepip /opt/az/bin/pip* && \
+    mkdir -p /home/zuremap/.azure && chown -R node:node /home/zuremap
 
 WORKDIR /app
 

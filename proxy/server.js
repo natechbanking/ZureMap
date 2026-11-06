@@ -31,7 +31,12 @@ function createApp({ host } = {}) {
   });
 
   const corsOrigin = process.env.NODE_ENV === 'production' ? false : 'http://localhost:4200';
-  app.use('/api', createApiRequestGuard({ host }));
+  app.use('/api', rateLimit({
+    windowMs: parsePositiveIntEnv('API_RATE_WINDOW_MS', 60_000),
+    limit: parsePositiveIntEnv('API_RATE_MAX_REQUESTS', 600),
+    standardHeaders: 'draft-8',
+    legacyHeaders: false,
+  }), createApiRequestGuard({ host }));
   app.use(cors({ origin: corsOrigin }));
   app.use(express.json());
 

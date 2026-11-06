@@ -2,12 +2,18 @@ const assert = require('node:assert/strict');
 const http = require('node:http');
 const test = require('node:test');
 const express = require('express');
+const { rateLimit } = require('express-rate-limit');
 const { createApiRequestGuard } = require('./api-request-guard');
 
 async function withApi(t, options) {
   const app = express();
   let calls = 0;
-  app.use('/api', createApiRequestGuard(options));
+  app.use('/api', rateLimit({
+    windowMs: 60_000,
+    limit: options?.limit ?? 100,
+    standardHeaders: 'draft-8',
+    legacyHeaders: false,
+  }), createApiRequestGuard(options));
   app.all('/api/token', (_req, res) => {
     calls += 1;
     res.json({ accessToken: 'secret' });
@@ -86,4 +92,13 @@ test('allows explicitly configured DNS hosts and custom CLI bind hosts', async t
   }
   assert.equal((await api.request({ Host: 'custom.internal:3001', Origin: 'http://localhost:4200' })).status, 403);
   assert.equal((await api.request({ Host: 'custom.internal:3001', Origin: 'http://custom.internal:4000' })).status, 403);
+});
+
+test('limits repeated API requests before the protected handler runs', async t => {
+  const api = await withApi(t, { limit: 2 });
+  const headers = { Host: 'localhost:3001' };
+  assert.equal((await api.request(headers)).status, 200);
+  assert.equal((await api.request(headers)).status, 200);
+  assert.equal((await api.request(headers)).status, 429);
+  assert.equal(api.calls(), 2);
 });

@@ -1,4 +1,4 @@
-import { Component, Input, Output, EventEmitter } from '@angular/core';
+import { Component, Input, Output, EventEmitter, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { AzureSubscription } from '../../../core/models/azure-resource.model';
@@ -96,6 +96,7 @@ import { ActionIconComponent } from '../../../shared/components/action-icon/acti
     </div>
   `
   ,
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: [`
     button:not(:disabled) {
       cursor: pointer;

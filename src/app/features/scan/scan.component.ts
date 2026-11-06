@@ -1,4 +1,4 @@
-import { Component, inject, NgZone, OnDestroy, OnInit, signal } from '@angular/core';
+import { Component, inject, NgZone, OnDestroy, OnInit, signal, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import { AzAuthService, DeviceCodeLogin } from '../../core/services/az-auth.service';
@@ -557,6 +557,7 @@ interface ConnectionType {
       </div>
     </div>
   `,
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: [`
     button:not(:disabled) {
       cursor: pointer;

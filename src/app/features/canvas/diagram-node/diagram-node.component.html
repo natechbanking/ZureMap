@@ -275,7 +275,7 @@
       }
 
       @if (node.custom?.description) {
-        <span class="text-[10px] leading-tight text-gray-500 text-center max-w-full px-1 truncate" [title]="node.custom?.description">
+        <span class="text-[10px] leading-tight text-gray-500 text-center max-w-full px-1 truncate" [title]="$safeNavigationMigration(node.custom?.description)">
           {{ node.custom?.description }}
         </span>
       }

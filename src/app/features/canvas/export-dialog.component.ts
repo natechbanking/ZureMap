@@ -1,10 +1,11 @@
 
-import { Component, EventEmitter, Input, Output } from '@angular/core';
+import { Component, EventEmitter, Input, Output, ChangeDetectionStrategy } from '@angular/core';
 
 @Component({
   selector: 'app-export-dialog',
   standalone: true,
   imports: [],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <div class="absolute inset-0 z-[170] bg-black/30 flex items-center justify-center p-4" role="presentation" (click)="closed.emit()" (keydown.escape)="closed.emit()">
       <div class="w-full max-w-sm rounded-xl border border-gray-200 bg-white shadow-2xl" role="presentation" (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">

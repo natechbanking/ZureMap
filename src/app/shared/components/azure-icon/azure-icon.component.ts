@@ -1,4 +1,4 @@
-import { Component, Input, inject } from '@angular/core';
+import { Component, Input, inject, ChangeDetectionStrategy } from '@angular/core';
 
 import { IconRegistryService } from '../../../core/services/icon-registry.service';
 
@@ -6,6 +6,7 @@ import { IconRegistryService } from '../../../core/services/icon-registry.servic
   selector: 'app-azure-icon',
   standalone: true,
   imports: [],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <img
       [src]="resolvedUrl"

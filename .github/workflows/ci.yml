@@ -30,7 +30,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
-          node-version: '22'
+          node-version: '24'
           cache: 'npm'
       - run: npm ci --ignore-scripts
       - run: npm test -- --watch=false --browsers=ChromeHeadless
@@ -42,7 +42,7 @@ jobs:
         run: |
           node bin/zuremap.js --version
           node bin/zuremap.js --no-open --port 3999 &
-          for i in $(seq 1 30); do
+          for _ in $(seq 1 30); do
             curl -sf -o /dev/null http://127.0.0.1:3999/ && exit 0
             sleep 1
           done
@@ -59,7 +59,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
-          node-version: '22'
+          node-version: '24'
           cache: 'npm'
       - name: Install dependencies (PR head)
         run: npm ci --ignore-scripts
@@ -179,15 +179,32 @@ jobs:
           BASE_HIT: ${{ steps.base.outputs.line_hit }}
           BASE_FOUND: ${{ steps.base.outputs.line_found }}
           DELTA: ${{ steps.regression.outputs.delta }}
-          REGRESSION_FAILED: ${{ steps.regression.outcome == 'failure' }}
+          HEAD_OUTCOME: ${{ steps.head.outcome }}
+          BASE_OUTCOME: ${{ steps.base.outcome }}
+          REGRESSION_OUTCOME: ${{ steps.regression.outcome }}
         with:
           script: |
             const marker = '<!-- coverage-report -->';
-            const failed = process.env.REGRESSION_FAILED === 'true';
-            const title = failed ? 'Coverage Regression Detected' : 'Coverage Report';
-            const delta = Number(process.env.DELTA || 0);
+            const values = ['HEAD_PCT', 'HEAD_HIT', 'HEAD_FOUND', 'BASE_PCT', 'BASE_HIT', 'BASE_FOUND', 'DELTA'];
+            const valid = values.every(key =>
+              typeof process.env[key] === 'string' &&
+              process.env[key].trim() !== '' &&
+              Number.isFinite(Number(process.env[key]))
+            );
+            const delta = Number(process.env.DELTA);
+            const failed = delta < 0;
+            const completed = valid &&
+              process.env.HEAD_OUTCOME === 'success' &&
+              process.env.BASE_OUTCOME === 'success' &&
+              process.env.REGRESSION_OUTCOME === (failed ? 'failure' : 'success');
+            const title = !completed ? 'Coverage Report Unavailable' :
+              failed ? 'Coverage Regression Detected' : 'Coverage Report';
             const deltaStr = (delta >= 0 ? '+' : '') + delta.toFixed(2) + 'pp';
-            const body = `${marker}
+            const body = !completed ? `${marker}
+            ## ${title}
+
+            ❌ Coverage comparison could not complete. Check the coverage job logs; no regression result is available.
+            ` : `${marker}
             ## ${title}
 
             | Metric | Base (${context.payload.pull_request.base.ref}) | PR (${context.payload.pull_request.head.ref}) | Delta |
@@ -234,7 +251,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
-          node-version: '22'
+          node-version: '24'
           cache: 'npm'
       - run: npm ci --ignore-scripts
       - run: npm run lint
@@ -251,7 +268,7 @@ jobs:
 
       - name: Read version from package.json
         id: pkg
-        run: echo "version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
+        run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
 
       - uses: docker/setup-buildx-action@v4
 
@@ -302,8 +319,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      # Node 24 for the publish job specifically: OIDC trusted publishing needs
-      # npm >= 11.5.1, and node 22 still ships npm 10.
+      # Node 24 provides npm >= 11.5.1 for OIDC trusted publishing.
       - uses: actions/setup-node@v7
         with:
           node-version: '24'

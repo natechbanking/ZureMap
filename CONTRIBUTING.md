@@ -4,9 +4,9 @@ Thanks for your interest in contributing. This document covers how to get set up
 
 ## Prerequisites
 
-- [Node.js](https://nodejs.org/) v22+
+- [Node.js](https://nodejs.org/) v22.22.3+, v24.15.0+, or v26+
 - [Azure CLI](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli) — `az login` must work locally
-- [Angular CLI](https://github.com/angular/angular-cli) v19+
+- [Angular CLI](https://github.com/angular/angular-cli) v22
 
 ## Local Setup
 

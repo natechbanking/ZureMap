@@ -5,7 +5,7 @@ const path = require('path');
 // The stats path comes from argv, so confine it to the project directory:
 // resolve first, then reject anything that escapes the root.
 const projectRoot = path.resolve(process.cwd());
-const statsPath = path.resolve(projectRoot, process.argv[2] || 'dist/zuremap/stats.json');
+const statsPath = path.resolve(projectRoot, process.argv[2] || 'dist/zuremap/browser-stats.json');
 if (statsPath !== projectRoot && !statsPath.startsWith(projectRoot + path.sep)) {
   console.error(`stats file must live inside ${projectRoot}: ${statsPath}`);
   process.exit(1);

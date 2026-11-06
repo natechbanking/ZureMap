@@ -1,4 +1,4 @@
-import { Component, Input, Output, EventEmitter, OnInit } from '@angular/core';
+import { Component, Input, Output, EventEmitter, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { NodeStatus } from '../../core/models/diagram-node.model';
@@ -29,6 +29,7 @@ const AZURE_REGIONS = [
   selector: 'app-create-resource-modal',
   standalone: true,
   imports: [CommonModule, FormsModule, ActionIconComponent],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <div
       class="fixed inset-0 z-[500] flex items-center justify-center p-4"

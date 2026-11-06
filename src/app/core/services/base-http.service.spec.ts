@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClient, withXhr } from '@angular/common/http';
 import { BaseHttpService } from './base-http.service';
 
 class TestHttpService extends BaseHttpService {
@@ -19,7 +19,7 @@ describe('BaseHttpService', () => {
 
   beforeEach(() => {
     TestBed.configureTestingModule({
-      providers: [TestHttpService, provideHttpClient(), provideHttpClientTesting()],
+      providers: [TestHttpService, provideHttpClient(withXhr()), provideHttpClientTesting()],
     });
     service = TestBed.inject(TestHttpService);
     httpMock = TestBed.inject(HttpTestingController);

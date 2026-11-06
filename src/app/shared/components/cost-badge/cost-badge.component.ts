@@ -1,4 +1,4 @@
-import { Component, Input } from '@angular/core';
+import { Component, Input, ChangeDetectionStrategy } from '@angular/core';
 
 import { NodeCostData } from '../../../core/models/cost-data.model';
 import { getCostBorderStyle } from '../../../core/utils/cost-thresholds';
@@ -19,6 +19,7 @@ import { FormatCostPipe } from '../../pipes/format-cost.pipe';
       </span>
     }
   `,
+  changeDetection: ChangeDetectionStrategy.Eager,
   host: { class: 'relative' },
 })
 export class CostBadgeComponent {

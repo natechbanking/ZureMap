@@ -28,7 +28,7 @@ export class CanvasResourcePlacementController {
     if (!event.dataTransfer) return;
     const raw = event.dataTransfer.getData(AZURE_RESOURCE_DND_TYPE);
     if (!raw) return;
-    let payload: { type?: string; label?: string } | null = null;
+    let payload: { type?: string; label?: string } | null;
     try {
       payload = JSON.parse(raw) as { type?: string; label?: string };
     } catch {

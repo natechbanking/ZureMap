@@ -60,9 +60,9 @@ ZureMap is an intelligent Azure Architecture Diagram Generator built with Angula
 
 ## Prerequisites
 
-- [Node.js](https://nodejs.org/) v22 or higher (npm 10+)
+- [Node.js](https://nodejs.org/) v22.22.3+, v24.15.0+, or v26+ (npm 10+)
 - [Azure CLI](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli) — required for authentication (`az login`)
-- [Angular CLI](https://github.com/angular/angular-cli) v19.2+ _(only for local development; not needed to run the `zuremap` CLI)_
+- [Angular CLI](https://github.com/angular/angular-cli) v22 _(only for local development; not needed to run the `zuremap` CLI)_
 - [Docker](https://www.docker.com/) _(required for the pre-built image path; optional for local dev)_
 
 ## Getting Started
@@ -95,6 +95,15 @@ Run it without installing:
 ```bash
 npx zuremap
 ```
+
+### API access and custom hostnames
+
+The Azure API accepts same-origin browser requests and rejects cross-site requests.
+Localhost and IP addresses work by default. For a custom hostname, set
+`ZUREMAP_ALLOWED_HOSTS=zuremap.example.internal` (comma-separated for multiple hosts),
+or bind the CLI with `--host zuremap.example.internal`. This allowlist does not add
+authentication: keep ZureMap accessible only to trusted users, because its API uses
+your Azure CLI session. Docker examples bind the published port to loopback.
 
 ### Local Development
 
@@ -131,7 +140,7 @@ ZureMap talks to Azure through its local proxy server, which calls the Azure CLI
 ```bash
 docker run -d \
   --name zuremap \
-  -p 3001:3001 \
+  -p 127.0.0.1:3001:3001 \
   -v "$HOME/.azure:/home/zuremap/.azure" \
   ghcr.io/natechbanking/zuremap:latest
 ```
@@ -157,7 +166,7 @@ Recommended options on Windows:
 ```powershell
 docker run -d `
   --name zuremap `
-  -p 3001:3001 `
+  -p 127.0.0.1:3001:3001 `
   ghcr.io/natechbanking/zuremap:latest
 
 docker exec -it zuremap az login --use-device-code
@@ -170,7 +179,7 @@ If you still want to mount the Windows `.azure` directory for profile files, use
 ```powershell
 docker run -d `
   --name zuremap `
-  -p 3001:3001 `
+  -p 127.0.0.1:3001:3001 `
   -v "${env:USERPROFILE}\\.azure:/home/zuremap/.azure" `
   ghcr.io/natechbanking/zuremap:latest
 ```
@@ -178,10 +187,10 @@ docker run -d `
 #### Pin to a specific version
 
 ```bash
-docker pull ghcr.io/natechbanking/zuremap:0.1.0
+docker pull ghcr.io/natechbanking/zuremap:0.7.0
 ```
 
-Available tags: `latest` (current `main`), semver releases (e.g. `0.1.0`), and per-commit `sha-<short>` tags for exact reproducibility. See all tags at [ghcr.io/natechbanking/zuremap](https://github.com/natechbanking/zuremap/pkgs/container/zuremap).
+Available tags: `latest` (current `main`), semver releases (e.g. `0.7.0`), and per-commit `sha-<short>` tags for exact reproducibility. See all tags at [ghcr.io/natechbanking/zuremap](https://github.com/natechbanking/zuremap/pkgs/container/zuremap).
 
 #### Using Docker Compose
 
@@ -190,7 +199,7 @@ services:
   zuremap:
     image: ghcr.io/natechbanking/zuremap:latest
     ports:
-      - "3001:3001"
+      - "127.0.0.1:3001:3001"
     volumes:
       - $HOME/.azure:/home/zuremap/.azure
     restart: unless-stopped

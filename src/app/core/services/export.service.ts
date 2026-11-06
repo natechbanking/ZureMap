@@ -22,6 +22,106 @@ export interface ExportImageOptions {
   canvasHeight: number;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function hasStrings(value: Record<string, unknown>, keys: string[]): boolean {
+  return keys.every(key => typeof value[key] === 'string');
+}
+
+function hasNumbers(value: Record<string, unknown>, keys: string[]): boolean {
+  return keys.every(key => typeof value[key] === 'number' && Number.isFinite(value[key]));
+}
+
+function hasOptionalStrings(value: Record<string, unknown>, keys: string[]): boolean {
+  return keys.every(key => value[key] === undefined || typeof value[key] === 'string');
+}
+
+function isPoint(value: unknown): boolean {
+  return isRecord(value) && hasNumbers(value, ['x', 'y']);
+}
+
+function hasValidWaypoints(value: Record<string, unknown>): boolean {
+  return value['waypoints'] === undefined ||
+    (Array.isArray(value['waypoints']) && value['waypoints'].every(isPoint));
+}
+
+function isDiagramNode(value: Record<string, unknown>): boolean {
+  const metadata = value['metadata'];
+  const size = value['size'];
+  const custom = value['custom'];
+  const cost = value['costData'];
+  const ports = value['ports'];
+  return hasStrings(value, ['id', 'label', 'resourceType', 'group', 'groupId']) &&
+    isPoint(value['position']) && isRecord(size) && hasNumbers(size, ['width', 'height']) &&
+    isRecord(metadata) && hasStrings(metadata, ['id', 'name', 'type', 'location', 'resourceGroup', 'subscriptionId']) &&
+    (metadata['tags'] == null || (isRecord(metadata['tags']) && Object.values(metadata['tags']).every(tag => typeof tag === 'string'))) &&
+    isRecord(metadata['properties']) && hasOptionalStrings(value, ['parentId', 'status']) &&
+    (value['children'] === undefined || (Array.isArray(value['children']) && value['children'].every(id => typeof id === 'string'))) &&
+    (custom === undefined || (isRecord(custom) && hasOptionalStrings(custom, ['description', 'boundShapeAnnotationId']) &&
+      (custom['panelState'] === undefined || (isRecord(custom['panelState']) &&
+        Object.values(custom['panelState']).every(open => typeof open === 'boolean'))) &&
+      (custom['internalItems'] === undefined || (Array.isArray(custom['internalItems']) &&
+        custom['internalItems'].every(item => isRecord(item) && hasStrings(item, ['id', 'text']) && isPoint(item)))))) &&
+    (ports === undefined || (Array.isArray(ports) && ports.every(port => isRecord(port) &&
+      hasStrings(port, ['id', 'side']) && (port['offset'] === undefined || hasNumbers(port, ['offset']))))) &&
+    (cost === undefined || (isRecord(cost) && hasNumbers(cost, ['monthlyCostUsd']) && hasStrings(cost, ['currency', 'period'])));
+}
+
+function isDiagramEdge(value: Record<string, unknown>): boolean {
+  const style = value['style'];
+  return hasStrings(value, ['id', 'sourceId', 'targetId', 'edgeType']) &&
+    isRecord(style) && hasStrings(style, ['strokeColor', 'markerEnd']) &&
+    hasNumbers(style, ['strokeWidth']) && hasOptionalStrings(style, ['dashArray']) &&
+    hasOptionalStrings(value, ['sourcePort', 'targetPort', 'sourceAnnotationId', 'targetAnnotationId', 'label']) &&
+    hasValidWaypoints(value);
+}
+
+function isAnnotation(value: Record<string, unknown>): boolean {
+  const image = value['imageDataUrl'];
+  const container = value['container'];
+  const types = ['draw', 'line', 'arrow', 'text', 'rect', 'ellipse', 'diamond', 'sticky', 'image'];
+  return hasStrings(value, ['id', 'type', 'color', 'fill']) && types.includes(value['type'] as string) &&
+    hasNumbers(value, ['x', 'y', 'strokeWidth']) && hasValidWaypoints(value) &&
+    ['width', 'height', 'x2', 'y2', 'fontSize', 'rotation', 'fillOpacity', 'sloppiness'].every(key =>
+      value[key] === undefined || hasNumbers(value, [key])) &&
+    hasOptionalStrings(value, ['text', 'fontFamily', 'pathData']) &&
+    ['sourceBinding', 'targetBinding'].every(key => value[key] === undefined ||
+      (isRecord(value[key]) && hasStrings(value[key], ['portId']) && hasOptionalStrings(value[key], ['nodeId', 'annotationId']))) &&
+    (container === undefined || (isRecord(container) && ['rg', 'sub'].includes(container['kind'] as string) &&
+      hasStrings(container, ['name']) && typeof container['collapsed'] === 'boolean')) &&
+    (image === undefined || (typeof image === 'string' && /^data:image\/(?:png|jpeg|webp|gif);base64,[A-Za-z0-9+/]+={0,2}$/.test(image)));
+}
+
+function parseDiagramState(value: unknown): DiagramStateFile {
+  if (!isRecord(value)) {
+    throw new Error('Invalid diagram state');
+  }
+  const state = value;
+  if (state['version'] !== '1.0') throw new Error('Unsupported version');
+  const collections: Record<string, unknown[]> = {};
+  for (const key of ['nodes', 'edges', 'subscriptions', 'annotations']) {
+    const entries = state[key] ?? [];
+    if (!Array.isArray(entries) || !entries.every(isRecord)) {
+      throw new Error(`Invalid diagram ${key}`);
+    }
+    collections[key] = entries;
+  }
+  const validators: Record<string, (entry: Record<string, unknown>) => boolean> = {
+    nodes: isDiagramNode,
+    edges: isDiagramEdge,
+    subscriptions: entry => hasStrings(entry, ['id', 'subscriptionId', 'name', 'state', 'tenantId']),
+    annotations: isAnnotation,
+  };
+  for (const [key, validate] of Object.entries(validators)) {
+    if (!(collections[key] as Record<string, unknown>[]).every(validate)) {
+      throw new Error(`Invalid diagram ${key}`);
+    }
+  }
+  return { ...state, ...collections } as unknown as DiagramStateFile;
+}
+
 export function buildDiagramState(
   nodes: DiagramNode[],
   edges: DiagramEdge[],
@@ -103,10 +203,7 @@ export class ExportService {
       const reader = new FileReader();
       reader.onload = e => {
         try {
-          const state = JSON.parse(e.target!.result as string) as DiagramStateFile;
-          if (state.version !== '1.0') throw new Error('Unsupported version');
-          state.annotations = state.annotations ?? [];
-          resolve(state);
+          resolve(parseDiagramState(JSON.parse(e.target!.result as string)));
         } catch (err) {
           reject(err);
         }
@@ -141,11 +238,7 @@ export class ExportService {
             try {
               const b64 = new TextDecoder('latin1').decode(data.slice(nullIdx + 1));
               const json = decodeURIComponent(escape(atob(b64)));
-              const state = JSON.parse(json) as DiagramStateFile;
-              if (state.version === '1.0') {
-                state.annotations = state.annotations ?? [];
-                return state;
-              }
+              return parseDiagramState(JSON.parse(json));
             } catch {
               return null;
             }

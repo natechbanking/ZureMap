@@ -1,11 +1,12 @@
 import { CommonModule } from '@angular/common';
-import { Component, EventEmitter, Input, Output } from '@angular/core';
+import { Component, EventEmitter, Input, Output, ChangeDetectionStrategy } from '@angular/core';
 import { FinOpsBreakdownRow, FinOpsPeriodPreset, FinOpsTrendPoint, FinOpsV2Response } from '../../core/models/cost-data.model';
 
 @Component({
   selector: 'app-finops-insights-panel',
   standalone: true,
   imports: [CommonModule],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <aside
       class="absolute top-12 bottom-0 z-[140] w-[390px] border-l border-gray-200 bg-white/98 backdrop-blur shadow-xl flex flex-col"

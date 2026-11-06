@@ -1,4 +1,4 @@
-import { Component, inject } from '@angular/core';
+import { Component, inject, ChangeDetectionStrategy } from '@angular/core';
 
 import { DiagramStore } from '../../core/store/diagram.store';
 import { AzureIconComponent } from '../../shared/components/azure-icon/azure-icon.component';
@@ -8,6 +8,7 @@ import { IconRegistryService } from '../../core/services/icon-registry.service';
   selector: 'app-sidebar',
   standalone: true,
   imports: [AzureIconComponent],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     @if (store.selectedNode(); as node) {
       <aside class="w-80 bg-white border-l border-gray-200 flex flex-col overflow-y-auto">

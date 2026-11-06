@@ -1,10 +1,11 @@
-import { Component, Input, Output, EventEmitter } from '@angular/core';
+import { Component, Input, Output, EventEmitter, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 
 @Component({
   selector: 'app-toolbar',
   standalone: true,
   imports: [CommonModule],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <header class="pointer-events-none absolute top-0 left-0 right-0 z-[180] flex items-start justify-between p-3">
       <div class="pointer-events-auto relative flex items-center gap-2 rounded-lg bg-white/90 px-3 py-2 shadow-sm ring-1 ring-black/5 backdrop-blur">
